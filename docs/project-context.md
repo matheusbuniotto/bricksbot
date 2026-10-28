@@ -1,0 +1,18 @@
+# BricksBot — Project context
+
+Databricks Marketplace App aiming for near 1:1 Grok Bot product shape (Bot roster, durable agents, lakehouse tools, routines). Canonical plan: [databricks-grokbot-marketplace-plan.md](databricks-grokbot-marketplace-plan.md).
+
+## Locked decisions (2026-10-28)
+
+- **Computer**: Defer full persistent desktop. Phase 5 default lean Daytona (free-ish credits); E2B Desktop as alt. No Playwright-in-App as “real” computer.
+- **Codebase**: Slim greenfield Databricks App with a strongly cloned Grok Bot UI — not Rakazo-based.
+- **Models**: OpenAI-compatible primary (OpenRouter-like); Databricks Model Serving as an option.
+- **Marketplace**: Apply for Partner / PartnerOps now; do not block MVP on public Apps listing clarity.
+- **Tenancy**: User-owned Bots; Spaces/folders; team sharing. Egress allowlists for LLM, connectors, and future sandbox.
+
+## Still open
+
+- Pi Durable vs thin harness for the agent loop
+- Who owns PartnerOps apply
+- Websocket / scaling approach for the App
+- Daytona vs E2B when Phase 5 computer starts

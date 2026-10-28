@@ -1,0 +1,29 @@
+bundle:
+  name: bricksbot
+
+resources:
+  apps:
+    app:
+      name: "bricksbot"
+      description: "BricksBot greenfield AppKit shell (Grok-like roster later; no computer)"
+      source_code_path: ./
+
+      # Start the app automatically on deploy.
+      lifecycle:
+        started: true
+
+      # Lakebase is stubbed, not bound. Paste the postgres resource from
+      # resources/lakebase.postgres.yml.stub once a project, branch, and
+      # database exist. Bots/chats/memories/spaces schema is Phase 1.
+
+      # Uncomment to enable on behalf of user API scopes. Available scopes: sql, dashboards.genie, files.files, serving.serving-endpoints
+      # user_api_scopes:
+      #   - sql
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      profile: dev
+      host: https://dbc-562d9321-2592.cloud.databricks.com

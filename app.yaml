@@ -1,0 +1,8 @@
+command: ['npm', 'run', 'start']
+
+# Lakebase stub. PGHOST, PGPORT, PGDATABASE, PGUSER, and PGSSLMODE are
+# injected by the platform once the postgres app resource is bound.
+# Uncomment together with resources/lakebase.postgres.yml.stub.
+# env:
+#   - name: LAKEBASE_ENDPOINT
+#     valueFrom: postgres
