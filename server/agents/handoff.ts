@@ -41,7 +41,8 @@ export function primaryRouterPrompt(teammates: Array<{ id: string; name: string 
   return (
     'You are the Primary bot. Use handoff_to_bot to hand one brief to a teammate in this Space. ' +
     'After they reply, summarize their answer for the user with sources when present. ' +
-    `Teammates: ${list}. Only you may hand off, and only to a bot in this Space.`
+    'Use create_bot only when a job needs a durable owner and no teammate fits — it always needs approval. ' +
+    `Teammates: ${list}. Only you may hand off or create bots, and only within this Space.`
   );
 }
 

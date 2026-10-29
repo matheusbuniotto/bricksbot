@@ -52,12 +52,25 @@ function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
   }
 
   if (name === 'handoff_to_bot') {
-    const target = readStr(args.bot_name) || 'teammate';
+    const target = readStr(args.bot_name) || readStr(args.bot_id) || 'teammate';
     const brief = readStr(args.brief);
     return (
       <div className="approval-details">
         <span className="approval-chip">To {target}</span>
         {brief ? <p className="approval-brief">&ldquo;{brief}&rdquo;</p> : null}
+      </div>
+    );
+  }
+
+  if (name === 'create_bot') {
+    const botName = readStr(args.name) || 'new bot';
+    const job = readStr(args.job);
+    const section = readStr(args.section_name) || readStr(args.space_id);
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">{botName}</span>
+        {section ? <span className="approval-target">{section}</span> : null}
+        {job ? <p className="approval-brief">&ldquo;{job}&rdquo;</p> : null}
       </div>
     );
   }
@@ -107,6 +120,17 @@ export function ApprovalCards({
       }
 
       const key = event.key.toLowerCase();
+      const askEveryTime = firstApproval.toolCall.name === 'create_bot';
+      if (askEveryTime) {
+        if (key === 'a' || key === '1') {
+          event.preventDefault();
+          void onDecide(firstApproval.id, 'once');
+        } else if (key === 'b' || key === '2' || key === 'c' || key === '3' || key === 'escape') {
+          event.preventDefault();
+          void onDecide(firstApproval.id, 'denied');
+        }
+        return;
+      }
       if (key === 'a' || key === '1') {
         event.preventDefault();
         void onDecide(firstApproval.id, 'all_the_time');
@@ -137,19 +161,21 @@ export function ApprovalCards({
           {renderToolDetails(approval.toolCall)}
 
           <div className="approval-actions">
-            <button
-              type="button"
-              className="approval-btn approval-btn-always"
-              disabled={busyId === approval.id}
-              onClick={() => void onDecide(approval.id, 'all_the_time')}
-              title="Approve this execution and future calls for this tool in this chat"
-            >
-              <span className="approval-key">A</span>
-              <div className="approval-btn-labels">
-                <span className="approval-main-label">Always allow</span>
-                <span className="approval-sub-label">All the time (auto-approve upcoming)</span>
-              </div>
-            </button>
+            {approval.toolCall.name !== 'create_bot' ? (
+              <button
+                type="button"
+                className="approval-btn approval-btn-always"
+                disabled={busyId === approval.id}
+                onClick={() => void onDecide(approval.id, 'all_the_time')}
+                title="Approve this execution and future calls for this tool in this chat"
+              >
+                <span className="approval-key">A</span>
+                <div className="approval-btn-labels">
+                  <span className="approval-main-label">Always allow</span>
+                  <span className="approval-sub-label">All the time (auto-approve upcoming)</span>
+                </div>
+              </button>
+            ) : null}
 
             <button
               type="button"
@@ -158,7 +184,7 @@ export function ApprovalCards({
               onClick={() => void onDecide(approval.id, 'once')}
               title="Approve only this execution"
             >
-              <span className="approval-key">B</span>
+              <span className="approval-key">{approval.toolCall.name === 'create_bot' ? 'A' : 'B'}</span>
               <div className="approval-btn-labels">
                 <span className="approval-main-label">Once</span>
                 <span className="approval-sub-label">Just this once (ask again next time)</span>
@@ -172,7 +198,7 @@ export function ApprovalCards({
               onClick={() => void onDecide(approval.id, 'denied')}
               title="Deny tool execution"
             >
-              <span className="approval-key">C</span>
+              <span className="approval-key">{approval.toolCall.name === 'create_bot' ? 'B' : 'C'}</span>
               <div className="approval-btn-labels">
                 <span className="approval-main-label">Not approve</span>
                 <span className="approval-sub-label">Cancel action</span>

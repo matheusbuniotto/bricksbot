@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { parseBotCreatedNotice } from '../../../shared/chat/bot-created-notice';
 import {
   collapseHandoffNotices,
   parseHandoffNotice,
@@ -6,6 +7,7 @@ import {
 } from '../../../shared/chat/handoff-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
 import { toolResultView } from '../lib/user-facing';
+import { BotCreatedStatus } from './BotCreatedStatus';
 import { BotFace } from './BotFace';
 import { ChatMarkdown } from './ChatMarkdown';
 import { HandoffPeek } from './HandoffPeek';
@@ -15,8 +17,19 @@ function isHandoffToolEcho(content: string): boolean {
   return /^Handed off to .+\./i.test(content.trim());
 }
 
+function isCreateBotToolEcho(content: string): boolean {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith('{')) return false;
+  try {
+    const parsed = JSON.parse(trimmed) as { tool?: string; ok?: boolean };
+    return parsed.tool === 'create_bot' && parsed.ok === true;
+  } catch {
+    return false;
+  }
+}
+
 function isRawSystemBlob(content: string): boolean {
-  if (parseHandoffNotice(content)) return false;
+  if (parseHandoffNotice(content) || parseBotCreatedNotice(content)) return false;
   const trimmed = content.trim();
   return trimmed.startsWith('{') || trimmed.startsWith('[');
 }
@@ -57,7 +70,13 @@ export function ChatTranscript({
       collapseHandoffNotices(
         messages.filter((message) => {
           if (message.role !== 'tool') return true;
-          if (isHandoffToolEcho(message.content) || parseHandoffNotice(message.content)) return false;
+          if (
+            isHandoffToolEcho(message.content) ||
+            isCreateBotToolEcho(message.content) ||
+            parseHandoffNotice(message.content)
+          ) {
+            return false;
+          }
           return true;
         }),
         (message) => message.role === 'system',
@@ -90,6 +109,12 @@ export function ChatTranscript({
             const handoff = parseHandoffNotice(message.content);
             if (handoff) {
               return <HandoffStatus key={message.id} notice={handoff} onOpen={setPeek} />;
+            }
+            const created = parseBotCreatedNotice(message.content);
+            if (created) {
+              return (
+                <BotCreatedStatus key={message.id} notice={created} onOpenBot={onOpenBot} />
+              );
             }
             if (isRawSystemBlob(message.content)) return null;
           }

@@ -8,12 +8,15 @@ import {
 describe('capability-catalog', () => {
   test('Primary includes handoff_to_bot and a teammate omits it', () => {
     const primary = buildCapabilityCatalog({
-      toolNames: ['sql_query', 'handoff_to_bot', 'remember'],
+      toolNames: ['sql_query', 'handoff_to_bot', 'create_bot', 'remember'],
       isPrimary: true,
       teammates: [{ id: 'b2', name: 'Analyst' }],
     });
     expect(primary.tools.map((t) => t.name)).toContain('handoff_to_bot');
+    expect(primary.tools.map((t) => t.name)).toContain('create_bot');
     expect(primary.teammates).toEqual([{ id: 'b2', name: 'Analyst' }]);
+    const primaryPrompt = formatCapabilityPrompt(primary);
+    expect(primaryPrompt).toContain('create_bot');
 
     const teammate = buildCapabilityCatalog({
       toolNames: ['sql_query', 'remember'],
@@ -21,7 +24,9 @@ describe('capability-catalog', () => {
       teammates: [{ id: 'b2', name: 'Analyst' }],
     });
     expect(teammate.tools.map((t) => t.name)).not.toContain('handoff_to_bot');
+    expect(teammate.tools.map((t) => t.name)).not.toContain('create_bot');
     expect(teammate.teammates).toEqual([]);
+    expect(formatCapabilityPrompt(teammate)).toContain('cannot create bots');
   });
 
   test('soft limits reflect web_fetch registration and no computer', () => {

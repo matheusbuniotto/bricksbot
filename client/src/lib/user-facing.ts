@@ -1,3 +1,4 @@
+import { parseBotCreatedNotice } from '../../../shared/chat/bot-created-notice';
 import { parseHandoffNotice } from '../../../shared/chat/handoff-notice';
 import type { Message } from '../../../shared/chat/types';
 import { toolLabel } from '../../../shared/agents/tool-labels';
@@ -15,6 +16,10 @@ export function lastUserFacingPreview(messages: Message[]): string {
     if (message.role === 'tool') continue;
 
     if (message.role === 'system') {
+      const created = parseBotCreatedNotice(message.content);
+      if (created) {
+        return `Created ${created.name}`;
+      }
       const handoff = parseHandoffNotice(message.content);
       if (handoff) {
         if (handoff.direction === 'thread' && handoff.messageCount && handoff.messageCount > 0) {

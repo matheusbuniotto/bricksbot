@@ -7,10 +7,10 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 ## Intent
 
 - Ship a workspace-installable App that chats against OpenAI-compatible LLMs (OpenRouter) or Databricks Serving.
-- Tools are lakehouse-native (`sql_query`, `lakehouse_catalog`, `volume_read`, `web_fetch`, `handoff_to_bot`) with **3-way approvals**, plus Pi skill/memory meta tools (`activate_skill`, `read_skill_resource`, `list_memories`, `remember`, `forget`, `save_skill`).
+- Tools are lakehouse-native (`sql_query`, `lakehouse_catalog`, `volume_read`, `web_fetch`, `handoff_to_bot`, `create_bot`) with **3-way approvals**, plus Pi skill/memory meta tools (`activate_skill`, `read_skill_resource`, `list_memories`, `remember`, `forget`, `save_skill`).
 - Durable state lives in **Lakebase** schema `bricksbot` (memory store for local/tests).
 - Capability discovery is Pi-shaped: `buildCapabilityCatalog` / `formatCapabilityPrompt` in `shared/agents/capability-catalog.ts` (register new tools in the `ChatService` constructor, not ad-hoc prompt `if`s).
-- Default meta tools (`DEFAULT_META_TOOL_NAMES` in `shared/agents/meta-tools.ts`) are on for **every** bot; only `handoff_to_bot` is Primary-only. Meta tools auto-run (no Ask-first).
+- Default meta tools (`DEFAULT_META_TOOL_NAMES` in `shared/agents/meta-tools.ts`) are on for **every** bot; `handoff_to_bot` and `create_bot` are Primary-only. Meta tools auto-run (no Ask-first). `create_bot` is always Ask-first (never “Always allow”).
 
 ## Layout
 

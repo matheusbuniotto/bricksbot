@@ -694,4 +694,72 @@ describe('ChatService', () => {
     const messages = await store.listMessages(chat.id);
     expect(messages.some((m) => m.role === 'tool' && m.content.includes('samples'))).toBe(true);
   });
+
+  test('Primary create_bot asks every time and lands a bot + greeting + chip', async () => {
+    const store = new MemoryChatStore();
+    const memory = new MemoryMemorySkillStore();
+    const primary = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(primary.id);
+    const client = new ScriptedClient([
+      {
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_create',
+            name: 'create_bot',
+            arguments: { name: 'Probe', job: 'Validate create_bot flow' },
+          },
+        ],
+      },
+      { content: 'Created Probe for you.', toolCalls: [] },
+    ]);
+    const service = new ChatService({ store, client, memory });
+
+    const pending = await service.sendUserMessage(chat.id, 'create a probe bot');
+    expect(client.requests[0]?.tools?.some((tool) => tool.name === 'create_bot')).toBe(true);
+    expect(pending.pendingApprovals).toHaveLength(1);
+    expect(pending.pendingApprovals[0]?.toolCall.name).toBe('create_bot');
+
+    // “Always allow” is coerced to once — create_bot never auto-approves.
+    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'all_the_time');
+    expect(continued.assistant?.content).toBe('Created Probe for you.');
+    expect(await service.getApprovals().isAutoApproved(chat.id, 'create_bot')).toBe(false);
+
+    const roster = await store.listBots({ ownerId: primary.ownerId });
+    const probe = roster.find((bot) => bot.name === 'Probe');
+    expect(probe).toBeTruthy();
+    expect(probe?.spaceId).toBe(primary.spaceId);
+
+    const probeChat = await store.getOrCreateChatForBot(probe!.id);
+    const probeMessages = await store.listMessages(probeChat.id);
+    expect(probeMessages[0]?.content).toContain("I'm Probe");
+
+    const memories = await memory.listMemories(probe!.id);
+    expect(memories.some((entry) => entry.key === 'job')).toBe(true);
+
+    const source = await store.listMessages(chat.id);
+    const notice = source.find(
+      (message) => message.role === 'system' && message.content.includes('bot_created'),
+    );
+    expect(JSON.parse(notice!.content)).toEqual(
+      expect.objectContaining({ kind: 'bot_created', name: 'Probe', botId: probe!.id }),
+    );
+  });
+
+  test('teammate does not receive create_bot in its tool list', async () => {
+    const store = new MemoryChatStore();
+    const primary = await store.ensurePrimaryBot();
+    const analyst = await store.createBot({
+      name: 'Analyst',
+      ownerId: primary.ownerId,
+      spaceId: primary.spaceId,
+    });
+    const chat = await store.getOrCreateChatForBot(analyst.id);
+    const client = new ScriptedClient([{ content: 'no create tool', toolCalls: [] }]);
+    const service = new ChatService({ store, client });
+
+    await service.sendUserMessage(chat.id, 'can you create a bot?');
+    expect(client.requests[0]?.tools?.some((tool) => tool.name === 'create_bot')).toBe(false);
+    expect(client.requests[0]?.messages[0]?.content).toContain('cannot create bots');
+  });
 });

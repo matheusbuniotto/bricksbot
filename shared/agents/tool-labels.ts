@@ -6,6 +6,7 @@ const TOOL_LABELS: Record<string, string> = {
   volume_read: 'Volume read',
   web_fetch: 'Web fetch',
   handoff_to_bot: 'Message another bot',
+  create_bot: 'Create a bot',
   remember: 'Save memory',
   forget: 'Forget memory',
   save_skill: 'Save skill',
@@ -34,6 +35,8 @@ export function approvalTitle(toolName: string): string {
       return 'Allow this bot to fetch a web page?';
     case 'handoff_to_bot':
       return 'Allow this bot to message another bot?';
+    case 'create_bot':
+      return 'Allow Primary to create a new bot?';
     case 'remember':
       return 'Allow this bot to save a memory?';
     case 'forget':

@@ -119,14 +119,27 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
       ' When a listed skill matches the task, call activate_skill before following its steps; use read_skill_resource for bundled paths; use list_memories when a key is outside the prompt window.';
   }
 
+  const canCreateBot = catalog.tools.some((tool) => tool.name === 'create_bot');
+  const canHandoff = catalog.tools.some((tool) => tool.name === 'handoff_to_bot');
+
   if (catalog.teammates.length > 0) {
     const list = catalog.teammates.map((bot) => `${bot.name} (${bot.id})`).join(', ');
     blocks.push(
       `Teammates (Primary handoff only): ${list}. Use handoff_to_bot for one brief, then summarize the reply.`,
     );
-  } else if (catalog.tools.some((tool) => tool.name === 'handoff_to_bot')) {
+  } else if (canHandoff) {
     blocks.push(
       'You are the Primary bot. Use handoff_to_bot to hand one brief to a teammate when the roster lists any. Only you may hand off.',
+    );
+  }
+
+  if (canCreateBot) {
+    blocks.push(
+      'You can create focused teammates with create_bot when a job needs a long-lived owner and no teammate fits. Prefer handoff_to_bot otherwise. Creating a bot always needs user approval — ask before creating several.',
+    );
+  } else if (!canHandoff) {
+    blocks.push(
+      'You cannot create bots. Ask the user to have Primary create a focused teammate, or describe the role so they can.',
     );
   }
 

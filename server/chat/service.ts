@@ -1,3 +1,4 @@
+import { parseBotCreatedNotice } from '../../shared/chat/bot-created-notice.js';
 import {
   handoffBriefUserLine,
   parseHandoffNotice,
@@ -28,6 +29,10 @@ import {
   type HandoffTurnContext,
 } from '../agents/handoff.js';
 import { applyCompactionToHistory, runCompaction, shouldCompact } from '../durable/compaction.js';
+import {
+  CREATE_BOT_TOOL_NAME,
+  createCreateBotTool,
+} from '../agents/tools/create-bot.js';
 import { createLakehouseCatalogTool } from '../agents/tools/lakehouse-catalog.js';
 import { createMemorySkillTools } from '../agents/tools/memory-tools.js';
 import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
@@ -37,6 +42,11 @@ import { createWebFetchTool } from '../agents/tools/web-fetch.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { ApprovalStore } from './approvals.js';
+
+/** Roster mutations always ask — never “Always allow” / nested auto-approve. */
+function requiresAlwaysAsk(toolName: string): boolean {
+  return toolName === CREATE_BOT_TOOL_NAME;
+}
 
 export interface ChatServiceOptions {
   store: ChatStore;
@@ -92,8 +102,11 @@ function toLlmHistory(history: Message[]): LlmMessage[] {
       continue;
     }
 
-    // Handoff chips are UI-only; the tool result already carries the reply to the model.
-    if (message.role === 'system' && parseHandoffNotice(message.content)) {
+    // Handoff / bot-created chips are UI-only; tool results already carry facts to the model.
+    if (
+      message.role === 'system' &&
+      (parseHandoffNotice(message.content) || parseBotCreatedNotice(message.content))
+    ) {
       continue;
     }
 
@@ -144,6 +157,7 @@ export class ChatService {
       ),
     );
     tools.push(createHandoffTool(options.store));
+    tools.push(createCreateBotTool(options.store, this.memory));
     tools.push(...createMemorySkillTools(this.memory));
     tools.push(...createPiSkillTools(this.memory));
     this.tools = tools;
@@ -181,8 +195,14 @@ export class ChatService {
   }
 
   async decideApproval(approvalId: string, decision: ApprovalDecision): Promise<SendMessageResult> {
-    const isDenial = decision === 'denied' || decision === 'not_approved';
-    const approval = await this.approvals.decide(approvalId, decision);
+    const pending = await this.approvals.get(approvalId);
+    // create_bot never persists “all the time” — coerce to once.
+    const effectiveDecision: ApprovalDecision =
+      decision === 'all_the_time' && pending && requiresAlwaysAsk(pending.toolCall.name)
+        ? 'once'
+        : decision;
+    const isDenial = effectiveDecision === 'denied' || effectiveDecision === 'not_approved';
+    const approval = await this.approvals.decide(approvalId, effectiveDecision);
     const chatId = approval.chatId;
 
     if (isDenial) {
@@ -290,11 +310,12 @@ export class ChatService {
             refusals.push({ toolCall, reason: refusal });
             continue;
           }
-          // Default meta tools are local durable state — never Ask-first, every bot.
+          // create_bot always Ask-first. Default meta tools never Ask-first.
           if (
-            opts.autoApproveAll ||
-            isDefaultMetaTool(toolCall.name) ||
-            (await this.approvals.isAutoApproved(chatId, toolCall.name))
+            !requiresAlwaysAsk(toolCall.name) &&
+            (opts.autoApproveAll ||
+              isDefaultMetaTool(toolCall.name) ||
+              (await this.approvals.isAutoApproved(chatId, toolCall.name)))
           ) {
             toAutoExecute.push(toolCall);
           } else {
@@ -369,11 +390,12 @@ export class ChatService {
 
   /**
    * Every bot gets lakehouse tools + default meta tools.
-   * Only `handoff_to_bot` is Primary-gated.
+   * `handoff_to_bot` and `create_bot` are Primary-gated.
    */
   private toolsFor(bot: Bot | null): ToolDefinition[] {
+    const primaryOnly = new Set([HANDOFF_TOOL_NAME, CREATE_BOT_TOOL_NAME]);
     return this.tools
-      .filter((tool) => tool.definition.name !== HANDOFF_TOOL_NAME || Boolean(bot?.isPrimary))
+      .filter((tool) => !primaryOnly.has(tool.definition.name) || Boolean(bot?.isPrimary))
       .map((tool) => tool.definition);
   }
 

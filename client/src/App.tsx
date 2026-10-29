@@ -264,6 +264,8 @@ export default function App() {
         setAutoApprovedTools(result.autoApprovedTools);
       }
       if (selectedBotId) await loadChat(selectedBotId);
+      const { nextBots } = await refreshRoster();
+      hydratePreviews(nextBots);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval failed');
     } finally {
