@@ -106,12 +106,12 @@ export function HandoffPeek({
       >
         <div className="handoff-peek-header">
           <div className="handoff-pair-pill">
-            <BotFace color={senderAccent} size={22} />
+            <BotFace color={senderAccent} size={22} botId={sender?.id} />
             <span>{sender?.name ?? (notice.senderName || 'Primary')}</span>
             <span className="handoff-pair-arrow" aria-hidden="true">
               ↔
             </span>
-            <BotFace color={targetAccent} size={22} />
+            <BotFace color={targetAccent} size={22} botId={target?.id} />
             <span>{target?.name ?? notice.targetName}</span>
           </div>
           <button type="button" className="handoff-peek-close" onClick={onClose} aria-label="Close">

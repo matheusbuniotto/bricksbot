@@ -25,6 +25,7 @@ export function ChatTranscript({
   messages,
   botName,
   accent,
+  botId,
   thinking,
   bots = [],
   onOpenBot,
@@ -32,6 +33,7 @@ export function ChatTranscript({
   messages: Message[];
   botName: string | null;
   accent: string;
+  botId?: string;
   thinking?: boolean;
   bots?: Bot[];
   onOpenBot?: (botId: string) => void;
@@ -70,7 +72,7 @@ export function ChatTranscript({
   if (messages.length === 0) {
     return (
       <div className="transcript transcript-empty">
-        {botName ? <BotFace color={accent} size={96} /> : null}
+        {botName ? <BotFace color={accent} size={96} botId={botId} /> : null}
         <p className="transcript-empty-name">{botName ?? 'No bot selected'}</p>
       </div>
     );

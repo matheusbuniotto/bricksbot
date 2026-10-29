@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Bot, Chat, Message, Space } from '../../shared/chat/types';
 import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/types';
 import { ApprovalCards } from './components/ApprovalCards';
-import { BotFace, botColor } from './components/BotFace';
+import { BotFace, botColor, markBotFresh, registerBotLooks } from './components/BotFace';
 import { BotRoster } from './components/BotRoster';
 import { ChatComposer } from './components/ChatComposer';
 import { ChatTranscript } from './components/ChatTranscript';
@@ -27,6 +27,7 @@ import { lastUserFacingPreview, toolLabel } from './lib/user-facing';
 export default function App() {
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
+  registerBotLooks(bots);
   const [archivedBots, setArchivedBots] = useState<Bot[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
@@ -132,10 +133,11 @@ export default function App() {
     }
   }
 
-  async function handleCreateBot(name: string, spaceId: string) {
+  async function handleCreateBot(name: string, spaceId: string, avatarLabel?: string) {
     setError(null);
     try {
-      const bot = await createBot({ name, spaceId });
+      const bot = await createBot({ name, spaceId, avatarLabel });
+      markBotFresh(bot.id);
       await refreshRoster();
       setSelectedBotId(bot.id);
       setPreviews((prev) => ({ ...prev, [bot.id]: '' }));
@@ -152,6 +154,16 @@ export default function App() {
       await refreshRoster();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to rename bot');
+    }
+  }
+
+  async function handleChangeLook(botId: string, avatarLabel: string) {
+    setError(null);
+    try {
+      await updateBot(botId, { avatarLabel });
+      await refreshRoster();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to change look');
     }
   }
 
@@ -287,6 +299,7 @@ export default function App() {
         onCreateBot={handleCreateBot}
         onCreateSpace={handleCreateSpace}
         onRenameBot={handleRenameBot}
+        onChangeLook={handleChangeLook}
         onMoveBot={handleMoveBot}
         onArchiveBot={handleArchiveBot}
         onUnarchiveBot={handleUnarchiveBot}
@@ -297,7 +310,7 @@ export default function App() {
         {selectedBot ? (
           <div className="chat-heading">
             <div className="chat-pill">
-              <BotFace color={accent} size={26} />
+              <BotFace color={accent} size={26} botId={selectedBot.id} thinking={selectedBot.presence === 'thinking'} />
               <span>{selectedBot.name}</span>
             </div>
 
@@ -334,6 +347,7 @@ export default function App() {
               messages={visibleMessages}
               botName={selectedBot?.name ?? null}
               accent={accent}
+              botId={selectedBot?.id}
               bots={rosterBots}
               onOpenBot={(botId) => void handleSelectBot(botId)}
             />

@@ -33,7 +33,7 @@ export function HandoffStatus({
         title={canPeek ? `View chat with ${notice.targetName}` : undefined}
       >
         <span className="handoff-status-label">{label}</span>
-        <BotFace color={accent} size={18} />
+        <BotFace color={accent} size={18} botId={notice.targetBotId} />
         <span className="handoff-status-name">{notice.targetName}</span>
       </button>
     </div>

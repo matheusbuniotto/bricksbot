@@ -11,12 +11,13 @@ import {
   Search,
   Sun,
   Trash2,
+  Palette,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Bot, Space } from '../../../shared/chat/types';
 import type { Theme } from '../lib/theme';
-import { BotFace, botColor } from './BotFace';
+import { BOT_COLORS, BOT_SHAPES, BotFace, botColor, botLook, encodeLook } from './BotFace';
 
 function oneLine(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
@@ -26,6 +27,55 @@ type MenuState =
   | { kind: 'bot'; botId: string; x: number; y: number }
   | { kind: 'move'; botId: string; x: number; y: number }
   | null;
+
+function LookPicker({
+  shape,
+  color,
+  onShape,
+  onColor,
+}: {
+  shape: number;
+  color: number;
+  onShape: (index: number) => void;
+  onColor: (index: number) => void;
+}) {
+  return (
+    <>
+      <div className="bot-creator-preview">
+        <BotFace key={`${shape}-${color}`} color={BOT_COLORS[color].value} size={120} shape={shape} entering />
+      </div>
+      <div className="bot-shape-grid" role="radiogroup" aria-label="Bot shape">
+        {BOT_SHAPES.map((spec, index) => (
+          <button
+            key={spec.id}
+            type="button"
+            role="radio"
+            aria-checked={index === shape}
+            aria-label={spec.id}
+            className="bot-pick"
+            onClick={() => onShape(index)}
+          >
+            <BotFace color={BOT_COLORS[color].value} size={44} shape={index} />
+          </button>
+        ))}
+      </div>
+      <div className="bot-color-grid" role="radiogroup" aria-label="Bot color">
+        {BOT_COLORS.map((c, index) => (
+          <button
+            key={c.id}
+            type="button"
+            role="radio"
+            aria-checked={index === color}
+            aria-label={c.label}
+            className="bot-swatch"
+            style={{ background: c.value }}
+            onClick={() => onColor(index)}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
 
 type DragPayload = { botId: string };
 
@@ -54,6 +104,7 @@ export function BotRoster({
   onCreateBot,
   onCreateSpace,
   onRenameBot,
+  onChangeLook,
   onMoveBot,
   onArchiveBot,
   onUnarchiveBot,
@@ -69,9 +120,10 @@ export function BotRoster({
   onThemeChange: (theme: Theme) => void;
   onCreateOpenChange: (open: boolean) => void;
   onSelectBot: (botId: string) => void | Promise<void>;
-  onCreateBot: (name: string, spaceId: string) => void | Promise<void>;
+  onCreateBot: (name: string, spaceId: string, avatarLabel?: string) => void | Promise<void>;
   onCreateSpace: (name: string) => void | Promise<string | void>;
   onRenameBot: (botId: string, name: string) => void | Promise<void>;
+  onChangeLook: (botId: string, avatarLabel: string) => void | Promise<void>;
   onMoveBot: (botId: string, spaceId: string | null, index: number) => void | Promise<void>;
   onArchiveBot: (botId: string) => void | Promise<void>;
   onUnarchiveBot: (botId: string) => void | Promise<void>;
@@ -83,6 +135,9 @@ export function BotRoster({
   const [namingSection, setNamingSection] = useState(false);
   const [sectionName, setSectionName] = useState('');
   const [botName, setBotName] = useState('');
+  const [editLook, setEditLook] = useState<{ botId: string; shape: number; color: number } | null>(null);
+  const [lookShape, setLookShape] = useState(1);
+  const [lookColor, setLookColor] = useState(6);
   const [botSpaceId, setBotSpaceId] = useState<string>('');
   const [menu, setMenu] = useState<MenuState>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -268,7 +323,7 @@ export function BotRoster({
           onClick={() => void onSelectBot(primary.id)}
           onContextMenu={(event) => openBotMenu(primary.id, event)}
         >
-          <BotFace color={botColor(primary.id, true)} size={68} />
+          <BotFace color={botColor(primary.id, true)} size={68} botId={primary.id} thinking={primary.presence === 'thinking' || primary.presence === 'working'} />
           <span>{primary.name}</span>
         </button>
       ) : null}
@@ -394,7 +449,7 @@ export function BotRoster({
                             void commitRename();
                           }}
                         >
-                          <BotFace color={botColor(bot.id, false)} size={44} />
+                          <BotFace color={botColor(bot.id, false)} size={44} botId={bot.id} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
                           <input
                             ref={renameRef}
                             value={renameValue}
@@ -417,7 +472,7 @@ export function BotRoster({
                           onDoubleClick={() => startRename(bot)}
                           onContextMenu={(event) => openBotMenu(bot.id, event)}
                         >
-                          <BotFace color={botColor(bot.id, false)} size={44} />
+                          <BotFace color={botColor(bot.id, false)} size={44} botId={bot.id} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
                           <span className="roster-bot-copy">
                             <span className="roster-bot-name">{bot.name}</span>
                             <span className="roster-bot-preview">{preview || 'No messages'}</span>
@@ -469,7 +524,7 @@ export function BotRoster({
                       onClick={() => void onSelectBot(bot.id)}
                       onContextMenu={(event) => openBotMenu(bot.id, event)}
                     >
-                      <BotFace color={botColor(bot.id, false)} size={44} />
+                      <BotFace color={botColor(bot.id, false)} size={44} botId={bot.id} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
                       <span className="roster-bot-copy">
                         <span className="roster-bot-name">{bot.name}</span>
                         <span className="roster-bot-preview">{preview || 'Archived'}</span>
@@ -542,6 +597,17 @@ export function BotRoster({
               </button>
               <button type="button" role="menuitem" onClick={() => startRename(menuBot)}>
                 <Pencil size={16} /> Rename Bot
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const look = botLook(menuBot.id, menuBot.isPrimary);
+                  setEditLook({ botId: menuBot.id, shape: look.shape, color: look.color });
+                  setMenu(null);
+                }}
+              >
+                <Palette size={16} /> Change look
               </button>
               <div className="roster-menu-sep" />
               <button
@@ -627,11 +693,12 @@ export function BotRoster({
               const name = botName.trim();
               const spaceId = botSpaceId || defaultSpaceId;
               if (!name || !spaceId) return;
-              void onCreateBot(name, spaceId);
+              void onCreateBot(name, spaceId, encodeLook({ shape: lookShape, color: lookColor }));
               onCreateOpenChange(false);
             }}
           >
             <h2 id="create-bot-title">Create new Bot</h2>
+            <LookPicker shape={lookShape} color={lookColor} onShape={setLookShape} onColor={setLookColor} />
             <input
               autoFocus
               value={botName}
@@ -659,6 +726,35 @@ export function BotRoster({
               </button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {editLook ? (
+        <div className="dialog-backdrop" role="presentation" onClick={() => setEditLook(null)}>
+          <div className="dialog" role="dialog" aria-label="Change look" onClick={(event) => event.stopPropagation()}>
+            <h2>Change look</h2>
+            <LookPicker
+              shape={editLook.shape}
+              color={editLook.color}
+              onShape={(shape) => setEditLook({ ...editLook, shape })}
+              onColor={(color) => setEditLook({ ...editLook, color })}
+            />
+            <div className="dialog-actions">
+              <button type="button" onClick={() => setEditLook(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="dialog-primary"
+                onClick={() => {
+                  void onChangeLook(editLook.botId, encodeLook(editLook));
+                  setEditLook(null);
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 
