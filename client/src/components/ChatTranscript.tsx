@@ -7,6 +7,7 @@ import {
 import type { Bot, Message } from '../../../shared/chat/types';
 import { toolResultView } from '../lib/user-facing';
 import { BotFace } from './BotFace';
+import { ChatMarkdown } from './ChatMarkdown';
 import { HandoffPeek } from './HandoffPeek';
 import { HandoffStatus } from './HandoffStatus';
 
@@ -110,9 +111,9 @@ export function ChatTranscript({
                       </pre>
                     </details>
                   ) : (
-                    <pre className="tool-output tool-output-plain">
-                      <code>{view.detail}</code>
-                    </pre>
+                    <div className="tool-output tool-output-plain">
+                      <ChatMarkdown content={view.detail} />
+                    </div>
                   )}
                 </details>
               </div>
@@ -125,15 +126,15 @@ export function ChatTranscript({
               ? 'message message-user message-enter'
               : 'message message-enter';
           const bodyClass = isSystem
-            ? 'message-body message-body-system'
+            ? 'message-body message-body-system message-body-md'
             : isUser
               ? 'message-body message-body-user'
-              : 'message-body';
+              : 'message-body message-body-md';
 
           return (
             <div key={message.id} className={className}>
               <div className={bodyClass} style={isUser ? { background: accent } : undefined}>
-                {message.content}
+                {isUser ? message.content : <ChatMarkdown content={message.content} />}
               </div>
             </div>
           );

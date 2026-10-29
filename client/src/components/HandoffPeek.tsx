@@ -7,6 +7,7 @@ import {
 } from '../../../shared/chat/handoff-notice';
 import { fetchBotChat } from '../lib/chat-api';
 import { BotFace, botColor } from './BotFace';
+import { ChatMarkdown } from './ChatMarkdown';
 
 function previewBody(message: Message): string {
   if (message.role === 'tool') {
@@ -140,7 +141,9 @@ export function HandoffPeek({
                 </div>
               ) : null}
               <div className="handoff-peek-msg">
-                <div className="handoff-peek-bubble">{notice.replyPreview}</div>
+                <div className="handoff-peek-bubble handoff-peek-bubble-md">
+                  <ChatMarkdown content={notice.replyPreview ?? ''} />
+                </div>
               </div>
               {peekBotId ? (
                 <p className="handoff-peek-muted">Live thread unavailable (bot may have been removed).</p>
@@ -163,10 +166,14 @@ export function HandoffPeek({
                       className={isUser ? 'handoff-peek-msg handoff-peek-msg-user' : 'handoff-peek-msg'}
                     >
                       <div
-                        className={isUser ? 'handoff-peek-bubble handoff-peek-bubble-user' : 'handoff-peek-bubble'}
+                        className={
+                          isUser
+                            ? 'handoff-peek-bubble handoff-peek-bubble-user'
+                            : 'handoff-peek-bubble handoff-peek-bubble-md'
+                        }
                         style={isUser ? { background: targetAccent } : undefined}
                       >
-                        {body}
+                        {isUser ? body : <ChatMarkdown content={body} />}
                       </div>
                     </div>
                   );
