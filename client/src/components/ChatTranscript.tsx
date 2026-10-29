@@ -5,12 +5,19 @@ import {
   type HandoffNotice,
 } from '../../../shared/chat/handoff-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
+import { toolResultView } from '../lib/user-facing';
 import { BotFace } from './BotFace';
 import { HandoffPeek } from './HandoffPeek';
 import { HandoffStatus } from './HandoffStatus';
 
 function isHandoffToolEcho(content: string): boolean {
   return /^Handed off to .+\./i.test(content.trim());
+}
+
+function isRawSystemBlob(content: string): boolean {
+  if (parseHandoffNotice(content)) return false;
+  const trimmed = content.trim();
+  return trimmed.startsWith('{') || trimmed.startsWith('[');
 }
 
 export function ChatTranscript({
@@ -30,6 +37,17 @@ export function ChatTranscript({
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [peek, setPeek] = useState<HandoffNotice | null>(null);
+
+  const toolNameByCallId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const message of messages) {
+      if (message.role !== 'assistant' || !message.toolCalls?.length) continue;
+      for (const call of message.toolCalls) {
+        map.set(call.id, call.name);
+      }
+    }
+    return map;
+  }, [messages]);
 
   const visible = useMemo(
     () =>
@@ -70,31 +88,32 @@ export function ChatTranscript({
             if (handoff) {
               return <HandoffStatus key={message.id} notice={handoff} onOpen={setPeek} />;
             }
+            if (isRawSystemBlob(message.content)) return null;
           }
 
           if (isTool) {
-            let isError = false;
-            let toolName = '';
-            try {
-              const parsed = JSON.parse(message.content) as { error?: string; tool?: string };
-              if (parsed.error) isError = true;
-              if (parsed.tool) toolName = parsed.tool;
-            } catch {
-              // Plain output
-            }
-
+            const toolName = message.toolCallId
+              ? (toolNameByCallId.get(message.toolCallId) ?? '')
+              : '';
+            const view = toolResultView(message.content, toolName);
             return (
               <div key={message.id} className="message message-tool message-enter">
                 <details className="tool-accordion">
                   <summary className="tool-summary">
-                    <span className="tool-summary-text">
-                      {isError ? 'Action denied / error' : 'Tool execution'}
-                    </span>
-                    {toolName ? <code className="tool-summary-name">{toolName}</code> : null}
+                    <span className="tool-summary-text">{view.summary}</span>
                   </summary>
-                  <pre className="tool-output">
-                    <code>{message.content}</code>
-                  </pre>
+                  {view.technical ? (
+                    <details className="tool-tech">
+                      <summary className="tool-tech-summary">Technical details</summary>
+                      <pre className="tool-output">
+                        <code>{view.detail}</code>
+                      </pre>
+                    </details>
+                  ) : (
+                    <pre className="tool-output tool-output-plain">
+                      <code>{view.detail}</code>
+                    </pre>
+                  )}
                 </details>
               </div>
             );

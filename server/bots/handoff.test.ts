@@ -58,6 +58,7 @@ describe('planHandoff', () => {
         targetName: 'Analyst',
         brief: 'look at revenue',
         senderName: 'Primary',
+        threadBotId: analyst.id,
       }),
     );
   });

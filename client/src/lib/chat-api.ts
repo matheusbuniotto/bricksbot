@@ -47,9 +47,14 @@ export async function addSpaceMember(
   return data.member;
 }
 
-export async function fetchBots(spaceId?: string | null): Promise<Bot[]> {
-  const query =
-    spaceId === undefined ? '' : `?spaceId=${encodeURIComponent(spaceId ?? 'null')}`;
+export async function fetchBots(
+  spaceId?: string | null,
+  archived: 'active' | 'archived' | 'all' = 'active',
+): Promise<Bot[]> {
+  const params = new URLSearchParams();
+  if (spaceId !== undefined) params.set('spaceId', spaceId ?? 'null');
+  if (archived !== 'active') params.set('archived', archived);
+  const query = params.size ? `?${params.toString()}` : '';
   const data = await readJson<{ bots: Bot[] }>(await fetch(`/api/bots${query}`));
   return data.bots;
 }
@@ -67,6 +72,56 @@ export async function createBot(input: {
     }),
   );
   return data.bot;
+}
+
+export async function updateBot(
+  botId: string,
+  input: { name?: string; spaceId?: string | null; avatarLabel?: string },
+): Promise<Bot> {
+  const data = await readJson<{ bot: Bot }>(
+    await fetch(`/api/bots/${botId}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  );
+  return data.bot;
+}
+
+export async function moveBot(
+  botId: string,
+  input: { spaceId: string | null; index: number },
+): Promise<Bot> {
+  const data = await readJson<{ bot: Bot }>(
+    await fetch(`/api/bots/${botId}/move`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  );
+  return data.bot;
+}
+
+export async function archiveBot(botId: string): Promise<Bot> {
+  const data = await readJson<{ bot: Bot }>(
+    await fetch(`/api/bots/${botId}/archive`, { method: 'POST' }),
+  );
+  return data.bot;
+}
+
+export async function unarchiveBot(botId: string): Promise<Bot> {
+  const data = await readJson<{ bot: Bot }>(
+    await fetch(`/api/bots/${botId}/unarchive`, { method: 'POST' }),
+  );
+  return data.bot;
+}
+
+export async function deleteBot(botId: string): Promise<void> {
+  const res = await fetch(`/api/bots/${botId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Request failed (${res.status})`);
+  }
 }
 
 export async function fetchBotChat(botId: string): Promise<{

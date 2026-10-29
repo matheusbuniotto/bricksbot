@@ -1,4 +1,4 @@
-import { serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
+import { handoffBriefUserLine, serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
 import type { Bot, ChatStore } from '../../shared/chat/types.js';
 import type { ToolDefinition } from '../../shared/llm/types.js';
 
@@ -134,7 +134,7 @@ export async function deliverHandoff(
   const { target, brief } = planned.plan;
   const from = planned.plan.sender;
   const targetChat = await store.getOrCreateChatForBot(target.id);
-  await store.addMessage(targetChat.id, 'user', `From ${from.name}: ${brief}`);
+  await store.addMessage(targetChat.id, 'user', handoffBriefUserLine(from.name, brief));
 
   const notice = serializeHandoffNotice({
     kind: 'handoff',
@@ -145,6 +145,7 @@ export async function deliverHandoff(
     senderBotId: from.id,
     senderName: from.name,
     brief,
+    threadBotId: target.id,
   });
   await store.addMessage(sourceChatId, 'system', notice);
   // Short result for the model; UI renders the structured system notice.

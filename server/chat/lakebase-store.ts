@@ -5,15 +5,21 @@ import type {
   ChatStore,
   CreateBotInput,
   CreateSpaceInput,
+  ListBotsOptions,
   Message,
   MessageRole,
+  MoveBotInput,
   Presence,
   Space,
   SpaceMember,
   SpaceRole,
+  UpdateBotInput,
 } from '../../shared/chat/types.js';
 import type { ToolCall } from '../../shared/llm/types.js';
 import { CHAT_SCHEMA_STATEMENTS } from './schema.js';
+
+const BOT_COLUMNS =
+  'id, name, avatar_label, presence, space_id, is_primary, owner_id, sort_order, archived_at, created_at';
 
 export type LakebaseQuery = (
   sql: string,
@@ -55,6 +61,8 @@ function mapBot(row: Record<string, unknown>): Bot {
     spaceId: row.space_id ? asString(row.space_id) : null,
     isPrimary: asBool(row.is_primary),
     ownerId: asString(row.owner_id) || 'workspace-user',
+    sortOrder: Number(row.sort_order ?? 0),
+    archivedAt: row.archived_at ? asString(row.archived_at) : null,
     createdAt: asString(row.created_at),
   };
 }
@@ -129,7 +137,7 @@ export class LakebaseChatStore implements ChatStore {
     }
 
     const primaries = await this.query(
-      `SELECT id, name, avatar_label, presence, space_id, is_primary, owner_id, created_at
+      `SELECT ${BOT_COLUMNS}
        FROM bricksbot.bots
        WHERE owner_id = $1 AND is_primary = TRUE
        ORDER BY created_at ASC LIMIT 1`,
@@ -139,7 +147,7 @@ export class LakebaseChatStore implements ChatStore {
     if (!primary) {
       // Promote a legacy Phase 1 Primary row if present.
       const legacy = await this.query(
-        `SELECT id, name, avatar_label, presence, space_id, is_primary, owner_id, created_at
+        `SELECT ${BOT_COLUMNS}
          FROM bricksbot.bots
          WHERE name = $1
          ORDER BY created_at ASC LIMIT 1`,
@@ -148,9 +156,9 @@ export class LakebaseChatStore implements ChatStore {
       if (legacy.rows[0]) {
         const promoted = await this.query(
           `UPDATE bricksbot.bots
-           SET is_primary = TRUE, space_id = $2, owner_id = $3
+           SET is_primary = TRUE, space_id = $2, owner_id = $3, sort_order = -1, archived_at = NULL
            WHERE id = $1
-           RETURNING id, name, avatar_label, presence, space_id, is_primary, owner_id, created_at`,
+           RETURNING ${BOT_COLUMNS}`,
           [asString(legacy.rows[0].id), space.id, ownerId],
         );
         primary = mapBot(promoted.rows[0]!);
@@ -234,7 +242,7 @@ export class LakebaseChatStore implements ChatStore {
     return mapMember(result.rows[0]!);
   }
 
-  async listBots(options?: { spaceId?: string | null; ownerId?: string }): Promise<Bot[]> {
+  async listBots(options?: ListBotsOptions): Promise<Bot[]> {
     if (options?.ownerId) await this.ensureBootstrap(options.ownerId);
     else await this.ensurePrimaryBot();
 
@@ -248,15 +256,34 @@ export class LakebaseChatStore implements ChatStore {
       params.push(options.ownerId);
       clauses.push(`owner_id = $${params.length}`);
     }
+    const archived = options?.archived ?? 'active';
+    if (archived === 'active') {
+      clauses.push('archived_at IS NULL');
+    } else if (archived === 'archived') {
+      clauses.push('archived_at IS NOT NULL');
+    }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const result = await this.query(
-      `SELECT id, name, avatar_label, presence, space_id, is_primary, owner_id, created_at
+      `SELECT ${BOT_COLUMNS}
        FROM bricksbot.bots
        ${where}
-       ORDER BY is_primary DESC, created_at ASC`,
+       ORDER BY is_primary DESC, sort_order ASC, created_at ASC`,
       params,
     );
     return result.rows.map(mapBot);
+  }
+
+  private async nextSortOrder(spaceId: string | null, ownerId: string): Promise<number> {
+    const result = await this.query(
+      `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next
+       FROM bricksbot.bots
+       WHERE owner_id = $1
+         AND space_id IS NOT DISTINCT FROM $2
+         AND is_primary = FALSE
+         AND archived_at IS NULL`,
+      [ownerId, spaceId],
+    );
+    return Number(result.rows[0]?.next ?? 0);
   }
 
   async createBot(input: CreateBotInput): Promise<Bot> {
@@ -267,10 +294,14 @@ export class LakebaseChatStore implements ChatStore {
       if (!space) throw new Error('Space not found');
     }
     const id = randomUUID();
+    const sortOrder = input.isPrimary
+      ? -1
+      : await this.nextSortOrder(input.spaceId ?? null, input.ownerId);
     const inserted = await this.query(
-      `INSERT INTO bricksbot.bots (id, name, avatar_label, presence, space_id, is_primary, owner_id)
-       VALUES ($1, $2, $3, 'online', $4, $5, $6)
-       RETURNING id, name, avatar_label, presence, space_id, is_primary, owner_id, created_at`,
+      `INSERT INTO bricksbot.bots
+         (id, name, avatar_label, presence, space_id, is_primary, owner_id, sort_order, archived_at)
+       VALUES ($1, $2, $3, 'online', $4, $5, $6, $7, NULL)
+       RETURNING ${BOT_COLUMNS}`,
       [
         id,
         name,
@@ -278,14 +309,120 @@ export class LakebaseChatStore implements ChatStore {
         input.spaceId ?? null,
         Boolean(input.isPrimary),
         input.ownerId,
+        sortOrder,
       ],
     );
     return mapBot(inserted.rows[0]!);
   }
 
+  async updateBot(botId: string, input: UpdateBotInput): Promise<Bot> {
+    const bot = await this.getBot(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (input.spaceId !== undefined && input.spaceId !== null) {
+      const space = await this.getSpace(input.spaceId);
+      if (!space) throw new Error('Space not found');
+    }
+    const name = input.name !== undefined ? input.name.trim() : bot.name;
+    if (!name) throw new Error('Bot name is required');
+    const avatarLabel =
+      input.avatarLabel !== undefined
+        ? input.avatarLabel.trim() || avatarFromName(name)
+        : input.name !== undefined && bot.avatarLabel.length === 1
+          ? avatarFromName(name)
+          : bot.avatarLabel;
+    let spaceId = bot.spaceId;
+    let sortOrder = bot.sortOrder;
+    if (input.spaceId !== undefined && input.spaceId !== bot.spaceId) {
+      if (bot.isPrimary) throw new Error('Cannot move the Primary bot');
+      spaceId = input.spaceId;
+      sortOrder = await this.nextSortOrder(spaceId, bot.ownerId);
+    }
+    const result = await this.query(
+      `UPDATE bricksbot.bots
+       SET name = $2, avatar_label = $3, space_id = $4, sort_order = $5
+       WHERE id = $1
+       RETURNING ${BOT_COLUMNS}`,
+      [botId, name, avatarLabel, spaceId, sortOrder],
+    );
+    return mapBot(result.rows[0]!);
+  }
+
+  async moveBot(botId: string, input: MoveBotInput): Promise<Bot> {
+    const bot = await this.getBot(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (bot.isPrimary) throw new Error('Cannot move the Primary bot');
+    if (bot.archivedAt) throw new Error('Unarchive the bot before moving it');
+    if (input.spaceId !== null) {
+      const space = await this.getSpace(input.spaceId);
+      if (!space) throw new Error('Space not found');
+    }
+    if (!Number.isInteger(input.index) || input.index < 0) {
+      throw new Error('index must be a non-negative integer');
+    }
+
+    const siblings = await this.query(
+      `SELECT ${BOT_COLUMNS}
+       FROM bricksbot.bots
+       WHERE owner_id = $1
+         AND space_id IS NOT DISTINCT FROM $2
+         AND is_primary = FALSE
+         AND archived_at IS NULL
+         AND id <> $3
+       ORDER BY sort_order ASC, created_at ASC`,
+      [bot.ownerId, input.spaceId, botId],
+    );
+    const ordered = siblings.rows.map(mapBot);
+    const clamped = Math.min(input.index, ordered.length);
+    ordered.splice(clamped, 0, { ...bot, spaceId: input.spaceId });
+
+    for (let index = 0; index < ordered.length; index += 1) {
+      const row = ordered[index]!;
+      await this.query(
+        `UPDATE bricksbot.bots SET space_id = $2, sort_order = $3 WHERE id = $1`,
+        [row.id, input.spaceId, index],
+      );
+    }
+    const updated = await this.getBot(botId);
+    if (!updated) throw new Error('Bot not found');
+    return updated;
+  }
+
+  async archiveBot(botId: string): Promise<Bot> {
+    const bot = await this.getBot(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (bot.isPrimary) throw new Error('Cannot archive the Primary bot');
+    if (bot.archivedAt) return bot;
+    const result = await this.query(
+      `UPDATE bricksbot.bots SET archived_at = NOW() WHERE id = $1
+       RETURNING ${BOT_COLUMNS}`,
+      [botId],
+    );
+    return mapBot(result.rows[0]!);
+  }
+
+  async unarchiveBot(botId: string): Promise<Bot> {
+    const bot = await this.getBot(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (!bot.archivedAt) return bot;
+    const sortOrder = await this.nextSortOrder(bot.spaceId, bot.ownerId);
+    const result = await this.query(
+      `UPDATE bricksbot.bots SET archived_at = NULL, sort_order = $2 WHERE id = $1
+       RETURNING ${BOT_COLUMNS}`,
+      [botId, sortOrder],
+    );
+    return mapBot(result.rows[0]!);
+  }
+
+  async deleteBot(botId: string): Promise<void> {
+    const bot = await this.getBot(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (bot.isPrimary) throw new Error('Cannot delete the Primary bot');
+    await this.query(`DELETE FROM bricksbot.bots WHERE id = $1`, [botId]);
+  }
+
   async getBot(botId: string): Promise<Bot | null> {
     const result = await this.query(
-      `SELECT id, name, avatar_label, presence, space_id, is_primary, owner_id, created_at
+      `SELECT ${BOT_COLUMNS}
        FROM bricksbot.bots WHERE id = $1`,
       [botId],
     );
@@ -295,7 +432,7 @@ export class LakebaseChatStore implements ChatStore {
   async setBotPresence(botId: string, presence: Presence): Promise<Bot> {
     const result = await this.query(
       `UPDATE bricksbot.bots SET presence = $2 WHERE id = $1
-       RETURNING id, name, avatar_label, presence, space_id, is_primary, owner_id, created_at`,
+       RETURNING ${BOT_COLUMNS}`,
       [botId, presence],
     );
     if (!result.rows[0]) throw new Error('Bot not found');

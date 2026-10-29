@@ -7,25 +7,27 @@ import { BotRoster } from './components/BotRoster';
 import { ChatComposer } from './components/ChatComposer';
 import { ChatTranscript } from './components/ChatTranscript';
 import {
+  archiveBot,
   createBot,
   createSpace,
   decideApproval,
+  deleteBot,
   fetchBotChat,
   fetchBots,
   fetchSpaces,
+  moveBot,
   revokeAutoApproval,
   sendChatMessage,
+  unarchiveBot,
+  updateBot,
 } from './lib/chat-api';
 import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
-
-function lastPreview(messages: Message[]): string {
-  const last = [...messages].reverse().find((message) => message.role !== 'tool');
-  return last?.content ?? '';
-}
+import { lastUserFacingPreview, toolLabel } from './lib/user-facing';
 
 export default function App() {
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
+  const [archivedBots, setArchivedBots] = useState<Bot[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [chat, setChat] = useState<Chat | null>(null);
@@ -43,8 +45,19 @@ export default function App() {
     setTheme(next);
   }
 
-  const selectedBot = bots.find((bot) => bot.id === selectedBotId) ?? null;
+  const rosterBots = [...bots, ...archivedBots];
+  const selectedBot = rosterBots.find((bot) => bot.id === selectedBotId) ?? null;
   const accent = selectedBot ? botColor(selectedBot.id, selectedBot.isPrimary) : 'oklch(0.58 0.22 25)';
+
+  const refreshRoster = useCallback(async () => {
+    const [nextBots, nextArchived] = await Promise.all([
+      fetchBots(undefined, 'active'),
+      fetchBots(undefined, 'archived'),
+    ]);
+    setBots(nextBots);
+    setArchivedBots(nextArchived);
+    return { nextBots, nextArchived };
+  }, []);
 
   const loadChat = useCallback(async (botId: string) => {
     const data = await fetchBotChat(botId);
@@ -52,7 +65,7 @@ export default function App() {
     setMessages(data.messages);
     setPendingApprovals(data.pendingApprovals);
     setAutoApprovedTools(data.autoApprovedTools ?? []);
-    setPreviews((prev) => ({ ...prev, [botId]: lastPreview(data.messages) }));
+    setPreviews((prev) => ({ ...prev, [botId]: lastUserFacingPreview(data.messages) }));
   }, []);
 
   const hydratePreviews = useCallback((nextBots: Bot[]) => {
@@ -60,7 +73,7 @@ export default function App() {
       nextBots.map(async (bot) => {
         try {
           const data = await fetchBotChat(bot.id);
-          return [bot.id, lastPreview(data.messages)] as const;
+          return [bot.id, lastUserFacingPreview(data.messages)] as const;
         } catch {
           return [bot.id, ''] as const;
         }
@@ -74,14 +87,19 @@ export default function App() {
     let cancelled = false;
     void (async () => {
       try {
-        const [nextSpaces, nextBots] = await Promise.all([fetchSpaces(), fetchBots()]);
+        const [nextSpaces, nextBots, nextArchived] = await Promise.all([
+          fetchSpaces(),
+          fetchBots(undefined, 'active'),
+          fetchBots(undefined, 'archived'),
+        ]);
         if (cancelled) return;
         setSpaces(nextSpaces);
         setBots(nextBots);
+        setArchivedBots(nextArchived);
         const nextSelected = nextBots.find((bot) => bot.isPrimary)?.id ?? nextBots[0]?.id ?? null;
         setSelectedBotId(nextSelected);
         if (nextSelected) await loadChat(nextSelected);
-        hydratePreviews(nextBots);
+        hydratePreviews([...nextBots, ...nextArchived]);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load');
       } finally {
@@ -103,11 +121,12 @@ export default function App() {
     }
   }
 
-  async function handleCreateSpace(name: string) {
+  async function handleCreateSpace(name: string): Promise<string | void> {
     setError(null);
     try {
       const space = await createSpace(name);
       setSpaces((prev) => [...prev, space]);
+      return space.id;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create section');
     }
@@ -117,13 +136,80 @@ export default function App() {
     setError(null);
     try {
       const bot = await createBot({ name, spaceId });
-      const nextBots = await fetchBots();
-      setBots(nextBots);
+      await refreshRoster();
       setSelectedBotId(bot.id);
       setPreviews((prev) => ({ ...prev, [bot.id]: '' }));
       await loadChat(bot.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create bot');
+    }
+  }
+
+  async function handleRenameBot(botId: string, name: string) {
+    setError(null);
+    try {
+      await updateBot(botId, { name });
+      await refreshRoster();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to rename bot');
+    }
+  }
+
+  async function handleMoveBot(botId: string, spaceId: string | null, index: number) {
+    setError(null);
+    try {
+      await moveBot(botId, { spaceId, index });
+      await refreshRoster();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to move bot');
+    }
+  }
+
+  async function handleArchiveBot(botId: string) {
+    setError(null);
+    try {
+      await archiveBot(botId);
+      const { nextBots } = await refreshRoster();
+      if (selectedBotId === botId) {
+        const fallback = nextBots.find((bot) => bot.isPrimary)?.id ?? nextBots[0]?.id ?? null;
+        setSelectedBotId(fallback);
+        if (fallback) await loadChat(fallback);
+        else {
+          setChat(null);
+          setMessages([]);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to archive bot');
+    }
+  }
+
+  async function handleUnarchiveBot(botId: string) {
+    setError(null);
+    try {
+      await unarchiveBot(botId);
+      await refreshRoster();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to restore bot');
+    }
+  }
+
+  async function handleDeleteBot(botId: string) {
+    setError(null);
+    try {
+      await deleteBot(botId);
+      const { nextBots } = await refreshRoster();
+      if (selectedBotId === botId) {
+        const fallback = nextBots.find((bot) => bot.isPrimary)?.id ?? nextBots[0]?.id ?? null;
+        setSelectedBotId(fallback);
+        if (fallback) await loadChat(fallback);
+        else {
+          setChat(null);
+          setMessages([]);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete bot');
     }
   }
 
@@ -190,6 +276,7 @@ export default function App() {
       <BotRoster
         spaces={spaces}
         bots={bots}
+        archivedBots={archivedBots}
         previews={previews}
         selectedBotId={selectedBotId}
         createOpen={createOpen}
@@ -199,6 +286,11 @@ export default function App() {
         onSelectBot={handleSelectBot}
         onCreateBot={handleCreateBot}
         onCreateSpace={handleCreateSpace}
+        onRenameBot={handleRenameBot}
+        onMoveBot={handleMoveBot}
+        onArchiveBot={handleArchiveBot}
+        onUnarchiveBot={handleUnarchiveBot}
+        onDeleteBot={handleDeleteBot}
       />
 
       <section className="chat-pane" aria-label={selectedBot ? `Chat with ${selectedBot.name}` : 'Chat'}>
@@ -215,10 +307,10 @@ export default function App() {
                 <div className="auto-approvals-chips">
                   {autoApprovedTools.map((tool) => (
                     <span key={tool} className="auto-tool-chip">
-                      <code>{tool}</code>
+                      <span>{toolLabel(tool)}</span>
                       <button
                         type="button"
-                        aria-label={`Revoke auto-approval for ${tool}`}
+                        aria-label={`Revoke auto-approval for ${toolLabel(tool)}`}
                         onClick={() => void handleRevokeAutoApproval(tool)}
                       >
                         ×
@@ -242,7 +334,7 @@ export default function App() {
               messages={visibleMessages}
               botName={selectedBot?.name ?? null}
               accent={accent}
-              bots={bots}
+              bots={rosterBots}
               onOpenBot={(botId) => void handleSelectBot(botId)}
             />
             <ApprovalCards approvals={pendingApprovals} busyId={approvalBusyId} onDecide={handleDecide} />

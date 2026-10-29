@@ -6,6 +6,7 @@ import type { ChatService } from './service.js';
 
 const postMessageSchema = z.object({
   content: z.string().trim().min(1, 'Message content is required'),
+  requestId: z.string().trim().min(1).max(128).optional(),
 });
 
 const decideSchema = z.object({
@@ -16,6 +17,21 @@ const createBotSchema = z.object({
   name: z.string().trim().min(1).max(64),
   spaceId: z.string().uuid().nullable().optional(),
   avatarLabel: z.string().trim().min(1).max(2).optional(),
+});
+
+const updateBotSchema = z
+  .object({
+    name: z.string().trim().min(1).max(64).optional(),
+    spaceId: z.string().uuid().nullable().optional(),
+    avatarLabel: z.string().trim().min(1).max(2).optional(),
+  })
+  .refine((value) => value.name !== undefined || value.spaceId !== undefined || value.avatarLabel !== undefined, {
+    message: 'At least one field is required',
+  });
+
+const moveBotSchema = z.object({
+  spaceId: z.string().uuid().nullable(),
+  index: z.number().int().min(0),
 });
 
 const createSpaceSchema = z.object({
@@ -44,7 +60,15 @@ function isNotFound(err: unknown): boolean {
 }
 
 function isBadRequest(err: unknown): boolean {
-  return err instanceof Error && (/required/i.test(err.message) || /already decided/i.test(err.message));
+  return (
+    err instanceof Error &&
+    (/required/i.test(err.message) ||
+      /already decided/i.test(err.message) ||
+      /Cannot (archive|delete|move)/i.test(err.message) ||
+      /Unarchive/i.test(err.message) ||
+      /index must/i.test(err.message) ||
+      /At least one field/i.test(err.message))
+  );
 }
 
 /** Register Spaces, roster, durable chat, and approval HTTP routes. */
@@ -104,9 +128,17 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     try {
       const ownerId = resolveOwnerId(req);
       const spaceId = typeof req.query.spaceId === 'string' ? req.query.spaceId : undefined;
+      const archivedRaw = typeof req.query.archived === 'string' ? req.query.archived : 'active';
+      const archived =
+        archivedRaw === 'archived' || archivedRaw === '1' || archivedRaw === 'true'
+          ? 'archived'
+          : archivedRaw === 'all'
+            ? 'all'
+            : 'active';
       const bots = await store.listBots({
         ownerId,
         spaceId: spaceId === 'null' ? null : spaceId,
+        archived,
       });
       res.json({ bots });
     } catch (err) {
@@ -133,51 +165,106 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     }
   });
 
+  app.put('/api/bots/:botId', async (req: Request, res: Response) => {
+    const parsed = updateBotSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'At least one field is required' });
+      return;
+    }
+    try {
+      const bot = await store.updateBot(String(req.params.botId), parsed.data);
+      res.json({ bot });
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.post('/api/bots/:botId/move', async (req: Request, res: Response) => {
+    const parsed = moveBotSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'spaceId and index are required' });
+      return;
+    }
+    try {
+      const bot = await store.moveBot(String(req.params.botId), parsed.data);
+      res.json({ bot });
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.post('/api/bots/:botId/archive', async (req: Request, res: Response) => {
+    try {
+      const bot = await store.archiveBot(String(req.params.botId));
+      res.json({ bot });
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.post('/api/bots/:botId/unarchive', async (req: Request, res: Response) => {
+    try {
+      const bot = await store.unarchiveBot(String(req.params.botId));
+      res.json({ bot });
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.delete('/api/bots/:botId', async (req: Request, res: Response) => {
+    try {
+      await store.deleteBot(String(req.params.botId));
+      res.status(204).send();
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
   app.get('/api/bots/:botId/chat', async (req: Request, res: Response) => {
     try {
       const botId = String(req.params.botId);
       const chat = await store.getOrCreateChatForBot(botId);
       const messages = await store.listMessages(chat.id);
-      const pendingApprovals = service.getApprovals().listPending(chat.id);
-      const autoApprovedTools = service.getApprovals().listAutoApproved(chat.id);
+      const pendingApprovals = await service.getApprovals().listPending(chat.id);
+      const autoApprovedTools = await service.getApprovals().listAutoApproved(chat.id);
       res.json({ chat, messages, pendingApprovals, autoApprovedTools });
     } catch (err) {
       res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
     }
   });
 
-  app.get('/api/chats/:chatId/approvals/auto', (req: Request, res: Response) => {
+  app.get('/api/chats/:chatId/approvals/auto', async (req: Request, res: Response) => {
     try {
       const chatId = String(req.params.chatId);
-      const autoApprovedTools = service.getApprovals().listAutoApproved(chatId);
+      const autoApprovedTools = await service.getApprovals().listAutoApproved(chatId);
       res.json({ autoApprovedTools });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err) });
     }
   });
 
-  app.delete('/api/chats/:chatId/approvals/auto/:toolName', (req: Request, res: Response) => {
+  app.delete('/api/chats/:chatId/approvals/auto/:toolName', async (req: Request, res: Response) => {
     try {
       const chatId = String(req.params.chatId);
       const toolName = String(req.params.toolName);
-      service.getApprovals().revokeAutoApproved(chatId, toolName);
-      const autoApprovedTools = service.getApprovals().listAutoApproved(chatId);
+      await service.getApprovals().revokeAutoApproved(chatId, toolName);
+      const autoApprovedTools = await service.getApprovals().listAutoApproved(chatId);
       res.json({ autoApprovedTools });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err) });
     }
   });
 
-  app.post('/api/chats/:chatId/approvals/auto/revoke', (req: Request, res: Response) => {
+  app.post('/api/chats/:chatId/approvals/auto/revoke', async (req: Request, res: Response) => {
     try {
       const chatId = String(req.params.chatId);
       const toolName = typeof req.body?.toolName === 'string' ? req.body.toolName : undefined;
       if (toolName) {
-        service.getApprovals().revokeAutoApproved(chatId, toolName);
+        await service.getApprovals().revokeAutoApproved(chatId, toolName);
       } else {
-        service.getApprovals().clearAutoApproved(chatId);
+        await service.getApprovals().clearAutoApproved(chatId);
       }
-      const autoApprovedTools = service.getApprovals().listAutoApproved(chatId);
+      const autoApprovedTools = await service.getApprovals().listAutoApproved(chatId);
       res.json({ autoApprovedTools });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err) });
@@ -193,7 +280,9 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
 
     try {
       const chatId = String(req.params.chatId);
-      const result = await service.sendUserMessage(chatId, parsed.data.content);
+      const result = await service.sendUserMessage(chatId, parsed.data.content, {
+        requestId: parsed.data.requestId,
+      });
       res.status(201).json(result);
     } catch (err) {
       if (isBadRequest(err)) {

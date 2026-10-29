@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { DEFAULT_META_TOOL_NAMES } from '../../shared/llm/meta-tools.js';
 import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../shared/llm/types.js';
 import { MemoryMemorySkillStore } from '../memory/memory-store.js';
 import { MemoryChatStore } from './memory-store.js';
@@ -8,12 +9,13 @@ class ScriptedClient implements ChatClient {
   readonly provider = 'stub' as const;
   readonly requests: ChatCompletionRequest[] = [];
   lastRequest: ChatCompletionRequest | null = null;
-  constructor(private readonly script: ChatCompletionResult[]) {}
+  constructor(private readonly script: Array<ChatCompletionResult | Error>) {}
   async complete(request: ChatCompletionRequest): Promise<ChatCompletionResult> {
     this.requests.push(request);
     this.lastRequest = request;
     const next = this.script.shift();
     if (!next) throw new Error('No scripted completions left');
+    if (next instanceof Error) throw next;
     return next;
   }
 }
@@ -52,7 +54,7 @@ describe('ChatService', () => {
     const result = await service.sendUserMessage(chat.id, 'fetch example');
     expect(result.pendingApprovals).toHaveLength(1);
     expect(result.pendingApprovals[0]?.toolCall.name).toBe('web_fetch');
-    expect(result.assistant?.content).toMatch(/approval needed/i);
+    expect(result.assistant?.content).toMatch(/waiting for your approval/i);
   });
 
   test('runs web_fetch after approval and continues the turn', async () => {
@@ -90,7 +92,62 @@ describe('ChatService', () => {
     }
   });
 
-  test('includes that bot memory and skills in the system prompt', async () => {
+  test('remember tool auto-runs and writes durable memory', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const memory = new MemoryMemorySkillStore();
+    const client = new ScriptedClient([
+      {
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_remember',
+            name: 'remember',
+            arguments: { key: 'timezone', content: 'America/Sao_Paulo' },
+          },
+        ],
+      },
+      { content: 'Got it — I will remember your timezone.', toolCalls: [] },
+    ]);
+    const service = new ChatService({ store, client, memory });
+    const result = await service.sendUserMessage(chat.id, 'remember my tz');
+    expect(result.pendingApprovals).toHaveLength(0);
+    expect(result.assistant?.content).toContain('timezone');
+    expect(await memory.listMemories(bot.id)).toEqual([
+      expect.objectContaining({ key: 'timezone', content: 'America/Sao_Paulo' }),
+    ]);
+  });
+
+  test('registers default meta tools for Primary and teammates', async () => {
+    const store = new MemoryChatStore();
+    const primary = await store.ensurePrimaryBot();
+    const teammate = await store.createBot({
+      name: 'Analyst',
+      ownerId: primary.ownerId,
+      spaceId: primary.spaceId,
+    });
+    const client = new ScriptedClient([
+      { content: 'ok', toolCalls: [] },
+      { content: 'ok', toolCalls: [] },
+    ]);
+    // No explicit memory store — meta tools must still be default for every bot.
+    const service = new ChatService({ store, client });
+
+    const primaryChat = await store.getOrCreateChatForBot(primary.id);
+    await service.sendUserMessage(primaryChat.id, 'hi');
+    const primaryTools = client.lastRequest?.tools?.map((t) => t.name) ?? [];
+    expect(primaryTools).toEqual(expect.arrayContaining([...DEFAULT_META_TOOL_NAMES]));
+    expect(primaryTools).toContain('handoff_to_bot');
+
+    const teammateChat = await store.getOrCreateChatForBot(teammate.id);
+    await service.sendUserMessage(teammateChat.id, 'hi');
+    const teammateTools = client.lastRequest?.tools?.map((t) => t.name) ?? [];
+    expect(teammateTools).toEqual(expect.arrayContaining([...DEFAULT_META_TOOL_NAMES]));
+    expect(teammateTools).not.toContain('handoff_to_bot');
+  });
+
+  test('includes that bot memory and a skills index in the system prompt', async () => {
     const store = new MemoryChatStore();
     const primary = await store.ensurePrimaryBot();
     const other = await store.createBot({
@@ -100,7 +157,8 @@ describe('ChatService', () => {
     });
     const memory = new MemoryMemorySkillStore();
     await memory.upsertMemory(primary.id, 'warehouse', 'us-west');
-    await memory.createSkill(primary.id, 'SQL style', 'Prefer concise SQL.');
+    const longBody = `Prefer concise SQL.\n${'x'.repeat(2_500)}`;
+    await memory.createSkill(primary.id, 'SQL style', longBody);
 
     const client = new ScriptedClient([
       { content: 'ok', toolCalls: [] },
@@ -111,15 +169,43 @@ describe('ChatService', () => {
     const primaryChat = await store.getOrCreateChatForBot(primary.id);
     await service.sendUserMessage(primaryChat.id, 'hi');
     const primarySystem = client.lastRequest?.messages[0]?.content ?? '';
+    expect(primarySystem).toContain('## Capabilities');
+    expect(primarySystem).toContain('## Skills');
     expect(primarySystem).toContain('warehouse: us-west');
-    expect(primarySystem).toContain('## SQL style');
+    expect(primarySystem).toContain('SQL style');
     expect(primarySystem).toContain('Prefer concise SQL.');
+    expect(primarySystem).not.toContain(longBody);
+    expect(primarySystem).toContain('activate_skill');
+    expect(client.lastRequest?.tools?.map((t) => t.name)).toEqual(
+      expect.arrayContaining(['handoff_to_bot', 'activate_skill', 'list_memories']),
+    );
 
     const otherChat = await store.getOrCreateChatForBot(other.id);
     await service.sendUserMessage(otherChat.id, 'hi');
     const otherSystem = client.lastRequest?.messages[0]?.content ?? '';
     expect(otherSystem).not.toContain('warehouse');
     expect(otherSystem).not.toContain('SQL style');
+    expect(client.lastRequest?.tools?.map((t) => t.name) ?? []).not.toContain('handoff_to_bot');
+    expect(client.lastRequest?.tools?.map((t) => t.name) ?? []).toContain('activate_skill');
+  });
+
+  test('activate_skill auto-runs without approval', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const memory = new MemoryMemorySkillStore();
+    await memory.createSkill(bot.id, 'SQL style', 'Prefer concise SQL.');
+    const client = new ScriptedClient([
+      {
+        content: null,
+        toolCalls: [{ id: 'call_activate', name: 'activate_skill', arguments: { name: 'SQL style' } }],
+      },
+      { content: 'Following Prefer concise SQL.', toolCalls: [] },
+    ]);
+    const service = new ChatService({ store, client, memory });
+    const result = await service.sendUserMessage(chat.id, 'use SQL style');
+    expect(result.pendingApprovals).toHaveLength(0);
+    expect(result.assistant?.content).toContain('Prefer concise SQL');
   });
 
   test('offers sql_query and runs it only after approval', async () => {
@@ -189,7 +275,7 @@ describe('ChatService', () => {
     expect(result.pendingApprovals).toHaveLength(0);
     expect(result.assistant?.content).toBe('cannot drop');
     expect(calls).toEqual([]);
-    expect(service.getApprovals().listPending(chat.id)).toHaveLength(0);
+    expect(await service.getApprovals().listPending(chat.id)).toHaveLength(0);
     const messages = await store.listMessages(chat.id);
     expect(messages.some((m) => m.role === 'tool' && /only allows/i.test(m.content))).toBe(true);
   });
@@ -303,6 +389,7 @@ describe('ChatService', () => {
         brief: 'look at revenue',
         messageCount: 2,
         replyPreview: 'Revenue is up 12%.',
+        threadBotId: analyst.id,
       }),
     );
     const peerThread = targetMessages.find(
@@ -312,10 +399,84 @@ describe('ChatService', () => {
       expect.objectContaining({
         direction: 'thread',
         targetName: 'Primary',
+        targetChatId: targetChat.id,
         messageCount: 2,
+        replyPreview: 'Revenue is up 12%.',
+        threadBotId: analyst.id,
       }),
     );
   });
+
+  test('posts thread chips on both chats when the nested teammate turn fails', async () => {
+    const store = new MemoryChatStore();
+    const primary = await store.ensurePrimaryBot();
+    const analyst = await store.createBot({
+      name: 'Analyst',
+      ownerId: primary.ownerId,
+      spaceId: primary.spaceId,
+    });
+    const chat = await store.getOrCreateChatForBot(primary.id);
+    const targetChat = await store.getOrCreateChatForBot(analyst.id);
+    const client = new ScriptedClient([
+      {
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_hand',
+            name: 'handoff_to_bot',
+            arguments: { bot_id: analyst.id, brief: 'look at revenue' },
+          },
+        ],
+      },
+      // Nested teammate turn throws
+      new Error('Bot not found'),
+      // Primary continues with the failed handoff result
+      { content: 'Analyst could not answer.', toolCalls: [] },
+    ]);
+    const service = new ChatService({ store, client });
+
+    const pending = await service.sendUserMessage(chat.id, 'ask the analyst');
+    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'approved');
+    expect(continued.assistant?.content).toBe('Analyst could not answer.');
+
+    const targetMessages = await store.listMessages(targetChat.id);
+    expect(targetMessages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: 'user', content: 'From Primary: look at revenue' }),
+        expect.objectContaining({
+          role: 'assistant',
+          content: '(handoff failed) Bot not found',
+        }),
+      ]),
+    );
+    const peerThread = targetMessages.find(
+      (message) => message.role === 'system' && message.content.includes('"thread"'),
+    );
+    expect(peerThread).toBeTruthy();
+    expect(JSON.parse(peerThread!.content)).toEqual(
+      expect.objectContaining({
+        direction: 'thread',
+        targetName: 'Primary',
+        threadBotId: analyst.id,
+        replyPreview: '(handoff failed) Bot not found',
+      }),
+    );
+
+    const source = await store.listMessages(chat.id);
+    const threadNotice = [...source]
+      .reverse()
+      .find((message) => message.role === 'system' && message.content.includes('"thread"'));
+    expect(threadNotice).toBeTruthy();
+    expect(JSON.parse(threadNotice!.content)).toEqual(
+      expect.objectContaining({
+        direction: 'thread',
+        targetName: 'Analyst',
+        threadBotId: analyst.id,
+        replyPreview: '(handoff failed) Bot not found',
+      }),
+    );
+  });
+
   test('does not deliver a handoff when approval is denied', async () => {
     const store = new MemoryChatStore();
     const primary = await store.ensurePrimaryBot();

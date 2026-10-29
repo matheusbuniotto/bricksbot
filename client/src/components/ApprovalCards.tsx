@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/llm/types';
+import { approvalTitle } from '../lib/user-facing';
 
 function readStr(val: unknown): string {
   return typeof val === 'string' ? val : '';
@@ -10,10 +11,8 @@ function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
 
   if (name === 'sql_query') {
     const statement = readStr(args.statement);
-    const wh = typeof args.warehouse_id === 'string' ? args.warehouse_id : null;
     return (
       <div className="approval-details">
-        {wh ? <span className="approval-chip">Warehouse: {wh}</span> : null}
         <pre className="approval-code-block">
           <code>{statement}</code>
         </pre>
@@ -26,28 +25,20 @@ function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
     const catalog = readStr(args.catalog);
     const schema = readStr(args.schema);
     const table = readStr(args.table);
-    const parts = [
-      catalog ? `catalog: ${catalog}` : '',
-      schema ? `schema: ${schema}` : '',
-      table ? `table: ${table}` : '',
-    ]
-      .filter(Boolean)
-      .join(' · ');
+    const parts = [catalog, schema, table].filter(Boolean).join(' / ');
     return (
       <div className="approval-details">
-        <span className="approval-chip">Action: {action}</span>
+        {action ? <span className="approval-chip">{action}</span> : null}
         {parts ? <span className="approval-target">{parts}</span> : null}
       </div>
     );
   }
 
   if (name === 'volume_read') {
-    const action = readStr(args.action) || 'read';
     const path = readStr(args.path);
     return (
       <div className="approval-details">
-        <span className="approval-chip">Volume ({action})</span>
-        <code className="approval-path">{path}</code>
+        <span className="approval-path">{path}</span>
       </div>
     );
   }
@@ -61,24 +52,31 @@ function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
   }
 
   if (name === 'handoff_to_bot') {
-    const target = readStr(args.bot_name) || readStr(args.bot_id) || 'another bot';
+    const target = readStr(args.bot_name) || 'teammate';
     const brief = readStr(args.brief);
     return (
       <div className="approval-details">
-        <span className="approval-chip">Hand off to: {target}</span>
-        <p className="approval-brief">&ldquo;{brief}&rdquo;</p>
+        <span className="approval-chip">To {target}</span>
+        {brief ? <p className="approval-brief">&ldquo;{brief}&rdquo;</p> : null}
       </div>
     );
   }
 
-  const entries = Object.entries(args);
+  const entries = Object.entries(args).filter(([, value]) => value != null && value !== '');
   if (entries.length === 0) return null;
 
   return (
     <div className="approval-details">
-      <pre className="approval-code-block">
-        <code>{JSON.stringify(args, null, 2)}</code>
-      </pre>
+      <ul className="approval-kv">
+        {entries.map(([key, value]) => (
+          <li key={key}>
+            <span className="approval-kv-key">{key.replace(/_/g, ' ')}</span>
+            <span className="approval-kv-value">
+              {typeof value === 'string' ? value : Array.isArray(value) ? value.join(', ') : String(value)}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -133,9 +131,7 @@ export function ApprovalCards({
         <article key={approval.id} className="approval-card" aria-busy={busyId === approval.id}>
           <div className="approval-header">
             <span className="approval-tag">Approval needed</span>
-            <p className="approval-title">
-              Allow bot to run <code>{approval.toolCall.name}</code>?
-            </p>
+            <p className="approval-title">{approvalTitle(approval.toolCall.name)}</p>
           </div>
 
           {renderToolDetails(approval.toolCall)}

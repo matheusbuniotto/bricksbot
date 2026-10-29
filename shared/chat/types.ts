@@ -29,6 +29,10 @@ export interface Bot {
   spaceId: string | null;
   isPrimary: boolean;
   ownerId: string;
+  /** Lower sorts first within a section (and after Primary). */
+  sortOrder: number;
+  /** Soft-hide from roster (Grok “Hide from sidebar”); null when active. */
+  archivedAt: string | null;
   createdAt: string;
 }
 
@@ -59,9 +63,29 @@ export interface CreateBotInput {
   isPrimary?: boolean;
 }
 
+export interface UpdateBotInput {
+  name?: string;
+  avatarLabel?: string;
+  spaceId?: string | null;
+}
+
+export interface MoveBotInput {
+  /** Target section; null = unsectioned. */
+  spaceId: string | null;
+  /** 0-based index among non-primary bots in that section (active roster only). */
+  index: number;
+}
+
 export interface CreateSpaceInput {
   name: string;
   ownerId: string;
+}
+
+export interface ListBotsOptions {
+  spaceId?: string | null;
+  ownerId?: string;
+  /** Default `active`. */
+  archived?: 'active' | 'archived' | 'all';
 }
 
 export interface ChatStore {
@@ -71,8 +95,13 @@ export interface ChatStore {
   getSpace(spaceId: string): Promise<Space | null>;
   listSpaceMembers(spaceId: string): Promise<SpaceMember[]>;
   addSpaceMember(spaceId: string, userId: string, role: SpaceRole): Promise<SpaceMember>;
-  listBots(options?: { spaceId?: string | null; ownerId?: string }): Promise<Bot[]>;
+  listBots(options?: ListBotsOptions): Promise<Bot[]>;
   createBot(input: CreateBotInput): Promise<Bot>;
+  updateBot(botId: string, input: UpdateBotInput): Promise<Bot>;
+  moveBot(botId: string, input: MoveBotInput): Promise<Bot>;
+  archiveBot(botId: string): Promise<Bot>;
+  unarchiveBot(botId: string): Promise<Bot>;
+  deleteBot(botId: string): Promise<void>;
   getBot(botId: string): Promise<Bot | null>;
   setBotPresence(botId: string, presence: Presence): Promise<Bot>;
   /** @deprecated Prefer ensureBootstrap — kept for older call sites during Phase 3. */

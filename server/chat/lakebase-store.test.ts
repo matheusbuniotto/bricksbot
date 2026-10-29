@@ -71,7 +71,7 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
     }
 
     if (normalized.startsWith('INSERT INTO bricksbot.bots')) {
-      const [id, name, avatar_label, , space_id, is_primary, owner_id] = params;
+      const [id, name, avatar_label, , space_id, is_primary, owner_id, sort_order] = params;
       const row = {
         id: String(id),
         name: String(name),
@@ -80,21 +80,46 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
         space_id: space_id ?? null,
         is_primary: Boolean(is_primary),
         owner_id: String(owner_id),
+        sort_order: Number(sort_order ?? 0),
+        archived_at: null as string | null,
         created_at: new Date().toISOString(),
       };
       bots.set(row.id, row);
       return { rows: [row] };
     }
 
+    if (normalized.includes('COALESCE(MAX(sort_order)')) {
+      const [ownerId, spaceId] = params;
+      const siblings = [...bots.values()].filter(
+        (b) =>
+          b.owner_id === ownerId &&
+          b.space_id === spaceId &&
+          !b.is_primary &&
+          b.archived_at == null,
+      );
+      const next =
+        siblings.length === 0 ? 0 : Math.max(...siblings.map((b) => Number(b.sort_order))) + 1;
+      return { rows: [{ next }] };
+    }
+
     if (normalized.includes('FROM bricksbot.bots') && normalized.includes('ORDER BY is_primary')) {
       let rows = [...bots.values()];
-      // naive filter for tests
-      if (params.length === 2) {
-        rows = rows.filter((b) => b.space_id === params[0] && b.owner_id === params[1]);
-      } else if (params.length === 1) {
-        rows = rows.filter((b) => b.owner_id === params[0]);
+      if (normalized.includes('archived_at IS NULL')) {
+        rows = rows.filter((b) => b.archived_at == null);
+      } else if (normalized.includes('archived_at IS NOT NULL')) {
+        rows = rows.filter((b) => b.archived_at != null);
       }
-      rows.sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
+      if (params.length >= 2 && normalized.includes('space_id IS NOT DISTINCT FROM')) {
+        rows = rows.filter((b) => b.space_id === params[0] && b.owner_id === params[1]);
+      } else if (params.length >= 1 && normalized.includes('owner_id =')) {
+        const ownerParam = normalized.includes('space_id IS NOT DISTINCT FROM') ? params[1] : params[0];
+        rows = rows.filter((b) => b.owner_id === ownerParam);
+      }
+      rows.sort(
+        (a, b) =>
+          Number(b.is_primary) - Number(a.is_primary) ||
+          Number(a.sort_order) - Number(b.sort_order),
+      );
       return { rows };
     }
 
@@ -121,7 +146,66 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       bot.is_primary = true;
       bot.space_id = params[1];
       bot.owner_id = String(params[2]);
+      bot.sort_order = -1;
+      bot.archived_at = null;
       return { rows: [bot] };
+    }
+
+    if (normalized.startsWith('UPDATE bricksbot.bots SET name =')) {
+      const bot = bots.get(String(params[0]));
+      if (!bot) return { rows: [] };
+      bot.name = String(params[1]);
+      bot.avatar_label = String(params[2]);
+      bot.space_id = params[3] ?? null;
+      bot.sort_order = Number(params[4]);
+      return { rows: [bot] };
+    }
+
+    if (normalized.startsWith('UPDATE bricksbot.bots SET space_id =')) {
+      const bot = bots.get(String(params[0]));
+      if (!bot) return { rows: [] };
+      bot.space_id = params[1] ?? null;
+      bot.sort_order = Number(params[2]);
+      return { rows: [bot] };
+    }
+
+    if (normalized.startsWith('UPDATE bricksbot.bots SET archived_at = NOW()')) {
+      const bot = bots.get(String(params[0]));
+      if (!bot) return { rows: [] };
+      bot.archived_at = new Date().toISOString();
+      return { rows: [bot] };
+    }
+
+    if (normalized.startsWith('UPDATE bricksbot.bots SET archived_at = NULL')) {
+      const bot = bots.get(String(params[0]));
+      if (!bot) return { rows: [] };
+      bot.archived_at = null;
+      bot.sort_order = Number(params[1]);
+      return { rows: [bot] };
+    }
+
+    if (normalized.startsWith('DELETE FROM bricksbot.bots')) {
+      bots.delete(String(params[0]));
+      return { rows: [] };
+    }
+
+    if (
+      normalized.includes('FROM bricksbot.bots') &&
+      normalized.includes('id <>') &&
+      normalized.includes('ORDER BY sort_order')
+    ) {
+      const [ownerId, spaceId, botId] = params;
+      const rows = [...bots.values()]
+        .filter(
+          (b) =>
+            b.owner_id === ownerId &&
+            b.space_id === spaceId &&
+            !b.is_primary &&
+            b.archived_at == null &&
+            b.id !== botId,
+        )
+        .sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
+      return { rows };
     }
 
     if (normalized.includes('FROM bricksbot.chats WHERE bot_id =')) {

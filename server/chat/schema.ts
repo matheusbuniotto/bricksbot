@@ -23,6 +23,8 @@ export const CHAT_SCHEMA_STATEMENTS = [
   space_id UUID REFERENCES bricksbot.spaces(id) ON DELETE SET NULL,
   is_primary BOOLEAN NOT NULL DEFAULT FALSE,
   owner_id TEXT NOT NULL DEFAULT 'workspace-user',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  archived_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )`,
   `CREATE TABLE IF NOT EXISTS bricksbot.chats (
@@ -50,6 +52,10 @@ export const CHAT_SCHEMA_STATEMENTS = [
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS space_id UUID`,
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE`,
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS owner_id TEXT NOT NULL DEFAULT 'workspace-user'`,
+  `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_bots_roster
+  ON bricksbot.bots(owner_id, space_id, sort_order, created_at)`,
   `ALTER TABLE bricksbot.messages DROP CONSTRAINT IF EXISTS messages_role_check`,
   `ALTER TABLE bricksbot.messages ADD CONSTRAINT messages_role_check CHECK (role IN ('user', 'assistant', 'system', 'tool'))`,
   `ALTER TABLE bricksbot.bots DROP CONSTRAINT IF EXISTS bots_presence_check`,
@@ -83,5 +89,37 @@ export const CHAT_SCHEMA_STATEMENTS = [
   body TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (bot_id, name)
+)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.compactions (
+  id UUID PRIMARY KEY,
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  summary TEXT NOT NULL,
+  keep_from_message_id UUID NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_compactions_chat
+  ON bricksbot.compactions(chat_id, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.approvals (
+  id UUID PRIMARY KEY,
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  tool_call TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'denied')),
+  decision TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  decided_at TIMESTAMPTZ
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_approvals_chat_pending
+  ON bricksbot.approvals(chat_id, status)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.auto_approvals (
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  tool_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (chat_id, tool_name)
+)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.message_requests (
+  request_id TEXT PRIMARY KEY,
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  result_json TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )`,
 ] as const;

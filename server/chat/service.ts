@@ -1,5 +1,17 @@
-import { parseHandoffNotice, serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
+import {
+  handoffBriefUserLine,
+  parseHandoffNotice,
+  serializeHandoffNotice,
+} from '../../shared/chat/handoff-notice.js';
 import type { Bot, ChatStore, Message } from '../../shared/chat/types.js';
+import type { CompactionSettings, CompactionStore, IdempotencyStore } from '../../shared/durable/types.js';
+import { DEFAULT_COMPACTION_SETTINGS } from '../../shared/durable/types.js';
+import {
+  buildCapabilityCatalog,
+  formatCapabilityPrompt,
+} from '../../shared/llm/capability-catalog.js';
+import { isDefaultMetaTool } from '../../shared/llm/meta-tools.js';
+import { toolLabel } from '../../shared/llm/tool-labels.js';
 import type {
   ApprovalDecision,
   ApprovalRequest,
@@ -13,14 +25,17 @@ import {
   createHandoffTool,
   HANDOFF_TOOL_NAME,
   planHandoff,
-  primaryRouterPrompt,
   type HandoffTurnContext,
 } from '../bots/handoff.js';
+import { applyCompactionToHistory, runCompaction, shouldCompact } from '../durable/compaction.js';
 import { createLakehouseCatalogTool } from '../llm/tools/lakehouse-catalog.js';
+import { createMemorySkillTools } from '../llm/tools/memory-tools.js';
+import { createPiSkillTools } from '../llm/tools/pi-skills-tools.js';
 import { createSqlQueryTool, type SqlQueryToolOptions } from '../llm/tools/sql-query.js';
 import { createVolumeReadTool, type VolumeReadToolOptions } from '../llm/tools/volume-read.js';
 import { createWebFetchTool } from '../llm/tools/web-fetch.js';
 import { formatBotContext } from '../memory/context.js';
+import { MemoryMemorySkillStore } from '../memory/memory-store.js';
 import { ApprovalStore } from './approvals.js';
 
 export interface ChatServiceOptions {
@@ -31,7 +46,11 @@ export interface ChatServiceOptions {
   sqlQuery?: SqlQueryToolOptions;
   lakehouseCatalog?: SqlQueryToolOptions;
   volumeRead?: VolumeReadToolOptions;
+  /** Defaults to an in-memory store so meta tools stay on for every bot. */
   memory?: MemorySkillStore;
+  compaction?: CompactionStore;
+  compactionSettings?: CompactionSettings;
+  idempotency?: IdempotencyStore;
 }
 
 type RegisteredTool = {
@@ -100,9 +119,14 @@ export interface SendMessageResult {
 export class ChatService {
   private readonly approvals: ApprovalStore;
   private readonly tools: RegisteredTool[];
+  private readonly compactionSettings: CompactionSettings;
+  private readonly memory: MemorySkillStore;
 
   constructor(private readonly options: ChatServiceOptions) {
     this.approvals = options.approvals ?? new ApprovalStore();
+    this.compactionSettings = options.compactionSettings ?? DEFAULT_COMPACTION_SETTINGS;
+    // Meta tools (remember / skills / list_memories) are default for every bot.
+    this.memory = options.memory ?? new MemoryMemorySkillStore();
     const allowlist = options.webFetchAllowlist ?? [];
     const tools: RegisteredTool[] = [];
     if (allowlist.length > 0) {
@@ -116,10 +140,12 @@ export class ChatService {
         options.volumeRead ?? {
           host: sqlOptions.host,
           getToken: sqlOptions.getToken,
-        }
-      )
+        },
+      ),
     );
     tools.push(createHandoffTool(options.store));
+    tools.push(...createMemorySkillTools(this.memory));
+    tools.push(...createPiSkillTools(this.memory));
     this.tools = tools;
   }
 
@@ -127,22 +153,36 @@ export class ChatService {
     return this.approvals;
   }
 
-  async sendUserMessage(chatId: string, content: string): Promise<SendMessageResult> {
+  async sendUserMessage(
+    chatId: string,
+    content: string,
+    options?: { requestId?: string },
+  ): Promise<SendMessageResult> {
     const trimmed = content.trim();
     if (!trimmed) {
       throw new Error('Message content is required');
     }
 
+    const requestId = options?.requestId?.trim();
+    if (requestId && this.options.idempotency) {
+      const existing = await this.options.idempotency.get(requestId);
+      if (existing) {
+        return JSON.parse(existing.resultJson) as SendMessageResult;
+      }
+    }
+
     const user = await this.options.store.addMessage(chatId, 'user', trimmed);
-    return this.continueTurn(chatId, user);
+    const result = await this.continueTurn(chatId, user);
+
+    if (requestId && this.options.idempotency) {
+      await this.options.idempotency.put(requestId, chatId, JSON.stringify(result));
+    }
+    return result;
   }
 
-  async decideApproval(
-    approvalId: string,
-    decision: ApprovalDecision
-  ): Promise<SendMessageResult> {
+  async decideApproval(approvalId: string, decision: ApprovalDecision): Promise<SendMessageResult> {
     const isDenial = decision === 'denied' || decision === 'not_approved';
-    const approval = this.approvals.decide(approvalId, decision);
+    const approval = await this.approvals.decide(approvalId, decision);
     const chatId = approval.chatId;
 
     if (isDenial) {
@@ -150,7 +190,7 @@ export class ChatService {
         chatId,
         'tool',
         JSON.stringify({ error: 'User denied tool call', tool: approval.toolCall.name }),
-        { toolCallId: approval.toolCall.id }
+        { toolCallId: approval.toolCall.id },
       );
     } else {
       const botId = await this.options.store.findBotIdForChat(chatId);
@@ -163,7 +203,7 @@ export class ChatService {
 
     // OpenAI requires every tool_call id from the assistant turn to have a tool
     // result before the next completion — wait if siblings are still pending.
-    const stillPending = this.approvals.listPending(chatId);
+    const stillPending = await this.approvals.listPending(chatId);
     if (stillPending.length > 0) {
       const history = await this.options.store.listMessages(chatId);
       const lastAssistant = [...history].reverse().find((m) => m.role === 'assistant') ?? null;
@@ -171,7 +211,7 @@ export class ChatService {
         user: [...history].reverse().find((m) => m.role === 'user')!,
         assistant: lastAssistant,
         pendingApprovals: stillPending,
-        autoApprovedTools: this.approvals.listAutoApproved(chatId),
+        autoApprovedTools: await this.approvals.listAutoApproved(chatId),
         provider: this.options.client.provider,
       };
     }
@@ -189,14 +229,14 @@ export class ChatService {
       const assistant = await this.options.store.addMessage(
         chatId,
         'assistant',
-        'Reached maximum tool execution steps for this turn.'
+        'Reached maximum tool execution steps for this turn.',
       );
       const history = await this.options.store.listMessages(chatId);
       return {
         user: user ?? history.find((m) => m.role === 'user')!,
         assistant,
-        pendingApprovals: this.approvals.listPending(chatId),
-        autoApprovedTools: this.approvals.listAutoApproved(chatId),
+        pendingApprovals: await this.approvals.listPending(chatId),
+        autoApprovedTools: await this.approvals.listAutoApproved(chatId),
         provider: this.options.client.provider,
       };
     }
@@ -208,12 +248,29 @@ export class ChatService {
     }
 
     try {
-      const history = await this.options.store.listMessages(chatId);
+      let history = await this.options.store.listMessages(chatId);
       const systemPrompt = await this.systemPromptFor(bot);
+
+      if (this.options.compaction && shouldCompact(history, systemPrompt, this.compactionSettings)) {
+        await runCompaction({
+          chatId,
+          history,
+          client: this.options.client,
+          store: this.options.compaction,
+          settings: this.compactionSettings,
+        });
+        history = await this.options.store.listMessages(chatId);
+      }
+
+      const compaction = this.options.compaction
+        ? await this.options.compaction.getLatest(chatId)
+        : null;
+      const { messages: windowed, summarySystem } = applyCompactionToHistory(history, compaction);
 
       const llmMessages: LlmMessage[] = [
         { role: 'system', content: systemPrompt },
-        ...toLlmHistory(history),
+        ...(summarySystem ? [{ role: 'system' as const, content: summarySystem }] : []),
+        ...toLlmHistory(windowed),
       ];
 
       const tools = this.toolsFor(bot);
@@ -233,7 +290,12 @@ export class ChatService {
             refusals.push({ toolCall, reason: refusal });
             continue;
           }
-          if (opts.autoApproveAll || this.approvals.isAutoApproved(chatId, toolCall.name)) {
+          // Default meta tools are local durable state — never Ask-first, every bot.
+          if (
+            opts.autoApproveAll ||
+            isDefaultMetaTool(toolCall.name) ||
+            (await this.approvals.isAutoApproved(chatId, toolCall.name))
+          ) {
             toAutoExecute.push(toolCall);
           } else {
             needsApproval.push(toolCall);
@@ -243,7 +305,9 @@ export class ChatService {
         const assistantContent =
           completion.content?.trim() ||
           (needsApproval.length > 0
-            ? `Approval needed to run: ${needsApproval.map((call) => call.name).join(', ')}`
+            ? `Waiting for your approval: ${needsApproval
+                .map((call) => toolLabel(call.name))
+                .join(', ')}.`
             : '');
 
         // Persist the assistant tool_calls before any tool results so replay is valid.
@@ -256,7 +320,7 @@ export class ChatService {
             chatId,
             'tool',
             JSON.stringify({ error: reason, tool: toolCall.name }),
-            { toolCallId: toolCall.id }
+            { toolCallId: toolCall.id },
           );
         }
 
@@ -268,12 +332,14 @@ export class ChatService {
         }
 
         if (needsApproval.length > 0) {
-          const pendingApprovals = needsApproval.map((toolCall) => this.approvals.create(chatId, toolCall));
+          const pendingApprovals = await Promise.all(
+            needsApproval.map((toolCall) => this.approvals.create(chatId, toolCall)),
+          );
           return {
             user: user ?? history.find((m) => m.role === 'user')!,
             assistant,
             pendingApprovals,
-            autoApprovedTools: this.approvals.listAutoApproved(chatId),
+            autoApprovedTools: await this.approvals.listAutoApproved(chatId),
             provider: this.options.client.provider,
           };
         }
@@ -284,14 +350,14 @@ export class ChatService {
       const assistant = await this.options.store.addMessage(
         chatId,
         'assistant',
-        completion.content?.trim() || '(empty model response)'
+        completion.content?.trim() || '(empty model response)',
       );
 
       return {
         user: user ?? [...history].reverse().find((m) => m.role === 'user')!,
         assistant,
-        pendingApprovals: this.approvals.listPending(chatId),
-        autoApprovedTools: this.approvals.listAutoApproved(chatId),
+        pendingApprovals: await this.approvals.listPending(chatId),
+        autoApprovedTools: await this.approvals.listAutoApproved(chatId),
         provider: this.options.client.provider,
       };
     } finally {
@@ -301,6 +367,10 @@ export class ChatService {
     }
   }
 
+  /**
+   * Every bot gets lakehouse tools + default meta tools.
+   * Only `handoff_to_bot` is Primary-gated.
+   */
   private toolsFor(bot: Bot | null): ToolDefinition[] {
     return this.tools
       .filter((tool) => tool.definition.name !== HANDOFF_TOOL_NAME || Boolean(bot?.isPrimary))
@@ -309,41 +379,43 @@ export class ChatService {
 
   private async systemPromptFor(bot: Bot | null): Promise<string> {
     const botName = bot?.name ?? 'Primary';
-    const toolInstructions: string[] = [];
+    const toolNames = this.toolsFor(bot).map((t) => t.name);
 
-    const toolNames = new Set(this.toolsFor(bot).map((t) => t.name));
-    if (toolNames.has('sql_query')) {
-      toolInstructions.push('Use sql_query for read-only SQL queries (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN).');
-    }
-    if (toolNames.has('lakehouse_catalog')) {
-      toolInstructions.push('Use lakehouse_catalog to inspect Unity Catalog catalogs, schemas, tables, and columns.');
-    }
-    if (toolNames.has('volume_read')) {
-      toolInstructions.push('Use volume_read to read or list files in Unity Catalog Volumes (/Volumes/...).');
-    }
-    if (toolNames.has('web_fetch')) {
-      toolInstructions.push('Use web_fetch only for allowlisted HTTPS URLs when needed.');
-    }
-
-    let base = `You are ${botName}, a BricksBot assistant for the Databricks lakehouse. Be concise. ${toolInstructions.join(' ')}`;
-
+    let teammates: Array<{ id: string; name: string }> = [];
     if (bot?.isPrimary) {
       const roster = bot.spaceId
         ? await this.options.store.listBots({ spaceId: bot.spaceId, ownerId: bot.ownerId })
         : [];
-      const teammates = roster
+      teammates = roster
         .filter((other) => other.id !== bot.id)
         .map((other) => ({ id: other.id, name: other.name }));
-      base = `${base} ${primaryRouterPrompt(teammates)}`;
     }
-    if (!bot || !this.options.memory) return base;
 
-    const [memories, skills] = await Promise.all([
-      this.options.memory.listMemories(bot.id),
-      this.options.memory.listSkills(bot.id),
-    ]);
-    const section = formatBotContext(memories, skills);
-    return section ? `${base}\n\n${section}` : base;
+    let memories: Awaited<ReturnType<MemorySkillStore['listMemories']>> = [];
+    let skills: Awaited<ReturnType<MemorySkillStore['listSkills']>> = [];
+    if (bot) {
+      [memories, skills] = await Promise.all([
+        this.memory.listMemories(bot.id),
+        this.memory.listSkills(bot.id),
+      ]);
+    }
+
+    const catalog = buildCapabilityCatalog({
+      toolNames,
+      isPrimary: Boolean(bot?.isPrimary),
+      teammates,
+      memoryKeys: memories.map((memory) => memory.key),
+      skills,
+    });
+
+    const base = [
+      `You are ${botName}, a durable BricksBot teammate for the Databricks lakehouse. Be concise.`,
+      formatCapabilityPrompt(catalog),
+    ].join('\n\n');
+
+    // Memories keep values in-window; skills already appear as an index in Capabilities.
+    const memorySection = formatBotContext(memories, []);
+    return memorySection ? `${base}\n\n${memorySection}` : base;
   }
 
   private async refusalFor(toolCall: ToolCall, ctx: HandoffTurnContext): Promise<string | null> {
@@ -382,8 +454,9 @@ export class ChatService {
     const { sender, target, brief } = planned.plan;
     const targetChat = await this.options.store.getOrCreateChatForBot(target.id);
     const sourceChatId = ctx.chatId;
+    const briefLine = handoffBriefUserLine(sender.name, brief);
 
-    await this.options.store.addMessage(targetChat.id, 'user', `From ${sender.name}: ${brief}`);
+    await this.options.store.addMessage(targetChat.id, 'user', briefLine);
 
     await this.options.store.addMessage(
       sourceChatId,
@@ -397,18 +470,24 @@ export class ChatService {
         senderBotId: sender.id,
         senderName: sender.name,
         brief,
+        threadBotId: target.id,
       }),
     );
 
-    const nested = await this.continueTurn(targetChat.id, undefined, 0, { autoApproveAll: true });
-    const reply = nested.assistant?.content?.trim() || '(no reply)';
+    let reply: string;
+    try {
+      const nested = await this.continueTurn(targetChat.id, undefined, 0, { autoApproveAll: true });
+      reply = nested.assistant?.content?.trim() || '(no reply)';
+    } catch (err) {
+      reply = `(handoff failed) ${err instanceof Error ? err.message : 'Unexpected error'}`;
+      await this.options.store.addMessage(targetChat.id, 'assistant', reply);
+    }
 
     const targetMessages = await this.options.store.listMessages(targetChat.id);
-    // Count from the handoff user line through the teammate reply (exclude UI system chips).
     let threadStart = -1;
     for (let i = targetMessages.length - 1; i >= 0; i -= 1) {
       const message = targetMessages[i]!;
-      if (message.role === 'user' && message.content === `From ${sender.name}: ${brief}`) {
+      if (message.role === 'user' && message.content === briefLine) {
         threadStart = i;
         break;
       }
@@ -418,33 +497,41 @@ export class ChatService {
       (message) => message.role === 'user' || message.role === 'assistant',
     ).length;
 
-    const threadOnSource = serializeHandoffNotice({
-      kind: 'handoff',
-      direction: 'thread',
-      targetBotId: target.id,
-      targetName: target.name,
-      targetChatId: targetChat.id,
-      senderBotId: sender.id,
-      senderName: sender.name,
+    const baseNotice = {
+      kind: 'handoff' as const,
       brief,
       messageCount,
       replyPreview: reply.slice(0, 800),
-    });
-    await this.options.store.addMessage(sourceChatId, 'system', threadOnSource);
+      threadBotId: target.id,
+    };
 
+    // Primary side: peer is the teammate; peek loads teammate chat.
+    await this.options.store.addMessage(
+      sourceChatId,
+      'system',
+      serializeHandoffNotice({
+        ...baseNotice,
+        direction: 'thread',
+        targetBotId: target.id,
+        targetName: target.name,
+        targetChatId: targetChat.id,
+        senderBotId: sender.id,
+        senderName: sender.name,
+      }),
+    );
+
+    // Teammate side: peer is Primary; peek still loads teammate chat via threadBotId.
     await this.options.store.addMessage(
       targetChat.id,
       'system',
       serializeHandoffNotice({
-        kind: 'handoff',
+        ...baseNotice,
         direction: 'thread',
         targetBotId: sender.id,
         targetName: sender.name,
-        targetChatId: sourceChatId,
+        targetChatId: targetChat.id,
         senderBotId: target.id,
         senderName: target.name,
-        brief,
-        messageCount,
       }),
     );
 

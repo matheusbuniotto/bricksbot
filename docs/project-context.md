@@ -10,9 +10,12 @@ Databricks Marketplace App aiming for near 1:1 Grok Bot product shape (Bot roste
 - **Marketplace**: Apply for Partner / PartnerOps now; do not block MVP on public Apps listing clarity.
 - **Tenancy**: User-owned Bots; Spaces/folders; team sharing. Egress allowlists for LLM, connectors, and future sandbox.
 
+## Locked later (2026-10-29)
+
+- **Agent loop**: **Thin Pi-compatible harness** (compaction, `CapabilityCatalog`, skills index + `activate_skill` / `read_skill_resource`, memory tools, durable approvals, requestId) — not embedding `@earendil-works/pi-durable` until a Lakebase adapter exists. See [durable-harness.md](durable-harness.md).
+
 ## Still open
 
-- Pi Durable vs thin harness for the agent loop
 - Who owns PartnerOps apply
 - Websocket / scaling approach for the App
 - Daytona vs E2B when Phase 5 computer starts

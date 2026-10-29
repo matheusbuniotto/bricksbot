@@ -12,7 +12,7 @@ export interface BotSkill {
   id: string;
   botId: string;
   name: string;
-  /** Markdown skill document injected into the bot's chat context. */
+  /** Markdown skill body. Prompt shows name + description; full body via activate_skill. */
   body: string;
   createdAt: string;
 }
@@ -20,7 +20,10 @@ export interface BotSkill {
 export interface MemorySkillStore {
   listMemories(botId: string): Promise<BotMemory[]>;
   upsertMemory(botId: string, key: string, content: string): Promise<BotMemory>;
+  deleteMemory(botId: string, key: string): Promise<void>;
   listSkills(botId: string): Promise<BotSkill[]>;
   createSkill(botId: string, name: string, body: string): Promise<BotSkill>;
+  /** Upsert by name — used by save_skill for auto-improvement. */
+  upsertSkill(botId: string, name: string, body: string): Promise<BotSkill>;
   deleteSkill(botId: string, skillId: string): Promise<void>;
 }

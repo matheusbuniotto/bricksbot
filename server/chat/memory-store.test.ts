@@ -68,4 +68,48 @@ describe('MemoryChatStore', () => {
     const updated = await store.setBotPresence(primary.id, 'thinking');
     expect(updated.presence).toBe('thinking');
   });
+
+  test('rename, move, archive, restore, and delete bots', async () => {
+    const { space, primary } = await store.ensureBootstrap('user-1');
+    const team = await store.createSpace({ name: 'Code', ownerId: 'user-1' });
+    const analyst = await store.createBot({
+      name: 'Analyst',
+      spaceId: space.id,
+      ownerId: 'user-1',
+    });
+    const coder = await store.createBot({
+      name: 'Coder',
+      spaceId: space.id,
+      ownerId: 'user-1',
+    });
+
+    const renamed = await store.updateBot(analyst.id, { name: 'Fraud Analyst' });
+    expect(renamed.name).toBe('Fraud Analyst');
+    expect(renamed.avatarLabel).toBe('F');
+
+    await store.moveBot(coder.id, { spaceId: team.id, index: 0 });
+    expect((await store.getBot(coder.id))?.spaceId).toBe(team.id);
+
+    await store.moveBot(analyst.id, { spaceId: space.id, index: 0 });
+    const personal = await store.listBots({ spaceId: space.id, ownerId: 'user-1' });
+    expect(personal.filter((bot) => !bot.isPrimary).map((bot) => bot.name)).toEqual(['Fraud Analyst']);
+
+    await store.archiveBot(analyst.id);
+    expect(await store.listBots({ ownerId: 'user-1' })).toEqual([
+      expect.objectContaining({ id: primary.id }),
+      expect.objectContaining({ id: coder.id }),
+    ]);
+    expect(await store.listBots({ ownerId: 'user-1', archived: 'archived' })).toEqual([
+      expect.objectContaining({ id: analyst.id, archivedAt: expect.any(String) }),
+    ]);
+
+    await store.unarchiveBot(analyst.id);
+    expect((await store.getBot(analyst.id))?.archivedAt).toBeNull();
+
+    await store.deleteBot(analyst.id);
+    expect(await store.getBot(analyst.id)).toBeNull();
+
+    await expect(store.archiveBot(primary.id)).rejects.toThrow(/Primary/);
+    await expect(store.deleteBot(primary.id)).rejects.toThrow(/Primary/);
+  });
 });

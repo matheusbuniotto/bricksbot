@@ -1,11 +1,15 @@
 import { createApp, lakebase, server } from '@databricks/appkit';
 import type { ChatStore } from '../shared/chat/types.js';
+import type { CompactionStore, IdempotencyStore } from '../shared/durable/types.js';
 import type { MemorySkillStore } from '../shared/memory/types.js';
 import type { RoutineStore } from '../shared/routines/types.js';
+import { ApprovalStore } from './chat/approvals.js';
 import { LakebaseChatStore, type LakebaseQuery } from './chat/lakebase-store.js';
 import { MemoryChatStore } from './chat/memory-store.js';
 import { registerChatRoutes } from './chat/routes.js';
 import { ChatService } from './chat/service.js';
+import { LakebaseCompactionStore, MemoryCompactionStore } from './durable/compaction-store.js';
+import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idempotency-store.js';
 import { createChatClientFromEnv } from './llm/create-chat-client.js';
 import { sqlQueryConfigFromEnv } from './llm/tools/sql-query.js';
 import { parseAllowlist } from './llm/tools/web-fetch.js';
@@ -25,6 +29,9 @@ async function createStores(query?: LakebaseQuery): Promise<{
   chats: ChatStore;
   routines: RoutineStore;
   memory: MemorySkillStore;
+  compaction: CompactionStore;
+  idempotency: IdempotencyStore;
+  approvals: ApprovalStore;
 }> {
   const ownerId = process.env.BRICKSBOT_USER_ID?.trim() || 'workspace-user';
   if (lakebaseConfigured() && query) {
@@ -35,13 +42,23 @@ async function createStores(query?: LakebaseQuery): Promise<{
       chats,
       routines: new LakebaseRoutineStore(query),
       memory: new LakebaseMemorySkillStore(query),
+      compaction: new LakebaseCompactionStore(query),
+      idempotency: new LakebaseIdempotencyStore(query),
+      approvals: new ApprovalStore(query),
     };
   }
 
   console.warn('[bricksbot] Lakebase not configured — using in-memory stores (state will not survive restart)');
   const chats = new MemoryChatStore();
   await chats.ensureBootstrap(ownerId);
-  return { chats, routines: new MemoryRoutineStore(), memory: new MemoryMemorySkillStore() };
+  return {
+    chats,
+    routines: new MemoryRoutineStore(),
+    memory: new MemoryMemorySkillStore(),
+    compaction: new MemoryCompactionStore(),
+    idempotency: new MemoryIdempotencyStore(),
+    approvals: new ApprovalStore(),
+  };
 }
 
 const plugins = lakebaseConfigured() ? [server(), lakebase()] : [server()];
@@ -53,13 +70,16 @@ createApp({
       'lakebase' in appkit && appkit.lakebase
         ? (sql: string, params?: unknown[]) => appkit.lakebase.query(sql, params)
         : undefined;
-    const { chats, routines, memory } = await createStores(query);
+    const { chats, routines, memory, compaction, idempotency, approvals } = await createStores(query);
     const client = createChatClientFromEnv(process.env);
     console.info(`[bricksbot] ChatClient provider=${client.provider}`);
     const chatService = new ChatService({
       store: chats,
       client,
       memory,
+      compaction,
+      idempotency,
+      approvals,
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
       sqlQuery: sqlQueryConfigFromEnv(process.env),
     });

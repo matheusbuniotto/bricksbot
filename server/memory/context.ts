@@ -1,3 +1,4 @@
+import { toSkillIndexEntry } from '../../shared/llm/capability-catalog.js';
 import type { BotMemory, BotSkill } from '../../shared/memory/types.js';
 
 /** Newest memories kept when a bot has more facts than the prompt can carry. */
@@ -8,7 +9,8 @@ export const BOT_CONTEXT_CHAR_CAP = 4_000;
 
 /**
  * System section for one bot. Empty when the bot has no memories or skills.
- * Keeps the newest memories, then drops text past the character cap.
+ * Keeps the newest memories. Skills render as a Pi-style index (name + description);
+ * full bodies load on demand via activate_skill.
  */
 export function formatBotContext(
   memories: Array<Pick<BotMemory, 'key' | 'content' | 'updatedAt'>>,
@@ -23,14 +25,21 @@ export function formatBotContext(
     .slice(0, Math.max(0, memoryLimit))
     .sort((a, b) => a.key.localeCompare(b.key));
 
-  const skillRows = [...skills].sort((a, b) => a.name.localeCompare(b.name));
+  const skillIndex = [...skills]
+    .map((skill) => toSkillIndexEntry(skill))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const blocks: string[] = [];
   if (kept.length > 0) {
     blocks.push(['Memories:', ...kept.map((memory) => `- ${memory.key}: ${memory.content}`)].join('\n'));
   }
-  if (skillRows.length > 0) {
-    blocks.push(['Skills:', ...skillRows.map((skill) => `## ${skill.name}\n${skill.body}`)].join('\n'));
+  if (skillIndex.length > 0) {
+    blocks.push(
+      [
+        'Skills (index — call activate_skill for full body):',
+        ...skillIndex.map((skill) => `- ${skill.name}: ${skill.description}`),
+      ].join('\n'),
+    );
   }
 
   const text = blocks.join('\n\n');

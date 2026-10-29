@@ -5,12 +5,15 @@ import type {
   ChatStore,
   CreateBotInput,
   CreateSpaceInput,
+  ListBotsOptions,
   Message,
   MessageRole,
+  MoveBotInput,
   Presence,
   Space,
   SpaceMember,
   SpaceRole,
+  UpdateBotInput,
 } from '../../shared/chat/types.js';
 import type { ToolCall } from '../../shared/llm/types.js';
 
@@ -24,6 +27,12 @@ function nowIso(): string {
 function avatarFromName(name: string): string {
   const trimmed = name.trim();
   return (trimmed[0] ?? '?').toUpperCase();
+}
+
+function sortBots(a: Bot, b: Bot): number {
+  if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+  return a.createdAt.localeCompare(b.createdAt);
 }
 
 /** In-memory ChatStore for tests and local runs without Lakebase. */
@@ -110,12 +119,13 @@ export class MemoryChatStore implements ChatStore {
     return member;
   }
 
-  async listBots(options?: { spaceId?: string | null; ownerId?: string }): Promise<Bot[]> {
+  async listBots(options?: ListBotsOptions): Promise<Bot[]> {
     if (options?.ownerId) {
       await this.ensureBootstrap(options.ownerId);
     } else {
       await this.ensurePrimaryBot();
     }
+    const archived = options?.archived ?? 'active';
     let bots = [...this.bots.values()];
     if (options?.spaceId !== undefined) {
       bots = bots.filter((bot) => bot.spaceId === options.spaceId);
@@ -123,10 +133,24 @@ export class MemoryChatStore implements ChatStore {
     if (options?.ownerId) {
       bots = bots.filter((bot) => bot.ownerId === options.ownerId);
     }
-    return bots.sort((a, b) => {
-      if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
-      return a.createdAt.localeCompare(b.createdAt);
-    });
+    if (archived === 'active') {
+      bots = bots.filter((bot) => bot.archivedAt == null);
+    } else if (archived === 'archived') {
+      bots = bots.filter((bot) => bot.archivedAt != null);
+    }
+    return bots.sort(sortBots);
+  }
+
+  private nextSortOrder(spaceId: string | null, ownerId: string): number {
+    const siblings = [...this.bots.values()].filter(
+      (bot) =>
+        bot.ownerId === ownerId &&
+        bot.spaceId === spaceId &&
+        !bot.isPrimary &&
+        bot.archivedAt == null,
+    );
+    if (siblings.length === 0) return 0;
+    return Math.max(...siblings.map((bot) => bot.sortOrder)) + 1;
   }
 
   async createBot(input: CreateBotInput): Promise<Bot> {
@@ -144,6 +168,8 @@ export class MemoryChatStore implements ChatStore {
       spaceId: input.spaceId ?? null,
       isPrimary: Boolean(input.isPrimary),
       ownerId: input.ownerId,
+      sortOrder: input.isPrimary ? -1 : this.nextSortOrder(input.spaceId ?? null, input.ownerId),
+      archivedAt: null,
       createdAt: nowIso(),
     };
     this.bots.set(bot.id, bot);
@@ -151,6 +177,100 @@ export class MemoryChatStore implements ChatStore {
       this.primaryByOwner.set(input.ownerId, bot.id);
     }
     return bot;
+  }
+
+  async updateBot(botId: string, input: UpdateBotInput): Promise<Bot> {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (input.spaceId !== undefined && input.spaceId !== null) {
+      if (!this.spaces.has(input.spaceId)) throw new Error('Space not found');
+    }
+    const name = input.name !== undefined ? input.name.trim() : bot.name;
+    if (!name) throw new Error('Bot name is required');
+    const avatarLabel =
+      input.avatarLabel !== undefined
+        ? input.avatarLabel.trim() || avatarFromName(name)
+        : input.name !== undefined
+          ? bot.avatarLabel.length === 1
+            ? avatarFromName(name)
+            : bot.avatarLabel
+          : bot.avatarLabel;
+    let spaceId = bot.spaceId;
+    let sortOrder = bot.sortOrder;
+    if (input.spaceId !== undefined && input.spaceId !== bot.spaceId) {
+      if (bot.isPrimary) throw new Error('Cannot move the Primary bot');
+      spaceId = input.spaceId;
+      sortOrder = this.nextSortOrder(spaceId, bot.ownerId);
+    }
+    const updated: Bot = { ...bot, name, avatarLabel, spaceId, sortOrder };
+    this.bots.set(botId, updated);
+    return updated;
+  }
+
+  async moveBot(botId: string, input: MoveBotInput): Promise<Bot> {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (bot.isPrimary) throw new Error('Cannot move the Primary bot');
+    if (bot.archivedAt) throw new Error('Unarchive the bot before moving it');
+    if (input.spaceId !== null && !this.spaces.has(input.spaceId)) {
+      throw new Error('Space not found');
+    }
+    if (!Number.isInteger(input.index) || input.index < 0) {
+      throw new Error('index must be a non-negative integer');
+    }
+
+    const siblings = [...this.bots.values()]
+      .filter(
+        (row) =>
+          row.ownerId === bot.ownerId &&
+          row.spaceId === input.spaceId &&
+          !row.isPrimary &&
+          row.archivedAt == null &&
+          row.id !== bot.id,
+      )
+      .sort(sortBots);
+
+    const clamped = Math.min(input.index, siblings.length);
+    siblings.splice(clamped, 0, { ...bot, spaceId: input.spaceId });
+    siblings.forEach((row, index) => {
+      this.bots.set(row.id, { ...row, spaceId: input.spaceId, sortOrder: index });
+    });
+    return this.bots.get(botId)!;
+  }
+
+  async archiveBot(botId: string): Promise<Bot> {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (bot.isPrimary) throw new Error('Cannot archive the Primary bot');
+    if (bot.archivedAt) return bot;
+    const updated: Bot = { ...bot, archivedAt: nowIso() };
+    this.bots.set(botId, updated);
+    return updated;
+  }
+
+  async unarchiveBot(botId: string): Promise<Bot> {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (!bot.archivedAt) return bot;
+    const updated: Bot = {
+      ...bot,
+      archivedAt: null,
+      sortOrder: this.nextSortOrder(bot.spaceId, bot.ownerId),
+    };
+    this.bots.set(botId, updated);
+    return updated;
+  }
+
+  async deleteBot(botId: string): Promise<void> {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new Error('Bot not found');
+    if (bot.isPrimary) throw new Error('Cannot delete the Primary bot');
+    const chat = this.chatsByBot.get(botId);
+    if (chat) {
+      this.messagesByChat.delete(chat.id);
+      this.chatsByBot.delete(botId);
+    }
+    this.bots.delete(botId);
   }
 
   async getBot(botId: string): Promise<Bot | null> {

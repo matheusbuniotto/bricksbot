@@ -2,15 +2,23 @@ import { describe, expect, test } from 'vitest';
 import { formatBotContext } from './context.js';
 
 describe('formatBotContext', () => {
-  test('includes memories and skill documents', () => {
+  test('includes memories and a skills index without inlining full bodies', () => {
+    const longBody = [
+      'Prefer concise SQL.',
+      'Always qualify tables.',
+      'x'.repeat(2_000),
+    ].join('\n');
     const section = formatBotContext(
       [{ key: 'warehouse', content: 'us-west', updatedAt: '2026-01-01T00:00:00.000Z' }],
-      [{ name: 'SQL style', body: 'Prefer concise SQL.' }]
+      [{ name: 'SQL style', body: longBody }]
     );
 
     expect(section).toContain('warehouse: us-west');
-    expect(section).toContain('## SQL style');
+    expect(section).toContain('SQL style');
     expect(section).toContain('Prefer concise SQL.');
+    expect(section).not.toContain('## SQL style');
+    expect(section).not.toContain(longBody);
+    expect(section).toMatch(/Skills \(index/);
   });
 
   test('keeps the newest memories', () => {

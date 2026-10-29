@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
 import type { Bot, Message } from '../../../shared/chat/types';
-import type { HandoffNotice } from '../../../shared/chat/handoff-notice';
+import {
+  handoffPeekBotId,
+  sliceHandoffThread,
+  type HandoffNotice,
+} from '../../../shared/chat/handoff-notice';
 import { fetchBotChat } from '../lib/chat-api';
 import { BotFace, botColor } from './BotFace';
 
 function previewBody(message: Message): string {
   if (message.role === 'tool') {
-    try {
-      const parsed = JSON.parse(message.content) as { error?: string };
-      if (parsed.error) return parsed.error;
-    } catch {
-      // plain tool output
-    }
-    return message.content.slice(0, 400);
+    // Peek is for the handoff conversation, not tool plumbing.
+    return '';
   }
   return message.content;
 }
@@ -32,6 +31,8 @@ export function HandoffPeek({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const peekBotId = handoffPeekBotId(notice);
+  const openBotId = notice.targetBotId || peekBotId;
   const target = bots.find((bot) => bot.id === notice.targetBotId) ?? null;
   const sender = bots.find((bot) => bot.id === notice.senderBotId) ?? null;
   const targetAccent = botColor(notice.targetBotId || notice.targetName, false);
@@ -43,19 +44,36 @@ export function HandoffPeek({
     setError(null);
 
     void (async () => {
-      if (!notice.targetBotId) {
+      if (!peekBotId) {
         if (!cancelled) {
           setMessages([]);
           setLoading(false);
-          setError('This older handoff has no linked bot chat.');
+          setError(
+            notice.replyPreview
+              ? null
+              : 'This older handoff has no linked bot chat.',
+          );
         }
         return;
       }
       try {
-        const data = await fetchBotChat(notice.targetBotId);
-        if (!cancelled) setMessages(data.messages.filter((m) => m.role !== 'tool' || !m.content.startsWith('Handed off')));
+        const data = await fetchBotChat(peekBotId);
+        if (cancelled) return;
+        const thread = sliceHandoffThread(data.messages, notice).filter(
+          (m) => m.role !== 'tool' || !m.content.startsWith('Handed off'),
+        );
+        setMessages(thread);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load bot chat');
+        if (!cancelled) {
+          setMessages([]);
+          setError(
+            notice.replyPreview
+              ? null
+              : err instanceof Error
+                ? err.message
+                : 'Unable to load bot chat',
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -64,7 +82,7 @@ export function HandoffPeek({
     return () => {
       cancelled = true;
     };
-  }, [notice.targetBotId]);
+  }, [peekBotId, notice]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -73,6 +91,8 @@ export function HandoffPeek({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  const showPreviewFallback = !loading && messages.length === 0 && Boolean(notice.replyPreview);
 
   return (
     <div className="handoff-peek-backdrop" role="presentation" onClick={onClose}>
@@ -107,36 +127,60 @@ export function HandoffPeek({
         <div className="handoff-peek-body">
           {loading ? <p className="handoff-peek-muted">Loading…</p> : null}
           {error ? <p className="handoff-peek-error">{error}</p> : null}
-          {!loading && !error && messages.length === 0 ? (
-            <p className="handoff-peek-muted">No messages in {notice.targetName}&rsquo;s chat yet.</p>
+          {showPreviewFallback ? (
+            <>
+              {notice.brief ? (
+                <div className="handoff-peek-msg handoff-peek-msg-user">
+                  <div
+                    className="handoff-peek-bubble handoff-peek-bubble-user"
+                    style={{ background: targetAccent }}
+                  >
+                    {notice.brief}
+                  </div>
+                </div>
+              ) : null}
+              <div className="handoff-peek-msg">
+                <div className="handoff-peek-bubble">{notice.replyPreview}</div>
+              </div>
+              {peekBotId ? (
+                <p className="handoff-peek-muted">Live thread unavailable (bot may have been removed).</p>
+              ) : null}
+            </>
+          ) : null}
+          {!loading && !error && !showPreviewFallback && messages.length === 0 ? (
+            <p className="handoff-peek-muted">No messages in this handoff thread yet.</p>
           ) : null}
           {!loading
-            ? messages.map((message) => {
-                const isUser = message.role === 'user';
-                return (
-                  <div
-                    key={message.id}
-                    className={isUser ? 'handoff-peek-msg handoff-peek-msg-user' : 'handoff-peek-msg'}
-                  >
+            ? messages
+                .filter((message) => message.role === 'user' || message.role === 'assistant')
+                .map((message) => {
+                  const isUser = message.role === 'user';
+                  const body = previewBody(message);
+                  if (!body) return null;
+                  return (
                     <div
-                      className={isUser ? 'handoff-peek-bubble handoff-peek-bubble-user' : 'handoff-peek-bubble'}
-                      style={isUser ? { background: targetAccent } : undefined}
+                      key={message.id}
+                      className={isUser ? 'handoff-peek-msg handoff-peek-msg-user' : 'handoff-peek-msg'}
                     >
-                      {previewBody(message)}
+                      <div
+                        className={isUser ? 'handoff-peek-bubble handoff-peek-bubble-user' : 'handoff-peek-bubble'}
+                        style={isUser ? { background: targetAccent } : undefined}
+                      >
+                        {body}
+                      </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })
             : null}
         </div>
 
         <div className="handoff-peek-actions">
-          {notice.targetBotId ? (
+          {openBotId ? (
             <button
               type="button"
               className="handoff-peek-open"
               onClick={() => {
-                onOpenBot(notice.targetBotId);
+                onOpenBot(openBotId);
                 onClose();
               }}
             >

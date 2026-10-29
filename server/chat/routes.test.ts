@@ -106,4 +106,53 @@ describe('chat HTTP API', () => {
       expect(revokeRes.status).toBe(200);
     });
   });
+
+  test('supports bot rename, move, archive, and delete', async () => {
+    await withChatApp(async (baseUrl) => {
+      const spacesRes = await fetch(`${baseUrl}/api/spaces`);
+      const { spaces } = (await spacesRes.json()) as { spaces: Array<{ id: string }> };
+      const createSpace = await fetch(`${baseUrl}/api/spaces`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Code' }),
+      });
+      const { space: code } = (await createSpace.json()) as { space: { id: string } };
+
+      const createBot = await fetch(`${baseUrl}/api/bots`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Analyst', spaceId: spaces[0]!.id }),
+      });
+      const { bot } = (await createBot.json()) as { bot: { id: string } };
+
+      const rename = await fetch(`${baseUrl}/api/bots/${bot.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Fraud Analyst' }),
+      });
+      expect(rename.status).toBe(200);
+      expect(((await rename.json()) as { bot: { name: string } }).bot.name).toBe('Fraud Analyst');
+
+      const moved = await fetch(`${baseUrl}/api/bots/${bot.id}/move`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ spaceId: code.id, index: 0 }),
+      });
+      expect(moved.status).toBe(200);
+      expect(((await moved.json()) as { bot: { spaceId: string } }).bot.spaceId).toBe(code.id);
+
+      const archived = await fetch(`${baseUrl}/api/bots/${bot.id}/archive`, { method: 'POST' });
+      expect(archived.status).toBe(200);
+      const hidden = await fetch(`${baseUrl}/api/bots?archived=archived`);
+      expect(
+        ((await hidden.json()) as { bots: Array<{ id: string }> }).bots.map((row) => row.id),
+      ).toContain(bot.id);
+
+      const restored = await fetch(`${baseUrl}/api/bots/${bot.id}/unarchive`, { method: 'POST' });
+      expect(restored.status).toBe(200);
+
+      const deleted = await fetch(`${baseUrl}/api/bots/${bot.id}`, { method: 'DELETE' });
+      expect(deleted.status).toBe(204);
+    });
+  });
 });

@@ -66,6 +66,19 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
     return mapMemory(row);
   }
 
+  async deleteMemory(botId: string, key: string): Promise<void> {
+    const id = requireBotId(botId);
+    const trimmedKey = key.trim();
+    if (!trimmedKey) throw new Error('Memory key is required');
+    const result = await this.query(
+      `DELETE FROM bricksbot.bot_memories
+       WHERE bot_id = $1 AND key = $2
+       RETURNING id`,
+      [id, trimmedKey],
+    );
+    if (!result.rows[0]) throw new Error('Memory not found');
+  }
+
   async listSkills(botId: string): Promise<BotSkill[]> {
     const id = requireBotId(botId);
     const result = await this.query(
@@ -96,6 +109,23 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
     );
     const row = result.rows[0];
     if (!row) throw new Error('Skill create failed');
+    return mapSkill(row);
+  }
+
+  async upsertSkill(botId: string, name: string, body: string): Promise<BotSkill> {
+    const id = requireBotId(botId);
+    const normalized = normalizeSkill(name, body);
+    await this.requireBot(id);
+    const result = await this.query(
+      `INSERT INTO bricksbot.bot_skills (id, bot_id, name, body)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (bot_id, name) DO UPDATE
+       SET body = EXCLUDED.body
+       RETURNING id, bot_id, name, body, created_at`,
+      [randomUUID(), id, normalized.name, normalized.body],
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error('Skill upsert failed');
     return mapSkill(row);
   }
 
