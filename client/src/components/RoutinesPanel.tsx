@@ -1,5 +1,6 @@
 import { Button } from '@databricks/appkit-ui/react';
 import { useState, type FormEvent } from 'react';
+import { Select } from './Select';
 import type { Bot } from '../../../shared/chat/types';
 import type { Routine } from '../../../shared/routines/types';
 
@@ -72,31 +73,26 @@ export function RoutinesPanel({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Name"
-            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="field"
           />
           <input
             value={cron}
             onChange={(e) => setCron(e.target.value)}
             placeholder="Cron (e.g. 0 9 * * *)"
-            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs font-mono outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="field font-mono"
           />
-          <select
+          <Select
+            ariaLabel="Bot"
             value={selectedBotId}
-            onChange={(e) => setBotId(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            {bots.map((bot) => (
-              <option key={bot.id} value={bot.id}>
-                {bot.name}
-              </option>
-            ))}
-          </select>
+            onChange={setBotId}
+            options={bots.map((bot) => ({ value: bot.id, label: bot.name }))}
+          />
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Prompt (optional)"
             rows={2}
-            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+            className="field"
           />
           <Button type="submit" size="sm" disabled={creating || !bots.length}>
             Create

@@ -1,3 +1,4 @@
+import { Select } from './Select';
 import {
   ArchiveRestore,
   Copy,
@@ -639,16 +640,14 @@ export function BotRoster({
               onChange={(event) => setBotName(event.target.value)}
             />
             {spaces.length > 1 ? (
-              <label className="dialog-field">
+              <div className="dialog-field">
                 Section
-                <select value={botSpaceId || defaultSpaceId} onChange={(event) => setBotSpaceId(event.target.value)}>
-                  {spaces.map((space) => (
-                    <option key={space.id} value={space.id}>
-                      {space.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <Select
+                  value={botSpaceId || defaultSpaceId}
+                  onChange={setBotSpaceId}
+                  options={spaces.map((space) => ({ value: space.id, label: space.name }))}
+                />
+              </div>
             ) : null}
             {spaces.length === 0 ? <p className="dialog-note">Create a section before adding a bot.</p> : null}
             <div className="dialog-actions">

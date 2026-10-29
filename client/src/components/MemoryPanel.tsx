@@ -2,8 +2,7 @@ import { Button } from '@databricks/appkit-ui/react';
 import { useState, type FormEvent } from 'react';
 import type { BotMemory, BotSkill } from '../../../shared/agents/memory/types';
 
-const fieldClass =
-  'w-full rounded-md border border-input bg-background px-2 py-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring';
+const fieldClass = 'field';
 
 export function MemoryPanel({
   botId,
@@ -79,7 +78,7 @@ export function MemoryPanel({
               placeholder="What this bot should remember"
               rows={2}
               disabled={!botId}
-              className={`${fieldClass} resize-none`}
+              className={fieldClass}
             />
             <Button type="submit" size="sm" disabled={!botId || savingMemory}>
               {savingMemory ? 'Saving…' : 'Save memory'}
@@ -126,7 +125,7 @@ export function MemoryPanel({
               placeholder="Markdown instructions for this bot"
               rows={2}
               disabled={!botId}
-              className={`${fieldClass} resize-none`}
+              className={fieldClass}
             />
             <Button type="submit" size="sm" disabled={!botId || savingSkill}>
               {savingSkill ? 'Adding…' : 'Add skill'}
