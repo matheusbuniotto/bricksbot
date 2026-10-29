@@ -1,5 +1,5 @@
-import type { ChatClient } from '../../shared/llm/types.js';
-import { resolveLlmEnv } from '../llm/resolve-llm-env.js';
+import type { ChatClient } from '../../shared/agents/types.js';
+import { resolveLlmEnv } from '../agents/clients/resolve-llm-env.js';
 
 export interface SetupStatus {
   provider: ChatClient['provider'];

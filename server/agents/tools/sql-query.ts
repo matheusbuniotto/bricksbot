@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../../../shared/llm/types.js';
+import type { ToolDefinition } from '../../../shared/agents/types.js';
 
 const ALLOWED_PREFIXES = new Set(['SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'EXPLAIN']);
 

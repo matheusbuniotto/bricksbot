@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { BotMemory, BotSkill, MemorySkillStore } from '../../shared/memory/types.js';
-import type { LakebaseQuery } from '../chat/lakebase-store.js';
+import type { BotMemory, BotSkill, MemorySkillStore } from '../../../shared/agents/memory/types.js';
+import type { LakebaseQuery } from '../../chat/lakebase-store.js';
 import { normalizeMemory, normalizeSkill, requireBotId } from './input.js';
 
 function asString(value: unknown): string {

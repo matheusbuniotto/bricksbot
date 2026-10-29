@@ -1,5 +1,5 @@
 import type { Bot, Chat, Message, Space, SpaceMember } from '../../../shared/chat/types';
-import type { ApprovalDecision, ApprovalRequest } from '../../../shared/llm/types';
+import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
 
 async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {

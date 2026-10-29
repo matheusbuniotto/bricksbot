@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { ApprovalDecision, ApprovalRequest } from '../../../shared/llm/types';
+import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
 import { approvalTitle } from '../lib/user-facing';
 
 function readStr(val: unknown): string {

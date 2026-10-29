@@ -1,6 +1,6 @@
 import { handoffBriefUserLine, serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
 import type { Bot, ChatStore } from '../../shared/chat/types.js';
-import type { ToolDefinition } from '../../shared/llm/types.js';
+import type { ToolDefinition } from '../../shared/agents/types.js';
 
 export const HANDOFF_TOOL_NAME = 'handoff_to_bot';
 

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { ToolDefinition } from '../../../shared/llm/types.js';
+import type { ToolDefinition } from '../../../shared/agents/types.js';
 
 export interface VolumeReadToolOptions {
   host?: string;

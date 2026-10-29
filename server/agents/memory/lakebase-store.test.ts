@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { LakebaseQuery } from '../chat/lakebase-store.js';
+import type { LakebaseQuery } from '../../chat/lakebase-store.js';
 import { LakebaseMemorySkillStore } from './lakebase-store.js';
 
 type Row = Record<string, unknown>;

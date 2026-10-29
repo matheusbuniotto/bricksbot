@@ -1,8 +1,8 @@
 import { parseHandoffNotice } from '../../../shared/chat/handoff-notice';
 import type { Message } from '../../../shared/chat/types';
-import { toolLabel } from '../../../shared/llm/tool-labels';
+import { toolLabel } from '../../../shared/agents/tool-labels';
 
-export { approvalTitle, toolLabel } from '../../../shared/llm/tool-labels';
+export { approvalTitle, toolLabel } from '../../../shared/agents/tool-labels';
 
 function looksLikeJsonBlob(content: string): boolean {
   const trimmed = content.trim();

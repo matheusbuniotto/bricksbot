@@ -9,9 +9,9 @@ import { DEFAULT_COMPACTION_SETTINGS } from '../../shared/durable/types.js';
 import {
   buildCapabilityCatalog,
   formatCapabilityPrompt,
-} from '../../shared/llm/capability-catalog.js';
-import { isDefaultMetaTool } from '../../shared/llm/meta-tools.js';
-import { toolLabel } from '../../shared/llm/tool-labels.js';
+} from '../../shared/agents/capability-catalog.js';
+import { isDefaultMetaTool } from '../../shared/agents/meta-tools.js';
+import { toolLabel } from '../../shared/agents/tool-labels.js';
 import type {
   ApprovalDecision,
   ApprovalRequest,
@@ -19,23 +19,23 @@ import type {
   LlmMessage,
   ToolCall,
   ToolDefinition,
-} from '../../shared/llm/types.js';
-import type { MemorySkillStore } from '../../shared/memory/types.js';
+} from '../../shared/agents/types.js';
+import type { MemorySkillStore } from '../../shared/agents/memory/types.js';
 import {
   createHandoffTool,
   HANDOFF_TOOL_NAME,
   planHandoff,
   type HandoffTurnContext,
-} from '../bots/handoff.js';
+} from '../agents/handoff.js';
 import { applyCompactionToHistory, runCompaction, shouldCompact } from '../durable/compaction.js';
-import { createLakehouseCatalogTool } from '../llm/tools/lakehouse-catalog.js';
-import { createMemorySkillTools } from '../llm/tools/memory-tools.js';
-import { createPiSkillTools } from '../llm/tools/pi-skills-tools.js';
-import { createSqlQueryTool, type SqlQueryToolOptions } from '../llm/tools/sql-query.js';
-import { createVolumeReadTool, type VolumeReadToolOptions } from '../llm/tools/volume-read.js';
-import { createWebFetchTool } from '../llm/tools/web-fetch.js';
-import { formatBotContext } from '../memory/context.js';
-import { MemoryMemorySkillStore } from '../memory/memory-store.js';
+import { createLakehouseCatalogTool } from '../agents/tools/lakehouse-catalog.js';
+import { createMemorySkillTools } from '../agents/tools/memory-tools.js';
+import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
+import { createSqlQueryTool, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
+import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tools/volume-read.js';
+import { createWebFetchTool } from '../agents/tools/web-fetch.js';
+import { formatBotContext } from '../agents/memory/context.js';
+import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { ApprovalStore } from './approvals.js';
 
 export interface ChatServiceOptions {

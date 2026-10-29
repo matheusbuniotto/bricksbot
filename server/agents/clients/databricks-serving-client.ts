@@ -3,7 +3,7 @@ import type {
   ChatCompletionRequest,
   ChatCompletionResult,
   ToolCall,
-} from '../../shared/llm/types.js';
+} from '../../../shared/agents/types.js';
 import { serializeOpenAiMessages } from './serialize-openai-messages.js';
 
 export interface DatabricksServingConfig {

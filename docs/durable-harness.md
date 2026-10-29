@@ -26,7 +26,7 @@ Prefer Pi / Agent Skills contracts over BricksBot-only names. Sources: [Pi Durab
 
 | Contract | Status | Notes |
 | --- | --- | --- |
-| Extension-shaped registration (`defineExtension`-like bundles) | Done (thin) | Comments/types in `shared/llm/capability-catalog.ts`; no npm import of pi-durable |
+| Extension-shaped registration (`defineExtension`-like bundles) | Done (thin) | Comments/types in `shared/agents/capability-catalog.ts`; no npm import of pi-durable |
 | `CapabilityCatalog` + system **Capabilities** / **Skills** index | Done | Built from `toolsFor(bot)` + store indexes; OpenAI schemas stay on `complete()` |
 | Skills index (name + description) in prompt | Done | Full bodies are not always-on |
 | `activate_skill` | Done | Loads Lakebase `bot_skills` body + resource list |
@@ -63,7 +63,7 @@ Defaults: `contextWindow=128000`, `reserveTokens=16384`, `keepRecentMessages≈2
 
 ## Where to register new tools
 
-Add the factory under `server/llm/tools/`, push it in the `ChatService` constructor tool list, and let `buildCapabilityCatalog` / `toolsFor` surface it. Do not add a one-off `if` in the old hand-written toolInstructions path (removed). Soft limits (no computer, SQL read-only, web_fetch allowlist) live in `shared/llm/capability-catalog.ts`.
+Add the factory under `server/agents/tools/`, push it in the `ChatService` constructor tool list, and let `buildCapabilityCatalog` / `toolsFor` surface it. Do not add a one-off `if` in the old hand-written toolInstructions path (removed). Soft limits (no computer, SQL read-only, web_fetch allowlist) live in `shared/agents/capability-catalog.ts`.
 
 ## Approvals & idempotency
 

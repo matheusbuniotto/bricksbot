@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { BotMemory, BotSkill, MemorySkillStore } from '../../shared/memory/types.js';
+import type { BotMemory, BotSkill, MemorySkillStore } from '../../../shared/agents/memory/types.js';
 import { normalizeMemory, normalizeSkill, requireBotId } from './input.js';
 
 function nowIso(): string {

@@ -1,4 +1,4 @@
-import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../shared/llm/types.js';
+import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../../shared/agents/types.js';
 
 /** Fallback when no LLM env is configured — keeps Phase 1 UX working. */
 export class StubChatClient implements ChatClient {

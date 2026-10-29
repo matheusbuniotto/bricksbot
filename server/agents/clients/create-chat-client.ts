@@ -1,4 +1,4 @@
-import type { ChatClient } from '../../shared/llm/types.js';
+import type { ChatClient } from '../../../shared/agents/types.js';
 import { DatabricksServingChatClient } from './databricks-serving-client.js';
 import { OpenAICompatibleChatClient } from './openai-compatible-client.js';
 import { resolveLlmEnv } from './resolve-llm-env.js';

@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { ChatStore } from '../../shared/chat/types.js';
-import type { ChatClient } from '../../shared/llm/types.js';
+import type { ChatClient } from '../../shared/agents/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
 import { resolveOwnerId } from '../chat/identity.js';
 import type { ChatHttpApp } from '../chat/routes.js';

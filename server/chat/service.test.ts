@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { DEFAULT_META_TOOL_NAMES } from '../../shared/llm/meta-tools.js';
-import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../shared/llm/types.js';
-import { MemoryMemorySkillStore } from '../memory/memory-store.js';
+import { DEFAULT_META_TOOL_NAMES } from '../../shared/agents/meta-tools.js';
+import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../shared/agents/types.js';
+import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { MemoryChatStore } from './memory-store.js';
 import { ChatService } from './service.js';
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import express from 'express';
 import { describe, expect, test } from 'vitest';
-import { MemoryChatStore } from '../chat/memory-store.js';
+import { MemoryChatStore } from '../../chat/memory-store.js';
 import { MemoryMemorySkillStore } from './memory-store.js';
 import { registerMemoryRoutes } from './routes.js';
 

@@ -5,7 +5,7 @@ import type {
   CompactionStore,
 } from '../../shared/durable/types.js';
 import { DEFAULT_COMPACTION_SETTINGS } from '../../shared/durable/types.js';
-import type { ChatClient, LlmMessage } from '../../shared/llm/types.js';
+import type { ChatClient, LlmMessage } from '../../shared/agents/types.js';
 import { estimateMessageTokens, estimateTokensFromText } from './tokens.js';
 
 /** Marker prefix for optional UI system notes (full history stays in messages). */

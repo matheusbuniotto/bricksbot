@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../../../shared/llm/types.js';
+import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { SqlQueryToolOptions } from './sql-query.js';
 
 export interface LakehouseCatalogArgs {

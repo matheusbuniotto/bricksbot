@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Bot, Chat, Message, Space } from '../../shared/chat/types';
-import type { ApprovalDecision, ApprovalRequest } from '../../shared/llm/types';
+import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/types';
 import { ApprovalCards } from './components/ApprovalCards';
 import { BotFace, botColor } from './components/BotFace';
 import { BotRoster } from './components/BotRoster';

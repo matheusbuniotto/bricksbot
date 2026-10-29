@@ -1,6 +1,6 @@
-import type { ToolDefinition } from '../../../shared/llm/types.js';
-import type { BotSkill, MemorySkillStore } from '../../../shared/memory/types.js';
-import type { HandoffTurnContext } from '../../bots/handoff.js';
+import type { ToolDefinition } from '../../../shared/agents/types.js';
+import type { BotSkill, MemorySkillStore } from '../../../shared/agents/memory/types.js';
+import type { HandoffTurnContext } from '../handoff.js';
 
 type RegisteredTool = {
   definition: ToolDefinition;

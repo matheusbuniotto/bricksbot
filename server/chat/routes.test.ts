@@ -1,6 +1,6 @@
 import express from 'express';
 import { describe, expect, test } from 'vitest';
-import { StubChatClient } from '../llm/stub-client.js';
+import { StubChatClient } from '../agents/clients/stub-client.js';
 import { MemoryChatStore } from './memory-store.js';
 import { registerChatRoutes } from './routes.js';
 import { ChatService } from './service.js';

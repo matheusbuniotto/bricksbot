@@ -4,7 +4,7 @@ import type {
   ApprovalRequest,
   ApprovalStatus,
   ToolCall,
-} from '../../shared/llm/types.js';
+} from '../../shared/agents/types.js';
 import type { LakebaseQuery } from './lakebase-store.js';
 
 function asString(value: unknown): string {

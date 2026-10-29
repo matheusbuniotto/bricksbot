@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Message } from '../../shared/chat/types.js';
-import type { ChatClient } from '../../shared/llm/types.js';
+import type { ChatClient } from '../../shared/agents/types.js';
 import {
   applyCompactionToHistory,
   pickKeepFromMessage,

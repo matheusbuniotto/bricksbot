@@ -1,8 +1,8 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import type { ChatStore } from '../../shared/chat/types.js';
-import type { MemorySkillStore } from '../../shared/memory/types.js';
-import type { ChatHttpApp } from '../chat/routes.js';
+import type { ChatStore } from '../../../shared/chat/types.js';
+import type { MemorySkillStore } from '../../../shared/agents/memory/types.js';
+import type { ChatHttpApp } from '../../chat/routes.js';
 
 const upsertMemorySchema = z.object({
   key: z.string().trim().min(1).max(128),

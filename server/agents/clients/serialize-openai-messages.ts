@@ -1,4 +1,4 @@
-import type { LlmMessage } from '../../shared/llm/types.js';
+import type { LlmMessage } from '../../../shared/agents/types.js';
 
 /** Map internal LlmMessage[] to OpenAI chat-completions message objects. */
 export function serializeOpenAiMessages(messages: LlmMessage[]): Record<string, unknown>[] {

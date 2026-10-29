@@ -15,7 +15,7 @@ import type {
   SpaceRole,
   UpdateBotInput,
 } from '../../shared/chat/types.js';
-import type { ToolCall } from '../../shared/llm/types.js';
+import type { ToolCall } from '../../shared/agents/types.js';
 
 const PRIMARY_NAME = 'Primary';
 const DEFAULT_SPACE_NAME = 'Personal';

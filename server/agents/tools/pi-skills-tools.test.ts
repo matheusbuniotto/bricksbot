@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { MemoryChatStore } from '../../chat/memory-store.js';
-import { MemoryMemorySkillStore } from '../../memory/memory-store.js';
+import { MemoryMemorySkillStore } from '../memory/memory-store.js';
 import {
   createActivateSkillTool,
   createListMemoriesTool,

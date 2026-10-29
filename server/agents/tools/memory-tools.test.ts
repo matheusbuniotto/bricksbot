@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { MemoryMemorySkillStore } from '../../memory/memory-store.js';
+import { MemoryMemorySkillStore } from '../memory/memory-store.js';
 import { createMemorySkillTools } from './memory-tools.js';
 
 describe('memory skill tools', () => {

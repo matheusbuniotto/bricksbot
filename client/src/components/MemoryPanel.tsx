@@ -1,6 +1,6 @@
 import { Button } from '@databricks/appkit-ui/react';
 import { useState, type FormEvent } from 'react';
-import type { BotMemory, BotSkill } from '../../../shared/memory/types';
+import type { BotMemory, BotSkill } from '../../../shared/agents/memory/types';
 
 const fieldClass =
   'w-full rounded-md border border-input bg-background px-2 py-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring';

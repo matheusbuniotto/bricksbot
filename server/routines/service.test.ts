@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { MemoryChatStore } from '../chat/memory-store.js';
 import { ChatService } from '../chat/service.js';
-import { StubChatClient } from '../llm/stub-client.js';
+import { StubChatClient } from '../agents/clients/stub-client.js';
 import { MemoryRoutineStore } from './memory-store.js';
 import { RoutineService } from './service.js';
 

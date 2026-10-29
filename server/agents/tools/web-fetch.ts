@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../../../shared/llm/types.js';
+import type { ToolDefinition } from '../../../shared/agents/types.js';
 
 export function isUrlAllowlisted(url: string, allowlist: string[]): boolean {
   let parsed: URL;

@@ -1,4 +1,4 @@
-import type { BotMemory, BotSkill } from '../../../shared/memory/types';
+import type { BotMemory, BotSkill } from '../../../shared/agents/memory/types';
 
 async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {

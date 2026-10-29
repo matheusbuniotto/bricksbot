@@ -9,8 +9,8 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 - Ship a workspace-installable App that chats against OpenAI-compatible LLMs (OpenRouter) or Databricks Serving.
 - Tools are lakehouse-native (`sql_query`, `lakehouse_catalog`, `volume_read`, `web_fetch`, `handoff_to_bot`) with **3-way approvals**, plus Pi skill/memory meta tools (`activate_skill`, `read_skill_resource`, `list_memories`, `remember`, `forget`, `save_skill`).
 - Durable state lives in **Lakebase** schema `bricksbot` (memory store for local/tests).
-- Capability discovery is Pi-shaped: `buildCapabilityCatalog` / `formatCapabilityPrompt` in `shared/llm/capability-catalog.ts` (register new tools in the `ChatService` constructor, not ad-hoc prompt `if`s).
-- Default meta tools (`DEFAULT_META_TOOL_NAMES` in `shared/llm/meta-tools.ts`) are on for **every** bot; only `handoff_to_bot` is Primary-only. Meta tools auto-run (no Ask-first).
+- Capability discovery is Pi-shaped: `buildCapabilityCatalog` / `formatCapabilityPrompt` in `shared/agents/capability-catalog.ts` (register new tools in the `ChatService` constructor, not ad-hoc prompt `if`s).
+- Default meta tools (`DEFAULT_META_TOOL_NAMES` in `shared/agents/meta-tools.ts`) are on for **every** bot; only `handoff_to_bot` is Primary-only. Meta tools auto-run (no Ask-first).
 
 ## Layout
 
@@ -20,12 +20,12 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 | `server/` | Express/AppKit API + agent loop |
 | `server/chat/` | `ChatService`, approvals, Lakebase/memory stores, schema |
 | `server/durable/` | Compaction, idempotency (Pi-compatible thin harness) |
-| `server/llm/` | Chat clients + tools under `tools/` |
-| `server/bots/` | Primary → teammate handoff |
-| `server/memory/` | Per-bot memories & skills |
+| `server/agents/` | Agent domain: `clients/` (LLM chat clients), `tools/` (lakehouse + Pi meta tools), `memory/` (per-bot memories & skills), `handoff.ts` (Primary → teammate) |
 | `server/routines/` | Cron/webhook routines |
-| `shared/` | Domain types shared by client + server (`chat`, `llm`, `memory`, `routines`, `durable`) |
+| `shared/` | Domain types shared by client + server (`chat`, `agents` incl. `agents/memory`, `routines`, `durable`) |
 | `databricks.yml` / `app.yaml` | Bundle + App runtime env |
+| `scripts/` | Deploy/setup helper scripts |
+| `skills/` | Standalone agent skills (outside the app runtime) |
 | `.cursor/rules/` | Always-on agent rules |
 
 ## Domains (vocabulary)

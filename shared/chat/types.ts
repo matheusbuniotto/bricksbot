@@ -1,6 +1,6 @@
 /** Domain types for durable chat, Spaces, and multi-bot roster. */
 
-import type { ToolCall } from '../llm/types.js';
+import type { ToolCall } from '../agents/types.js';
 
 export type Presence = 'online' | 'away' | 'offline' | 'thinking' | 'working';
 

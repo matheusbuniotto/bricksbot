@@ -1,5 +1,5 @@
-import { toSkillIndexEntry } from '../../shared/llm/capability-catalog.js';
-import type { BotMemory, BotSkill } from '../../shared/memory/types.js';
+import { toSkillIndexEntry } from '../../../shared/agents/capability-catalog.js';
+import type { BotMemory, BotSkill } from '../../../shared/agents/memory/types.js';
 
 /** Newest memories kept when a bot has more facts than the prompt can carry. */
 export const BOT_CONTEXT_MEMORY_LIMIT = 20;

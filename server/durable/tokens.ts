@@ -1,4 +1,4 @@
-import type { LlmMessage } from '../../shared/llm/types.js';
+import type { LlmMessage } from '../../shared/agents/types.js';
 import type { Message } from '../../shared/chat/types.js';
 
 /** Rough token estimate — ~4 chars/token; good enough for compaction thresholds. */
