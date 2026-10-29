@@ -1,6 +1,7 @@
 import { Select } from './Select';
 import {
   ArchiveRestore,
+  ChevronRight,
   Copy,
   EyeOff,
   FolderInput,
@@ -77,6 +78,9 @@ function LookPicker({
   );
 }
 
+/** Select value for the default, section-less group. */
+const NO_SECTION = '__none';
+
 type DragPayload = { botId: string };
 
 function readDragPayload(event: React.DragEvent): DragPayload | null {
@@ -120,7 +124,7 @@ export function BotRoster({
   onThemeChange: (theme: Theme) => void;
   onCreateOpenChange: (open: boolean) => void;
   onSelectBot: (botId: string) => void | Promise<void>;
-  onCreateBot: (name: string, spaceId: string, avatarLabel?: string) => void | Promise<void>;
+  onCreateBot: (name: string, spaceId: string | null, avatarLabel?: string) => void | Promise<void>;
   onCreateSpace: (name: string) => void | Promise<string | void>;
   onRenameBot: (botId: string, name: string) => void | Promise<void>;
   onChangeLook: (botId: string, avatarLabel: string) => void | Promise<void>;
@@ -185,7 +189,7 @@ export function BotRoster({
       primary.name.toLowerCase().includes(needle) ||
       (previews[primary.id] ?? '').toLowerCase().includes(needle));
 
-  const defaultSpaceId = bots.find((bot) => bot.id === selectedBotId)?.spaceId ?? spaces[0]?.id ?? '';
+  const defaultSpaceId = bots.find((bot) => bot.id === selectedBotId)?.spaceId ?? spaces[0]?.id ?? NO_SECTION;
 
   useEffect(() => {
     if (renamingId) renameRef.current?.focus();
@@ -381,8 +385,6 @@ export function BotRoster({
 
         {sections.map((section) => {
           const isCollapsed = collapsed[section.id] === true && !needle;
-          const hideEmptyUnsectioned = section.id === '__none' && section.bots.length === 0 && !needle;
-          if (hideEmptyUnsectioned) return null;
           return (
             <section
               key={section.id}
@@ -403,7 +405,9 @@ export function BotRoster({
                 aria-expanded={!isCollapsed}
                 onClick={() => setCollapsed((prev) => ({ ...prev, [section.id]: !prev[section.id] }))}
               >
-                {section.name}
+                <ChevronRight className="roster-section-chevron" size={14} strokeWidth={2} aria-hidden="true" />
+                <span className="roster-section-label">{section.name}</span>
+                {isCollapsed ? <span className="roster-section-count">{section.bots.length}</span> : null}
               </button>
               {isCollapsed ? null : section.bots.length === 0 ? (
                 <p className="roster-section-empty">No bots</p>
@@ -691,9 +695,9 @@ export function BotRoster({
             onSubmit={(event) => {
               event.preventDefault();
               const name = botName.trim();
-              const spaceId = botSpaceId || defaultSpaceId;
-              if (!name || !spaceId) return;
-              void onCreateBot(name, spaceId, encodeLook({ shape: lookShape, color: lookColor }));
+              const selected = botSpaceId || defaultSpaceId;
+              if (!name) return;
+              void onCreateBot(name, selected === NO_SECTION ? null : selected, encodeLook({ shape: lookShape, color: lookColor }));
               onCreateOpenChange(false);
             }}
           >
@@ -706,22 +710,22 @@ export function BotRoster({
               aria-label="Name your Bot"
               onChange={(event) => setBotName(event.target.value)}
             />
-            {spaces.length > 1 ? (
-              <div className="dialog-field">
-                Section
-                <Select
-                  value={botSpaceId || defaultSpaceId}
-                  onChange={setBotSpaceId}
-                  options={spaces.map((space) => ({ value: space.id, label: space.name }))}
-                />
-              </div>
-            ) : null}
-            {spaces.length === 0 ? <p className="dialog-note">Create a section before adding a bot.</p> : null}
+            <div className="dialog-field">
+              Section
+              <Select
+                value={botSpaceId || defaultSpaceId}
+                onChange={setBotSpaceId}
+                options={[
+                  ...spaces.map((space) => ({ value: space.id, label: space.name })),
+                  { value: NO_SECTION, label: 'No section' },
+                ]}
+              />
+            </div>
             <div className="dialog-actions">
               <button type="button" onClick={() => onCreateOpenChange(false)}>
                 Cancel
               </button>
-              <button type="submit" className="dialog-primary" disabled={!botName.trim() || spaces.length === 0}>
+              <button type="submit" className="dialog-primary" disabled={!botName.trim()}>
                 Create
               </button>
             </div>

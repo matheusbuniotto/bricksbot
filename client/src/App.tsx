@@ -133,7 +133,7 @@ export default function App() {
     }
   }
 
-  async function handleCreateBot(name: string, spaceId: string, avatarLabel?: string) {
+  async function handleCreateBot(name: string, spaceId: string | null, avatarLabel?: string) {
     setError(null);
     try {
       const bot = await createBot({ name, spaceId, avatarLabel });
