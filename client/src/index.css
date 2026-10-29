@@ -1325,11 +1325,6 @@ textarea.field {
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
-.composer:focus-within {
-  border-color: var(--ring);
-  box-shadow: var(--shadow-soft), 0 0 0 3px color-mix(in oklch, var(--ring) 18%, transparent);
-}
-
 .composer-plus {
   width: 36px;
   height: 36px;
@@ -1347,6 +1342,13 @@ textarea.field {
   outline: none;
   background: transparent;
   font-size: 15px;
+}
+
+.composer textarea:focus,
+.composer textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border: 0;
 }
 
 .composer textarea:disabled {
