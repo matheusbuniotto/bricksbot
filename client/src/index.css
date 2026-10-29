@@ -177,6 +177,11 @@ select {
   font-size: 14px;
 }
 
+.roster-primary.is-renaming input {
+  width: 80%;
+  text-align: center;
+}
+
 .roster-primary[aria-current='true'] .bot-face {
   box-shadow:
     0 0 0 3px var(--background),
@@ -567,6 +572,25 @@ textarea.field {
   animation: face-jelly-eyes 1.3s cubic-bezier(0.37, 0, 0.25, 1) both;
 }
 
+/* Hover: the body turns toward the pointer; eyes ride the surface with parallax and foreshortening. */
+.bot-look-body,
+.bot-look-eyes {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.bot-look-body {
+  transform: translate(calc(var(--lx, 0) * 3px), calc(var(--ly, 0) * 3px))
+    scale(calc(1 - var(--lx, 0) * var(--lx, 0) * 0.08), calc(1 - var(--ly, 0) * var(--ly, 0) * 0.08))
+    skew(calc(var(--lx, 0) * -5deg), calc(var(--ly, 0) * 3deg));
+}
+
+.bot-look-eyes {
+  transform: translate(calc(var(--lx, 0) * 15px), calc(var(--ly, 0) * 13px))
+    scale(calc(1 - var(--lx, 0) * var(--lx, 0) * 0.3), calc(1 - var(--ly, 0) * var(--ly, 0) * 0.2));
+}
+
 /* Working: slow, continuous liquid breathing with drifting eyes. */
 .bot-face.is-thinking .bot-face-body {
   animation: face-gummy 2.4s ease-in-out infinite;
@@ -672,10 +696,30 @@ textarea.field {
   70% { transform: translate(-2px, 1px) scale(1.04, 0.96); }
 }
 
+@keyframes face-hover-jiggle {
+  0% { transform: scale(1, 1) skewX(0); }
+  18% { transform: scale(1.07, 0.95) skewX(4deg); }
+  38% { transform: scale(0.95, 1.04) skewX(-3.5deg); }
+  58% { transform: scale(1.03, 0.98) skewX(2deg); }
+  78% { transform: scale(0.99, 1.01) skewX(-1deg); }
+  100% { transform: scale(1, 1) skewX(0); }
+}
+
+@keyframes face-hover-eyes {
+  0% { transform: translateX(0); }
+  18% { transform: translateX(-3px); }
+  38% { transform: translateX(3px); }
+  58% { transform: translateX(-1.5px); }
+  78% { transform: translateX(0.8px); }
+  100% { transform: translateX(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bot-face,
   .bot-face-body,
-  .bot-face-eyes {
+  .bot-face-eyes,
+  .bot-look-body,
+  .bot-look-eyes {
     animation: none !important;
     transition: none !important;
   }

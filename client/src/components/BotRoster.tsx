@@ -320,6 +320,27 @@ export function BotRoster({
       ) : null}
 
       {primaryVisible && primary ? (
+        renamingId === primary.id ? (
+          <form
+            className="roster-primary is-renaming"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void commitRename();
+            }}
+          >
+            <BotFace color={botColor(primary.id, true)} size={68} botId={primary.id} />
+            <input
+              ref={renameRef}
+              value={renameValue}
+              aria-label="Rename bot"
+              onChange={(event) => setRenameValue(event.target.value)}
+              onBlur={() => void commitRename()}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setRenamingId(null);
+              }}
+            />
+          </form>
+        ) : (
         <button
           type="button"
           className="roster-primary"
@@ -327,9 +348,10 @@ export function BotRoster({
           onClick={() => void onSelectBot(primary.id)}
           onContextMenu={(event) => openBotMenu(primary.id, event)}
         >
-          <BotFace color={botColor(primary.id, true)} size={68} botId={primary.id} thinking={primary.presence === 'thinking' || primary.presence === 'working'} />
+          <BotFace color={botColor(primary.id, true)} size={68} botId={primary.id} track={primary.id === selectedBotId} thinking={primary.presence === 'thinking' || primary.presence === 'working'} />
           <span>{primary.name}</span>
         </button>
+        )
       ) : null}
 
       <div className="roster-scroll">
@@ -453,7 +475,7 @@ export function BotRoster({
                             void commitRename();
                           }}
                         >
-                          <BotFace color={botColor(bot.id, false)} size={44} botId={bot.id} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
+                          <BotFace color={botColor(bot.id, false)} size={44} botId={bot.id} track={bot.id === selectedBotId} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
                           <input
                             ref={renameRef}
                             value={renameValue}
@@ -476,7 +498,7 @@ export function BotRoster({
                           onDoubleClick={() => startRename(bot)}
                           onContextMenu={(event) => openBotMenu(bot.id, event)}
                         >
-                          <BotFace color={botColor(bot.id, false)} size={44} botId={bot.id} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
+                          <BotFace color={botColor(bot.id, false)} size={44} botId={bot.id} track={bot.id === selectedBotId} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
                           <span className="roster-bot-copy">
                             <span className="roster-bot-name">{bot.name}</span>
                             <span className="roster-bot-preview">{preview || 'No messages'}</span>
@@ -528,7 +550,7 @@ export function BotRoster({
                       onClick={() => void onSelectBot(bot.id)}
                       onContextMenu={(event) => openBotMenu(bot.id, event)}
                     >
-                      <BotFace color={botColor(bot.id, false)} size={44} botId={bot.id} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
+                      <BotFace color={botColor(bot.id, false)} size={44} botId={bot.id} track={bot.id === selectedBotId} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
                       <span className="roster-bot-copy">
                         <span className="roster-bot-name">{bot.name}</span>
                         <span className="roster-bot-preview">{preview || 'Archived'}</span>

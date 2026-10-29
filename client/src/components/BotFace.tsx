@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * Bot looks: a body shape + color, persisted in the bot's 2-char `avatarLabel`
@@ -148,6 +148,7 @@ export function BotFace({
   shape,
   thinking = false,
   entering = false,
+  track = false,
 }: {
   color: string;
   size: number;
@@ -158,11 +159,64 @@ export function BotFace({
   thinking?: boolean;
   /** Plays the one-shot entrance animation (creator preview). */
   entering?: boolean;
+  /** Eyes/body follow the pointer (use for the focused bot only). */
+  track?: boolean;
 }) {
   const [fresh] = useState(() => (botId ? freshIds.delete(botId) : false));
+  const ref = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    const svg = ref.current;
+    if (!track || !svg || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+    let tx = 0;
+    let ty = 0;
+    let x = 0;
+    let y = 0;
+    let frame = 0;
+    const tick = () => {
+      // Critically-damped-ish follow: fast catch-up, no jitter.
+      x += (tx - x) * 0.24;
+      y += (ty - y) * 0.24;
+      if (Math.abs(tx - x) < 0.002 && Math.abs(ty - y) < 0.002) {
+        x = tx;
+        y = ty;
+        frame = 0;
+      } else {
+        frame = requestAnimationFrame(tick);
+      }
+      svg.style.setProperty('--lx', x.toFixed(3));
+      svg.style.setProperty('--ly', y.toFixed(3));
+    };
+    const aim = (nx: number, ny: number) => {
+      tx = nx;
+      ty = ny;
+      if (!frame) frame = requestAnimationFrame(tick);
+    };
+    const onMove = (e: PointerEvent) => {
+      const r = svg.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2);
+      const dy = e.clientY - (r.top + r.height / 2);
+      const range = Math.max(r.width, 32) * 6;
+      if (Math.hypot(dx, dy) > range) {
+        if (tx !== 0 || ty !== 0) aim(0, 0);
+        return;
+      }
+      const reach = Math.max(r.width, 32) * 1.2;
+      aim(clamp(dx / reach), clamp(dy / reach));
+    };
+    const onLeaveWindow = () => aim(0, 0);
+    window.addEventListener('pointermove', onMove, { passive: true });
+    document.documentElement.addEventListener('pointerleave', onLeaveWindow);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      document.documentElement.removeEventListener('pointerleave', onLeaveWindow);
+      cancelAnimationFrame(frame);
+    };
+  }, [track]);
   const index = shape ?? (botId ? botLook(botId, false).shape : 0);
   return (
     <svg
+      ref={ref}
       className={`bot-face${thinking ? ' is-thinking' : ''}${entering || fresh ? ' is-entering' : ''}`}
       width={size}
       height={size}
@@ -171,10 +225,14 @@ export function BotFace({
       shapeRendering="geometricPrecision"
     >
       <g className="bot-face-body">
-        <path d={PATHS[index] ?? PATHS[0]} fill={color} />
-        <g className="bot-face-eyes">
-          <line className="bot-eye" x1="40.5" y1="40" x2="40.5" y2="56" />
-          <line className="bot-eye" x1="59.5" y1="40" x2="59.5" y2="56" />
+        <g className="bot-look-body">
+          <path d={PATHS[index] ?? PATHS[0]} fill={color} />
+          <g className="bot-look-eyes">
+            <g className="bot-face-eyes">
+              <line className="bot-eye" x1="40.5" y1="40" x2="40.5" y2="56" />
+              <line className="bot-eye" x1="59.5" y1="40" x2="59.5" y2="56" />
+            </g>
+          </g>
         </g>
       </g>
     </svg>

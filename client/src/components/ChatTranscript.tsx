@@ -72,7 +72,7 @@ export function ChatTranscript({
   if (messages.length === 0) {
     return (
       <div className="transcript transcript-empty">
-        {botName ? <BotFace color={accent} size={96} botId={botId} /> : null}
+        {botName ? <BotFace color={accent} size={96} botId={botId} track /> : null}
         <p className="transcript-empty-name">{botName ?? 'No bot selected'}</p>
       </div>
     );

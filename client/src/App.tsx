@@ -310,7 +310,7 @@ export default function App() {
         {selectedBot ? (
           <div className="chat-heading">
             <div className="chat-pill">
-              <BotFace color={accent} size={26} botId={selectedBot.id} thinking={selectedBot.presence === 'thinking'} />
+              <BotFace color={accent} size={26} botId={selectedBot.id} track thinking={selectedBot.presence === 'thinking'} />
               <span>{selectedBot.name}</span>
             </div>
 
