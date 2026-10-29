@@ -1,0 +1,87 @@
+/** Lakebase DDL for BricksBot. Schema owned by the App service principal. */
+export const BRICKSBOT_SCHEMA = 'bricksbot';
+
+export const CHAT_SCHEMA_STATEMENTS = [
+  `CREATE SCHEMA IF NOT EXISTS bricksbot`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.spaces (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.space_members (
+  space_id UUID NOT NULL REFERENCES bricksbot.spaces(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('viewer', 'member', 'admin')),
+  PRIMARY KEY (space_id, user_id)
+)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.bots (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  avatar_label TEXT NOT NULL,
+  presence TEXT NOT NULL CHECK (presence IN ('online', 'away', 'offline', 'thinking', 'working')),
+  space_id UUID REFERENCES bricksbot.spaces(id) ON DELETE SET NULL,
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+  owner_id TEXT NOT NULL DEFAULT 'workspace-user',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.chats (
+  id UUID PRIMARY KEY,
+  bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chats_bot_id
+  ON bricksbot.chats(bot_id)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.messages (
+  id UUID PRIMARY KEY,
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
+  content TEXT NOT NULL,
+  tool_call_id TEXT,
+  tool_calls TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_messages_chat_created
+  ON bricksbot.messages(chat_id, created_at)`,
+  `ALTER TABLE bricksbot.messages ADD COLUMN IF NOT EXISTS tool_call_id TEXT`,
+  `ALTER TABLE bricksbot.messages ADD COLUMN IF NOT EXISTS tool_calls TEXT`,
+  `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS space_id UUID`,
+  `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE`,
+  `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS owner_id TEXT NOT NULL DEFAULT 'workspace-user'`,
+  `ALTER TABLE bricksbot.messages DROP CONSTRAINT IF EXISTS messages_role_check`,
+  `ALTER TABLE bricksbot.messages ADD CONSTRAINT messages_role_check CHECK (role IN ('user', 'assistant', 'system', 'tool'))`,
+  `ALTER TABLE bricksbot.bots DROP CONSTRAINT IF EXISTS bots_presence_check`,
+  `ALTER TABLE bricksbot.bots ADD CONSTRAINT bots_presence_check CHECK (presence IN ('online', 'away', 'offline', 'thinking', 'working'))`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.routines (
+  id UUID PRIMARY KEY,
+  bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  cron TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  webhook_key_hash TEXT NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  last_run_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_routines_owner
+  ON bricksbot.routines(owner_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.bot_memories (
+  id UUID PRIMARY KEY,
+  bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  content TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (bot_id, key)
+)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.bot_skills (
+  id UUID PRIMARY KEY,
+  bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (bot_id, name)
+)`,
+] as const;

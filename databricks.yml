@@ -1,6 +1,21 @@
 bundle:
   name: bricksbot
 
+variables:
+  lakebase_branch:
+    description: Lakebase branch resource name for BricksBot durable chat
+  lakebase_database:
+    description: Lakebase database resource name for BricksBot durable chat
+  provider_secret_scope:
+    description: Secret scope holding the OpenRouter API key (shared with clawhouse)
+    default: claw
+  provider_secret_key:
+    description: Secret key holding the OpenRouter API key
+    default: openrouter-api-key
+  app_secret_scope:
+    description: Secret scope for BricksBot-only settings (e.g. web_fetch allowlist)
+    default: bricksbot
+
 resources:
   apps:
     app:
@@ -8,17 +23,25 @@ resources:
       description: "BricksBot greenfield AppKit shell (Grok-like roster later; no computer)"
       source_code_path: ./
 
-      # Start the app automatically on deploy.
       lifecycle:
         started: true
 
-      # Lakebase is stubbed, not bound. Paste the postgres resource from
-      # resources/lakebase.postgres.yml.stub once a project, branch, and
-      # database exist. Bots/chats/memories/spaces schema is Phase 1.
-
-      # Uncomment to enable on behalf of user API scopes. Available scopes: sql, dashboards.genie, files.files, serving.serving-endpoints
-      # user_api_scopes:
-      #   - sql
+      resources:
+        - name: postgres
+          postgres:
+            branch: ${var.lakebase_branch}
+            database: ${var.lakebase_database}
+            permission: CAN_CONNECT_AND_CREATE
+        - name: openrouter-api-key
+          secret:
+            scope: ${var.provider_secret_scope}
+            key: ${var.provider_secret_key}
+            permission: READ
+        - name: web-fetch-allowlist
+          secret:
+            scope: ${var.app_secret_scope}
+            key: web-fetch-allowlist
+            permission: READ
 
 targets:
   dev:
@@ -27,3 +50,8 @@ targets:
     workspace:
       profile: dev
       host: https://dbc-562d9321-2592.cloud.databricks.com
+    variables:
+      lakebase_branch: projects/clawhouse/branches/bricksbot
+      lakebase_database: projects/clawhouse/branches/bricksbot/databases/databricks-postgres
+      provider_secret_scope: claw
+      app_secret_scope: bricksbot

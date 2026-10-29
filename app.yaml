@@ -1,8 +1,26 @@
 command: ['npm', 'run', 'start']
 
-# Lakebase stub. PGHOST, PGPORT, PGDATABASE, PGUSER, and PGSSLMODE are
-# injected by the platform once the postgres app resource is bound.
-# Uncomment together with resources/lakebase.postgres.yml.stub.
-# env:
-#   - name: LAKEBASE_ENDPOINT
-#     valueFrom: postgres
+env:
+  - name: LAKEBASE_ENDPOINT
+    valueFrom: postgres
+
+  # OpenAI-compatible LLM — shared with clawhouse (scope `claw`, key `openrouter-api-key`)
+  - name: OPENROUTER_API_KEY
+    valueFrom: openrouter-api-key
+  - name: LLM_BASE_URL
+    value: https://openrouter.ai/api/v1
+  - name: LLM_MODEL
+    value: openai/gpt-6-luna
+  - name: LLM_SECRET_SCOPE
+    value: claw
+  - name: LLM_SECRET_KEY
+    value: openrouter-api-key
+
+  - name: WEB_FETCH_ALLOWLIST
+    valueFrom: web-fetch-allowlist
+
+  # Databricks Serving option (bind a serving-endpoint resource, then uncomment):
+  # - name: LLM_PROVIDER
+  #   value: databricks
+  # - name: DATABRICKS_SERVING_ENDPOINT_NAME
+  #   valueFrom: serving-endpoint

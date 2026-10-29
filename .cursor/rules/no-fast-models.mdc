@@ -1,0 +1,22 @@
+---
+description: Never spawn or use models with "fast" in the id/label
+alwaysApply: true
+---
+
+# No Fast Models
+
+Never select, spawn, or route work to a model whose id or label includes `fast` — for the main agent, Task/subagents, or any other model picker.
+
+## Do not use
+
+- Any model with `fast` in the name (e.g. `composer-2.5-fast`, `grok-4.7-high-fast`)
+- Defaulting to a `*-fast` model for "simple" or "quick" subtasks
+
+## Allowed
+
+- Non-`fast` models are fine, including flash / lite / mini / nano variants when those are what you want
+
+## Do instead
+
+- Use the non-`fast` counterpart (e.g. `composer-2.5`, not `composer-2.5-fast`; `grok-4.7-high`, not `grok-4.7-high-fast`)
+- If the user asks for a `*-fast` model, refuse and use the non-fast equivalent

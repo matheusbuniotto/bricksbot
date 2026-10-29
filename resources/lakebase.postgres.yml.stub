@@ -1,27 +1,10 @@
-# Lakebase Autoscaling stub for BricksBot.
+# Lakebase Autoscaling — wired for the `dev` target in databricks.yml.
 #
-# Not included by databricks.yml. Binding a project creates a billable
-# database, so this stays unwired until a branch and database are chosen.
-# Schema for bots, chats, memories, and spaces is Phase 1 — do not add tables here.
+# Workspace project limit is 3, so BricksBot reuses the clawhouse project with a
+# dedicated branch (projects/clawhouse/branches/bricksbot) and owns schema
+# `bricksbot` via the App service principal (deploy-first).
 #
-# 1. Create or pick a project (do not guess ids):
-#      databricks postgres list-projects -p dev
-#      databricks postgres create-project bricksbot --json '{"spec":{"display_name":"BricksBot"}}' -p dev
-# 2. Copy the branch and database `name` fields:
-#      databricks postgres list-branches projects/<project-id> -p dev
-#      databricks postgres list-databases projects/<project-id>/branches/<branch-id> -p dev
-# 3. Paste the block below under resources.apps.app in databricks.yml.
-# 4. Uncomment the LAKEBASE_ENDPOINT env block in app.yaml.
-# 5. Register lakebase() in server/server.ts only after the resource resolves.
-#
-# Use the postgres resource key. The legacy database key (instance_name) is retired.
-
-resources:
-  apps:
-    app:
-      resources:
-        - name: postgres
-          postgres:
-            branch: projects/<project-id>/branches/<branch-id>
-            database: projects/<project-id>/branches/<branch-id>/databases/<database-id>
-            permission: CAN_CONNECT_AND_CREATE
+# To rebind elsewhere:
+#   1. databricks postgres list-projects -p <profile>
+#   2. list-branches / list-databases for the chosen project
+#   3. Update targets.<env>.variables.lakebase_* in databricks.yml

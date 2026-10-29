@@ -1,0 +1,152 @@
+import type { Bot, Chat, Message, Space, SpaceMember } from '../../../shared/chat/types';
+import type { ApprovalDecision, ApprovalRequest } from '../../../shared/llm/types';
+
+async function readJson<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Request failed (${res.status})`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function fetchSpaces(): Promise<Space[]> {
+  const data = await readJson<{ spaces: Space[] }>(await fetch('/api/spaces'));
+  return data.spaces;
+}
+
+export async function createSpace(name: string): Promise<Space> {
+  const data = await readJson<{ space: Space }>(
+    await fetch('/api/spaces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }),
+  );
+  return data.space;
+}
+
+export async function fetchSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
+  const data = await readJson<{ members: SpaceMember[] }>(
+    await fetch(`/api/spaces/${spaceId}/members`),
+  );
+  return data.members;
+}
+
+export async function addSpaceMember(
+  spaceId: string,
+  userId: string,
+  role: SpaceMember['role'] = 'member',
+): Promise<SpaceMember> {
+  const data = await readJson<{ member: SpaceMember }>(
+    await fetch(`/api/spaces/${spaceId}/members`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userId, role }),
+    }),
+  );
+  return data.member;
+}
+
+export async function fetchBots(spaceId?: string | null): Promise<Bot[]> {
+  const query =
+    spaceId === undefined ? '' : `?spaceId=${encodeURIComponent(spaceId ?? 'null')}`;
+  const data = await readJson<{ bots: Bot[] }>(await fetch(`/api/bots${query}`));
+  return data.bots;
+}
+
+export async function createBot(input: {
+  name: string;
+  spaceId?: string | null;
+  avatarLabel?: string;
+}): Promise<Bot> {
+  const data = await readJson<{ bot: Bot }>(
+    await fetch('/api/bots', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  );
+  return data.bot;
+}
+
+export async function fetchBotChat(botId: string): Promise<{
+  chat: Chat;
+  messages: Message[];
+  pendingApprovals: ApprovalRequest[];
+  autoApprovedTools: string[];
+}> {
+  const data = await readJson<{
+    chat: Chat;
+    messages: Message[];
+    pendingApprovals?: ApprovalRequest[];
+    autoApprovedTools?: string[];
+  }>(await fetch(`/api/bots/${botId}/chat`));
+  return {
+    chat: data.chat,
+    messages: data.messages,
+    pendingApprovals: data.pendingApprovals ?? [],
+    autoApprovedTools: data.autoApprovedTools ?? [],
+  };
+}
+
+export async function sendChatMessage(
+  chatId: string,
+  content: string,
+): Promise<{
+  user: Message;
+  assistant: Message | null;
+  pendingApprovals: ApprovalRequest[];
+  autoApprovedTools?: string[];
+  provider: string;
+}> {
+  return readJson(
+    await fetch(`/api/chats/${chatId}/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content }),
+    }),
+  );
+}
+
+export async function decideApproval(
+  approvalId: string,
+  decision: ApprovalDecision,
+): Promise<{
+  assistant: Message | null;
+  pendingApprovals: ApprovalRequest[];
+  autoApprovedTools?: string[];
+}> {
+  return readJson(
+    await fetch(`/api/approvals/${approvalId}/decide`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decision }),
+    }),
+  );
+}
+
+export async function revokeAutoApproval(
+  chatId: string,
+  toolName?: string,
+): Promise<{ autoApprovedTools: string[] }> {
+  if (toolName) {
+    return readJson(
+      await fetch(`/api/chats/${chatId}/approvals/auto/${encodeURIComponent(toolName)}`, {
+        method: 'DELETE',
+      }),
+    );
+  }
+  return readJson(
+    await fetch(`/api/chats/${chatId}/approvals/auto/revoke`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    }),
+  );
+}
+
+export async function fetchAutoApprovedTools(
+  chatId: string,
+): Promise<{ autoApprovedTools: string[] }> {
+  return readJson(await fetch(`/api/chats/${chatId}/approvals/auto`));
+}

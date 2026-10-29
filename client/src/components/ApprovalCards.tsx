@@ -1,0 +1,190 @@
+import { useEffect } from 'react';
+import type { ApprovalDecision, ApprovalRequest } from '../../../shared/llm/types';
+
+function readStr(val: unknown): string {
+  return typeof val === 'string' ? val : '';
+}
+
+function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
+  const { name, arguments: args } = toolCall;
+
+  if (name === 'sql_query') {
+    const statement = readStr(args.statement);
+    const wh = typeof args.warehouse_id === 'string' ? args.warehouse_id : null;
+    return (
+      <div className="approval-details">
+        {wh ? <span className="approval-chip">Warehouse: {wh}</span> : null}
+        <pre className="approval-code-block">
+          <code>{statement}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  if (name === 'lakehouse_catalog') {
+    const action = readStr(args.action);
+    const catalog = readStr(args.catalog);
+    const schema = readStr(args.schema);
+    const table = readStr(args.table);
+    const parts = [
+      catalog ? `catalog: ${catalog}` : '',
+      schema ? `schema: ${schema}` : '',
+      table ? `table: ${table}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">Action: {action}</span>
+        {parts ? <span className="approval-target">{parts}</span> : null}
+      </div>
+    );
+  }
+
+  if (name === 'volume_read') {
+    const action = readStr(args.action) || 'read';
+    const path = readStr(args.path);
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">Volume ({action})</span>
+        <code className="approval-path">{path}</code>
+      </div>
+    );
+  }
+
+  if (name === 'web_fetch' && typeof args.url === 'string') {
+    return (
+      <div className="approval-details">
+        <span className="approval-url">{args.url}</span>
+      </div>
+    );
+  }
+
+  if (name === 'handoff_to_bot') {
+    const target = readStr(args.bot_name) || readStr(args.bot_id) || 'another bot';
+    const brief = readStr(args.brief);
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">Hand off to: {target}</span>
+        <p className="approval-brief">&ldquo;{brief}&rdquo;</p>
+      </div>
+    );
+  }
+
+  const entries = Object.entries(args);
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="approval-details">
+      <pre className="approval-code-block">
+        <code>{JSON.stringify(args, null, 2)}</code>
+      </pre>
+    </div>
+  );
+}
+
+export function ApprovalCards({
+  approvals,
+  busyId,
+  onDecide,
+}: {
+  approvals: ApprovalRequest[];
+  busyId: string | null;
+  onDecide: (id: string, decision: ApprovalDecision) => Promise<void>;
+}) {
+  const firstApproval = approvals[0];
+
+  useEffect(() => {
+    if (!firstApproval || busyId) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      // Don't intercept if user is typing in an input or textarea
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === 'a' || key === '1') {
+        event.preventDefault();
+        void onDecide(firstApproval.id, 'all_the_time');
+      } else if (key === 'b' || key === '2') {
+        event.preventDefault();
+        void onDecide(firstApproval.id, 'once');
+      } else if (key === 'c' || key === '3' || key === 'escape') {
+        event.preventDefault();
+        void onDecide(firstApproval.id, 'denied');
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [firstApproval, busyId, onDecide]);
+
+  if (approvals.length === 0) return null;
+
+  return (
+    <div className="approvals" role="region" aria-label="Approval requests">
+      {approvals.map((approval) => (
+        <article key={approval.id} className="approval-card" aria-busy={busyId === approval.id}>
+          <div className="approval-header">
+            <span className="approval-tag">Approval needed</span>
+            <p className="approval-title">
+              Allow bot to run <code>{approval.toolCall.name}</code>?
+            </p>
+          </div>
+
+          {renderToolDetails(approval.toolCall)}
+
+          <div className="approval-actions">
+            <button
+              type="button"
+              className="approval-btn approval-btn-always"
+              disabled={busyId === approval.id}
+              onClick={() => void onDecide(approval.id, 'all_the_time')}
+              title="Approve this execution and future calls for this tool in this chat"
+            >
+              <span className="approval-key">A</span>
+              <div className="approval-btn-labels">
+                <span className="approval-main-label">Always allow</span>
+                <span className="approval-sub-label">All the time (auto-approve upcoming)</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="approval-btn approval-btn-once"
+              disabled={busyId === approval.id}
+              onClick={() => void onDecide(approval.id, 'once')}
+              title="Approve only this execution"
+            >
+              <span className="approval-key">B</span>
+              <div className="approval-btn-labels">
+                <span className="approval-main-label">Once</span>
+                <span className="approval-sub-label">Just this once (ask again next time)</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="approval-btn approval-btn-deny"
+              disabled={busyId === approval.id}
+              onClick={() => void onDecide(approval.id, 'denied')}
+              title="Deny tool execution"
+            >
+              <span className="approval-key">C</span>
+              <div className="approval-btn-labels">
+                <span className="approval-main-label">Not approve</span>
+                <span className="approval-sub-label">Cancel action</span>
+              </div>
+            </button>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}

@@ -54,12 +54,86 @@ Stopped apps can be started again without a redeploy:
 databricks apps start bricksbot -p dev
 ```
 
+## Phase 1–3 — Spaces, multi-bot, durable chat, dual ChatClient
+
+- Grok-style shell: Spaces chips, bot roster, presence (incl. thinking/working), transcript, composer, approval cards
+- API: Spaces CRUD/members, `GET/POST /api/bots`, chat + approvals
+- Thin harness on Lakebase schema `bricksbot` (Personal space + Primary bot bootstrap)
+- `ChatClient`: OpenAI-compatible (primary) or Databricks Serving; stub if unset
+## Tooling & Approvals (Native Lakehouse)
+
+- **3-Way Approvals**:
+  - `All the time (Sempre permitir)`: Approves this execution and automatically approves future calls to this tool in the chat.
+  - `Once (Apenas desta vez)`: Approves only the single execution.
+  - `Not approve (Não aprovar)`: Denies the tool call and notifies the model.
+  - Keyboard shortcuts on approval cards: `A` / `1` (All the time), `B` / `2` (Once), `C` / `3` / `Escape` (Not approve).
+  - Auto-approval management: active auto-approved tools are displayed in the chat header with quick-revoke controls (`DELETE /api/chats/:chatId/approvals/auto/:toolName`).
+- **Native Lakehouse Tools**:
+  - `sql_query`: Single read-only SQL statements (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN) on Databricks SQL Warehouses.
+  - `lakehouse_catalog`: Direct exploration of Unity Catalog catalogs, schemas, tables, and column metadata.
+  - `volume_read`: Read file contents or list directories in Unity Catalog Volumes (`/Volumes/...`).
+  - `web_fetch`: Fetch allowlisted HTTPS URLs with automatic HTML text extraction and script stripping.
+  - `handoff_to_bot`: Primary bot delegation to teammates in the same Space.
+- **Transcript Tool Visibility**: Tool executions are surfaced directly in the chat transcript with collapsible details blocks for inspecting outputs and error diagnostics.
+
+```bash
+npm test
+```
+
+## Phase 4 — Routines + thin install wizard
+
+- Lakebase table `bricksbot.routines` (id, bot, cron, prompt, webhook key hash, enabled, lastRunAt)
+- API:
+  - `GET/POST /api/routines`
+  - `PATCH /api/routines/:id` or `POST /api/routines/:id/update` (enable toggle / edits)
+  - `POST /api/routines/:id/run` (manual → system note + prompt via ChatService)
+  - `POST /api/webhooks/routines/:routineId` with header `X-BricksBot-Webhook-Key` (or `Authorization: Bearer`)
+  - `GET /api/setup/status` (provider, Lakebase flag, put-secret examples; never invents secret values)
+- UI: Routines panel (list / create / enable / Run now) + first-run install wizard when `provider === stub`
+- Job stub only: `resources/jobs/routine-webhook.job.yml.stub` — workspace Job creation stays **manual** until App URL + per-routine secret are parameterized. Do not uncomment into `databricks.yml` until those values exist.
+
+### LLM secrets (workspace deploy)
+
+Dev target reuses the **same OpenRouter secret as clawhouse**:
+
+| Secret scope | Secret key            | Env var               |
+| ------------ | --------------------- | --------------------- |
+| `claw`       | `openrouter-api-key`  | `OPENROUTER_API_KEY`  |
+
+`app.yaml` sets `LLM_BASE_URL` / `LLM_MODEL` to the clawhouse OpenRouter defaults; the server maps `OPENROUTER_API_KEY` → the internal OpenAI-compatible client.
+
+Optional BricksBot-only scope **`bricksbot`**:
+
+| Secret key            | Env var               |
+| --------------------- | --------------------- |
+| `web-fetch-allowlist` | `WEB_FETCH_ALLOWLIST` |
+
+```bash
+# Usually already set for clawhouse:
+databricks secrets put-secret claw openrouter-api-key --string-value 'YOUR_KEY' -p dev
+databricks bundle deploy -p dev && databricks bundle run app -p dev
+```
+
+Missing `openrouter-api-key` keeps the stub ChatClient. Local `npm run dev` can use `.env` (`OPENROUTER_API_KEY` or `LLM_API_KEY`; see `.env.example`). The install wizard surfaces the same scope/key when the stub provider is active.
+
+### Wiring a scheduled Job (manual)
+
+1. Create a routine in the App and copy the one-time `webhookSecret`.
+2. Create a Lakeflow Job (workspace UI or adapt the stub YAML) that POSTs to  
+   `https://<app-url>/api/webhooks/routines/<routineId>`  
+   with header `X-BricksBot-Webhook-Key: <secret>`.
+3. Prefer storing the secret in scope `bricksbot` and reading it from the Job task — never commit it.
+
 ## Lakebase
 
-Bots, chats, memories, and spaces will live in Lakebase Autoscaling. Phase 0 only stubs the resource so a project is not created or billed yet.
+Workspace project limit is 3, so the `dev` target reuses the clawhouse project with a dedicated branch:
 
-The shape to paste later is [resources/lakebase.postgres.yml.stub](resources/lakebase.postgres.yml.stub). `app.yaml` has the matching `LAKEBASE_ENDPOINT` env block commented out. Do not guess project, branch, or database ids — list them with `databricks postgres list-projects -p dev` or create a project explicitly before wiring the stub.
+- `projects/clawhouse/branches/bricksbot`
+- database `…/databases/databricks-postgres`
+- App-owned schema `bricksbot` (deploy before local Lakebase development)
 
-## What this skeleton is
+Without `LAKEBASE_ENDPOINT` / `PGHOST`, the server falls back to an in-memory store so `npm run dev` still works.
 
-AppKit `server` plugin only: Express plus a React shell. Model Serving, SQL warehouse, Genie, and the `lakebase()` plugin stay off until a later phase binds real resources.
+## What is intentionally out
+
+No computer/sandbox, no UC volume tools yet, no Marketplace PartnerOps listing push (Phase 4 ships routines + wizard only). `sql_query` is read-only and needs `DATABRICKS_WAREHOUSE_ID` plus `DATABRICKS_HOST` and `DATABRICKS_TOKEN`.
