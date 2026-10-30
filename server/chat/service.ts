@@ -1,6 +1,13 @@
 import { parseArtifactPinNotice } from '../../shared/chat/artifact-pin-notice.js';
 import { parseBotCreatedNotice } from '../../shared/chat/bot-created-notice.js';
 import {
+  parseChoiceAnswerNotice,
+  parseChoicePromptNotice,
+  serializeChoiceAnswerNotice,
+  serializeChoicePromptNotice,
+  type PendingChoice,
+} from '../../shared/chat/choice-notice.js';
+import {
   handoffBriefUserLine,
   parseHandoffNotice,
   serializeHandoffNotice,
@@ -41,20 +48,23 @@ import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
 import { createSqlQueryTool, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
 import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tools/volume-read.js';
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
+import { ASK_CHOICE_TOOL_NAME, createAskChoiceTool, planAskChoice } from '../agents/tools/ask-choice.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { ApprovalStore } from './approvals.js';
+import { ChoiceStore } from './choices.js';
 
-/** Roster mutations always ask — never “Always allow” / nested auto-approve. */
+/** Never persist “Always allow” for these tools. */
 function requiresAlwaysAsk(toolName: string): boolean {
-  return toolName === CREATE_BOT_TOOL_NAME;
+  return toolName === CREATE_BOT_TOOL_NAME || toolName === ASK_CHOICE_TOOL_NAME;
 }
 
 export interface ChatServiceOptions {
   store: ChatStore;
   client: ChatClient;
   approvals?: ApprovalStore;
+  choices?: ChoiceStore;
   webFetchAllowlist?: string[];
   sqlQuery?: SqlQueryToolOptions;
   lakehouseCatalog?: SqlQueryToolOptions;
@@ -110,7 +120,9 @@ function toLlmHistory(history: Message[]): LlmMessage[] {
       message.role === 'system' &&
       (parseHandoffNotice(message.content) ||
         parseBotCreatedNotice(message.content) ||
-        parseArtifactPinNotice(message.content))
+        parseArtifactPinNotice(message.content) ||
+        parseChoicePromptNotice(message.content) ||
+        parseChoiceAnswerNotice(message.content))
     ) {
       continue;
     }
@@ -130,18 +142,21 @@ export interface SendMessageResult {
   user: Message;
   assistant: Message | null;
   pendingApprovals: ApprovalRequest[];
+  pendingChoices?: PendingChoice[];
   autoApprovedTools?: string[];
   provider: ChatClient['provider'];
 }
 
 export class ChatService {
   private readonly approvals: ApprovalStore;
+  private readonly choices: ChoiceStore;
   private readonly tools: RegisteredTool[];
   private readonly compactionSettings: CompactionSettings;
   private readonly memory: MemorySkillStore;
 
   constructor(private readonly options: ChatServiceOptions) {
     this.approvals = options.approvals ?? new ApprovalStore();
+    this.choices = options.choices ?? new ChoiceStore();
     this.compactionSettings = options.compactionSettings ?? DEFAULT_COMPACTION_SETTINGS;
     // Meta tools (remember / skills / list_memories) are default for every bot.
     this.memory = options.memory ?? new MemoryMemorySkillStore();
@@ -166,11 +181,16 @@ export class ChatService {
     tools.push(...createMemorySkillTools(this.memory));
     tools.push(...createPiSkillTools(this.memory));
     tools.push(createPinArtifactTool(options.store));
+    tools.push(createAskChoiceTool());
     this.tools = tools;
   }
 
   getApprovals(): ApprovalStore {
     return this.approvals;
+  }
+
+  getChoices(): ChoiceStore {
+    return this.choices;
   }
 
   async sendUserMessage(
@@ -218,6 +238,18 @@ export class ChatService {
         JSON.stringify({ error: 'User denied tool call', tool: approval.toolCall.name }),
         { toolCallId: approval.toolCall.id },
       );
+    } else if (approval.toolCall.name === ASK_CHOICE_TOOL_NAME) {
+      const botId = await this.options.store.findBotIdForChat(chatId);
+      const bot = botId ? await this.options.store.getBot(botId) : null;
+      const error = await this.beginPendingChoice(chatId, approval.toolCall, bot);
+      if (error) {
+        await this.options.store.addMessage(
+          chatId,
+          'tool',
+          JSON.stringify({ error, tool: approval.toolCall.name }),
+          { toolCallId: approval.toolCall.id },
+        );
+      }
     } else {
       const botId = await this.options.store.findBotIdForChat(chatId);
       const bot = botId ? await this.options.store.getBot(botId) : null;
@@ -230,19 +262,136 @@ export class ChatService {
     // OpenAI requires every tool_call id from the assistant turn to have a tool
     // result before the next completion — wait if siblings are still pending.
     const stillPending = await this.approvals.listPending(chatId);
-    if (stillPending.length > 0) {
+    const pendingChoices = await this.choices.listPending(chatId);
+    if (stillPending.length > 0 || pendingChoices.length > 0) {
+      const botId = await this.options.store.findBotIdForChat(chatId);
+      await this.syncBotPresenceAfterTurn(chatId, botId);
       const history = await this.options.store.listMessages(chatId);
       const lastAssistant = [...history].reverse().find((m) => m.role === 'assistant') ?? null;
       return {
         user: [...history].reverse().find((m) => m.role === 'user')!,
         assistant: lastAssistant,
         pendingApprovals: stillPending,
+        pendingChoices,
         autoApprovedTools: await this.approvals.listAutoApproved(chatId),
         provider: this.options.client.provider,
       };
     }
 
     return this.continueTurn(chatId);
+  }
+
+  async submitChoice(choiceId: string, selectedOption: string): Promise<SendMessageResult> {
+    const trimmed = selectedOption.trim();
+    if (!trimmed) {
+      throw new Error('selectedOption is required');
+    }
+
+    const pending = this.choices.get(choiceId);
+    if (!pending) {
+      throw new Error('Choice not found');
+    }
+
+    const answered = this.choices.answer(choiceId, trimmed);
+    const chatId = answered.chatId;
+
+    await this.options.store.addMessage(
+      chatId,
+      'system',
+      serializeChoiceAnswerNotice({
+        kind: 'choice_answer',
+        choiceId: answered.id,
+        prompt: answered.prompt,
+        selectedOption: trimmed,
+      }),
+    );
+
+    await this.options.store.addMessage(
+      chatId,
+      'tool',
+      JSON.stringify({ ok: true, selected: trimmed, tool: ASK_CHOICE_TOOL_NAME }),
+      { toolCallId: answered.toolCallId },
+    );
+
+    const stillPendingApprovals = await this.approvals.listPending(chatId);
+    const pendingChoices = await this.choices.listPending(chatId);
+    if (stillPendingApprovals.length > 0 || pendingChoices.length > 0) {
+      const botId = await this.options.store.findBotIdForChat(chatId);
+      await this.syncBotPresenceAfterTurn(chatId, botId);
+      const history = await this.options.store.listMessages(chatId);
+      const lastAssistant = [...history].reverse().find((m) => m.role === 'assistant') ?? null;
+      return {
+        user: [...history].reverse().find((m) => m.role === 'user')!,
+        assistant: lastAssistant,
+        pendingApprovals: stillPendingApprovals,
+        pendingChoices,
+        autoApprovedTools: await this.approvals.listAutoApproved(chatId),
+        provider: this.options.client.provider,
+      };
+    }
+
+    return this.continueTurn(chatId);
+  }
+
+  /** After approval: post choice_prompt system row and keep the turn open. */
+  private async beginPendingChoice(
+    chatId: string,
+    toolCall: ToolCall,
+    bot: Bot | null,
+  ): Promise<string | null> {
+    const planned = planAskChoice(toolCall.arguments);
+    if (!planned.ok) return planned.error;
+    if (!bot) return 'ask_choice requires an active Bot';
+
+    const pending = this.choices.create({
+      chatId,
+      toolCallId: toolCall.id,
+      prompt: planned.prompt,
+      options: planned.options,
+    });
+
+    await this.options.store.addMessage(
+      chatId,
+      'system',
+      serializeChoicePromptNotice({
+        kind: 'choice_prompt',
+        id: pending.id,
+        toolCallId: toolCall.id,
+        prompt: planned.prompt,
+        options: planned.options,
+      }),
+    );
+
+    return null;
+  }
+
+  /** After a turn stops: waiting (approvals) or blocked (user choice) or online. */
+  private async syncBotPresenceAfterTurn(chatId: string, botId: string | null): Promise<void> {
+    if (!botId) return;
+    const [pendingApprovals, pendingChoices] = await Promise.all([
+      this.approvals.listPending(chatId),
+      this.choices.listPending(chatId),
+    ]);
+    const presence =
+      pendingApprovals.length > 0
+        ? 'waiting'
+        : pendingChoices.length > 0
+          ? 'blocked'
+          : 'online';
+    await this.options.store.setBotPresence(botId, presence);
+  }
+
+  private async pauseSnapshot(chatId: string): Promise<{
+    pendingApprovals: ApprovalRequest[];
+    pendingChoices: PendingChoice[];
+    autoApprovedTools: string[];
+  }> {
+    const [pendingApprovals, pendingChoices, autoApprovedTools] = await Promise.all([
+      this.approvals.listPending(chatId),
+      this.choices.listPending(chatId),
+      this.approvals.listAutoApproved(chatId),
+    ]);
+    return { pendingApprovals, pendingChoices, autoApprovedTools };
   }
 
   private async continueTurn(
@@ -258,11 +407,11 @@ export class ChatService {
         'Reached maximum tool execution steps for this turn.',
       );
       const history = await this.options.store.listMessages(chatId);
+      const pause = await this.pauseSnapshot(chatId);
       return {
         user: user ?? history.find((m) => m.role === 'user')!,
         assistant,
-        pendingApprovals: await this.approvals.listPending(chatId),
-        autoApprovedTools: await this.approvals.listAutoApproved(chatId),
+        ...pause,
         provider: this.options.client.provider,
       };
     }
@@ -362,11 +511,24 @@ export class ChatService {
           const pendingApprovals = await Promise.all(
             needsApproval.map((toolCall) => this.approvals.create(chatId, toolCall)),
           );
+          const pause = await this.pauseSnapshot(chatId);
           return {
             user: user ?? history.find((m) => m.role === 'user')!,
             assistant,
             pendingApprovals,
-            autoApprovedTools: await this.approvals.listAutoApproved(chatId),
+            pendingChoices: pause.pendingChoices,
+            autoApprovedTools: pause.autoApprovedTools,
+            provider: this.options.client.provider,
+          };
+        }
+
+        const openChoices = await this.choices.listPending(chatId);
+        if (openChoices.length > 0) {
+          const pause = await this.pauseSnapshot(chatId);
+          return {
+            user: user ?? history.find((m) => m.role === 'user')!,
+            assistant,
+            ...pause,
             provider: this.options.client.provider,
           };
         }
@@ -380,17 +542,15 @@ export class ChatService {
         completion.content?.trim() || '(empty model response)',
       );
 
+      const pause = await this.pauseSnapshot(chatId);
       return {
         user: user ?? [...history].reverse().find((m) => m.role === 'user')!,
         assistant,
-        pendingApprovals: await this.approvals.listPending(chatId),
-        autoApprovedTools: await this.approvals.listAutoApproved(chatId),
+        ...pause,
         provider: this.options.client.provider,
       };
     } finally {
-      if (botId) {
-        await this.options.store.setBotPresence(botId, 'online');
-      }
+      await this.syncBotPresenceAfterTurn(chatId, botId);
     }
   }
 

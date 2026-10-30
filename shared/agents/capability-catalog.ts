@@ -131,6 +131,11 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
       ' Use pin_artifact (Ask-first) for durable shareable findings on this chat; use remember for lasting rules and preferences.';
   }
 
+  if (catalog.tools.some((tool) => tool.name === 'ask_choice')) {
+    blocks[0] +=
+      ' Use ask_choice (Ask-first, no Always allow) when the user must pick one of 2–5 options; the answer is stored in the transcript.';
+  }
+
   const canCreateBot = catalog.tools.some((tool) => tool.name === 'create_bot');
   const canHandoff = catalog.tools.some((tool) => tool.name === 'handoff_to_bot');
 

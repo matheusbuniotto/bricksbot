@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { parseBotCreatedNotice } from '../../../shared/chat/bot-created-notice';
 import {
+  indexChoiceAnswers,
+  parseChoiceAnswerNotice,
+  parseChoicePromptNotice,
+} from '../../../shared/chat/choice-notice';
+import {
   collapseHandoffNotices,
   parseHandoffNotice,
   type HandoffNotice,
@@ -14,6 +19,7 @@ import { BotFace } from './BotFace';
 import { ChatMarkdown } from './ChatMarkdown';
 import { HandoffPeek } from './HandoffPeek';
 import { HandoffStatus } from './HandoffStatus';
+import { ChoiceAnswerStatus, ChoicePromptStatus } from './ChoicePromptStatus';
 
 function isHandoffToolEcho(content: string): boolean {
   return /^Handed off to .+\./i.test(content.trim());
@@ -31,7 +37,13 @@ function isCreateBotToolEcho(content: string): boolean {
 }
 
 function isRawSystemBlob(content: string): boolean {
-  if (parseHandoffNotice(content) || parseBotCreatedNotice(content) || parseArtifactPinNotice(content)) {
+  if (
+    parseHandoffNotice(content) ||
+    parseBotCreatedNotice(content) ||
+    parseArtifactPinNotice(content) ||
+    parseChoicePromptNotice(content) ||
+    parseChoiceAnswerNotice(content)
+  ) {
     return false;
   }
   const trimmed = content.trim();
@@ -68,6 +80,8 @@ export function ChatTranscript({
     }
     return map;
   }, [messages]);
+
+  const choiceAnswers = useMemo(() => indexChoiceAnswers(messages), [messages]);
 
   const visible = useMemo(
     () =>
@@ -123,6 +137,25 @@ export function ChatTranscript({
             const pinned = parseArtifactPinNotice(message.content);
             if (pinned) {
               return <ArtifactPinStatus key={message.id} notice={pinned} />;
+            }
+            const choicePrompt = parseChoicePromptNotice(message.content);
+            if (choicePrompt) {
+              return (
+                <div key={message.id} className="message message-system message-enter">
+                  <ChoicePromptStatus
+                    notice={choicePrompt}
+                    selectedOption={choiceAnswers.get(choicePrompt.id)}
+                  />
+                </div>
+              );
+            }
+            const choiceAnswer = parseChoiceAnswerNotice(message.content);
+            if (choiceAnswer) {
+              return (
+                <div key={message.id} className="message message-system message-enter">
+                  <ChoiceAnswerStatus notice={choiceAnswer} />
+                </div>
+              );
             }
             if (isRawSystemBlob(message.content)) return null;
           }

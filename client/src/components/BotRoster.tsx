@@ -18,6 +18,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Bot, Space } from '../../../shared/chat/types';
 import type { Theme } from '../lib/theme';
+import { presenceTooltip, rosterPreviewForPresence } from '../lib/user-facing';
 import {
   BotFace,
   botColor,
@@ -28,10 +29,6 @@ import {
   type BotConfig,
 } from './BotFace';
 import { BotPicker } from './BotPicker';
-
-function oneLine(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
-}
 
 type MenuState =
   | { kind: 'bot'; botId: string; x: number; y: number }
@@ -313,7 +310,13 @@ export function BotRoster({
           onClick={() => void onSelectBot(primary.id)}
           onContextMenu={(event) => openBotMenu(primary.id, event)}
         >
-          <BotFace color={botColor(primary.id, true)} size={64} botId={primary.id} thinking={primary.presence === 'thinking' || primary.presence === 'working'} />
+          <BotFace
+            color={botColor(primary.id, true)}
+            size={64}
+            botId={primary.id}
+            presence={primary.presence}
+            title={presenceTooltip(primary.presence)}
+          />
           <span>{primary.name}</span>
         </button>
         )
@@ -415,8 +418,7 @@ export function BotRoster({
                 ) : null}
                 {section.bots.map((bot, index) => {
                   const selected = bot.id === selectedBotId;
-                  const live = bot.presence === 'thinking' || bot.presence === 'working';
-                  const preview = live ? 'Thinking…' : oneLine(previews[bot.id] ?? '');
+                  const preview = rosterPreviewForPresence(bot.presence, previews[bot.id] ?? '');
                   const isRenaming = renamingId === bot.id;
                   return (
                     <div
@@ -454,7 +456,14 @@ export function BotRoster({
                             void commitRename();
                           }}
                         >
-                          <BotFace color={botColor(bot.id, false)} size={34} botId={bot.id} track={bot.id === selectedBotId} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
+                          <BotFace
+                            color={botColor(bot.id, false)}
+                            size={34}
+                            botId={bot.id}
+                            track={bot.id === selectedBotId}
+                            presence={bot.presence}
+                            title={presenceTooltip(bot.presence)}
+                          />
                           <input
                             ref={renameRef}
                             value={renameValue}
@@ -477,7 +486,14 @@ export function BotRoster({
                           onDoubleClick={() => startRename(bot)}
                           onContextMenu={(event) => openBotMenu(bot.id, event)}
                         >
-                          <BotFace color={botColor(bot.id, false)} size={34} botId={bot.id} track={bot.id === selectedBotId} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
+                          <BotFace
+                            color={botColor(bot.id, false)}
+                            size={34}
+                            botId={bot.id}
+                            track={bot.id === selectedBotId}
+                            presence={bot.presence}
+                            title={presenceTooltip(bot.presence)}
+                          />
                           <span className="roster-bot-copy">
                             <span className="roster-bot-name">{bot.name}</span>
                             <span className="roster-bot-preview">{preview || 'No messages'}</span>
@@ -520,7 +536,7 @@ export function BotRoster({
             {archivedOpen
               ? archivedVisible.map((bot) => {
                   const selected = bot.id === selectedBotId;
-                  const preview = oneLine(previews[bot.id] ?? '');
+                  const preview = rosterPreviewForPresence(bot.presence, previews[bot.id] ?? '');
                   return (
                     <button
                       key={bot.id}
@@ -530,7 +546,14 @@ export function BotRoster({
                       onClick={() => void onSelectBot(bot.id)}
                       onContextMenu={(event) => openBotMenu(bot.id, event)}
                     >
-                      <BotFace color={botColor(bot.id, false)} size={34} botId={bot.id} track={bot.id === selectedBotId} thinking={bot.presence === 'thinking' || bot.presence === 'working'} />
+                      <BotFace
+                        color={botColor(bot.id, false)}
+                        size={34}
+                        botId={bot.id}
+                        track={bot.id === selectedBotId}
+                        presence={bot.presence}
+                        title={presenceTooltip(bot.presence)}
+                      />
                       <span className="roster-bot-copy">
                         <span className="roster-bot-name">{bot.name}</span>
                         <span className="roster-bot-preview">{preview || 'Archived'}</span>

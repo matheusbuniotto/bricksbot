@@ -55,6 +55,8 @@ describe('ChatService', () => {
     expect(result.pendingApprovals).toHaveLength(1);
     expect(result.pendingApprovals[0]?.toolCall.name).toBe('web_fetch');
     expect(result.assistant?.content).toMatch(/waiting for your approval/i);
+    const updatedBot = await store.getBot(bot.id);
+    expect(updatedBot?.presence).toBe('waiting');
   });
 
   test('runs web_fetch after approval and continues the turn', async () => {
@@ -85,8 +87,48 @@ describe('ChatService', () => {
       const continued = await service.decideApproval(approvalId, 'approved');
       expect(continued.assistant?.content).toBe('fetched summary');
       expect(continued.pendingApprovals).toHaveLength(0);
+      const after = await store.getBot(bot.id);
+      expect(after?.presence).toBe('online');
       const messages = await store.listMessages(chat.id);
       expect(messages.some((m) => m.role === 'tool' && m.content.includes('page body'))).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('sets waiting when one of multiple tool approvals is still pending', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const service = new ChatService({
+      store,
+      client: new ScriptedClient([
+        {
+          content: null,
+          toolCalls: [
+            { id: 'call_a', name: 'web_fetch', arguments: { url: 'https://example.com/a' } },
+            { id: 'call_b', name: 'web_fetch', arguments: { url: 'https://example.com/b' } },
+          ],
+        },
+        { content: 'both done', toolCalls: [] },
+      ]),
+      webFetchAllowlist: ['example.com'],
+    });
+
+    const pending = await service.sendUserMessage(chat.id, 'fetch both');
+    expect(pending.pendingApprovals).toHaveLength(2);
+    expect((await store.getBot(bot.id))?.presence).toBe('waiting');
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response('ok', { status: 200 })) as typeof fetch;
+    try {
+      const mid = await service.decideApproval(pending.pendingApprovals[0]!.id, 'approved');
+      expect(mid.pendingApprovals).toHaveLength(1);
+      expect((await store.getBot(bot.id))?.presence).toBe('waiting');
+
+      const done = await service.decideApproval(mid.pendingApprovals[0]!.id, 'approved');
+      expect(done.pendingApprovals).toHaveLength(0);
+      expect((await store.getBot(bot.id))?.presence).toBe('online');
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -764,5 +806,61 @@ describe('ChatService', () => {
     await service.sendUserMessage(chat.id, 'can you create a bot?');
     expect(client.requests[0]?.tools?.some((tool) => tool.name === 'create_bot')).toBe(false);
     expect(client.requests[0]?.messages[0]?.content).toContain('cannot create bots');
+  });
+
+  test('ask_choice waits for approval then user pick before continuing', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const service = new ChatService({
+      store,
+      client: new ScriptedClient([
+        {
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_choice',
+              name: 'ask_choice',
+              arguments: { prompt: 'Pick env', options: ['prod', 'dev'] },
+            },
+          ],
+        },
+        { content: 'You picked prod', toolCalls: [] },
+      ]),
+    });
+
+    const pending = await service.sendUserMessage(chat.id, 'which env?');
+    expect(pending.pendingApprovals).toHaveLength(1);
+    expect(pending.pendingApprovals[0]?.toolCall.name).toBe('ask_choice');
+    expect((await store.getBot(bot.id))?.presence).toBe('waiting');
+
+    const afterApproval = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
+    expect(afterApproval.pendingChoices).toHaveLength(1);
+    expect(afterApproval.pendingApprovals).toHaveLength(0);
+    const messagesAfterApproval = await store.listMessages(chat.id);
+    expect(
+      messagesAfterApproval.some(
+        (m) => m.role === 'system' && m.content.includes('"kind":"choice_prompt"'),
+      ),
+    ).toBe(true);
+    expect(messagesAfterApproval.some((m) => m.role === 'tool' && m.toolCallId === 'call_choice')).toBe(
+      false,
+    );
+
+    const choiceId = afterApproval.pendingChoices![0]!.id;
+    const continued = await service.submitChoice(choiceId, 'prod');
+    expect(continued.assistant?.content).toBe('You picked prod');
+    expect(continued.pendingChoices).toHaveLength(0);
+    const finalMessages = await store.listMessages(chat.id);
+    expect(
+      finalMessages.some(
+        (m) => m.role === 'system' && m.content.includes('"kind":"choice_answer"') && m.content.includes('prod'),
+      ),
+    ).toBe(true);
+    expect(
+      finalMessages.some(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_choice' && m.content.includes('prod'),
+      ),
+    ).toBe(true);
   });
 });

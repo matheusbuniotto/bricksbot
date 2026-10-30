@@ -2,7 +2,14 @@
 
 import type { ToolCall } from '../agents/types.js';
 
-export type Presence = 'online' | 'away' | 'offline' | 'thinking' | 'working';
+export type Presence =
+  | 'online'
+  | 'away'
+  | 'offline'
+  | 'thinking'
+  | 'working'
+  | 'waiting'
+  | 'blocked';
 
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 

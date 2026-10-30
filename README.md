@@ -118,11 +118,12 @@ Missing `openrouter-api-key` keeps the stub ChatClient. Local `npm run dev` can 
 
 ### Wiring a scheduled Job (manual)
 
-1. Create a routine in the App and copy the one-time `webhookSecret`.
-2. Create a Lakeflow Job (workspace UI or adapt the stub YAML) that POSTs to  
+1. Create a routine in the App (Detalhes → Routines) and copy the one-time `webhookSecret` from the trust banner.
+2. Create a Lakeflow Job (workspace UI or adapt [`resources/jobs/routine-webhook.job.yml.stub`](resources/jobs/routine-webhook.job.yml.stub)) that POSTs to  
    `https://<app-url>/api/webhooks/routines/<routineId>`  
-   with header `X-BricksBot-Webhook-Key: <secret>`.
-3. Prefer storing the secret in scope `bricksbot` and reading it from the Job task — never commit it.
+   with header `x-bricksbot-webhook-key: <secret>` or `Authorization: Bearer <secret>`.
+3. Example App URL shape: `https://bricksbot-1234567890123456.us-west-2.databricksapps.com` (`databricks apps get bricksbot -p dev`).
+4. Prefer storing the secret in scope `bricksbot` and reading it from the Job task — never commit it.
 
 ## Lakebase
 

@@ -67,6 +67,8 @@ describe('MemoryChatStore', () => {
     const { primary } = await store.ensureBootstrap('user-1');
     const updated = await store.setBotPresence(primary.id, 'thinking');
     expect(updated.presence).toBe('thinking');
+    const waiting = await store.setBotPresence(primary.id, 'waiting');
+    expect(waiting.presence).toBe('waiting');
   });
 
   test('rename, move, archive, restore, and delete bots', async () => {

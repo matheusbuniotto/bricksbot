@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { ROUTINE_WEBHOOK_HEADER } from '../../shared/routines/types.js';
 
-const WEBHOOK_HEADER = 'x-bricksbot-webhook-key';
+const WEBHOOK_HEADER = ROUTINE_WEBHOOK_HEADER;
 
 /** Generate a URL-safe webhook secret for a new routine. */
 export function generateWebhookSecret(): string {

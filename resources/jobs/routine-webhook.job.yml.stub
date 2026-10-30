@@ -1,9 +1,10 @@
 # Example Lakeflow Job that POSTs to the BricksBot routine webhook on a cron.
 #
 # Workspace Job creation stays MANUAL for Phase 4:
-# 1. Create a routine in the App UI and copy the one-time webhookSecret.
-# 2. Note the routine id and the deployed App URL
-#    (https://<app>-<workspace-id>.<region>.databricksapps.com).
+# 1. Create a routine in the App UI and copy the one-time webhookSecret (Detalhes → Routines).
+# 2. Note the routine id and the deployed App URL, e.g.
+#    https://bricksbot-1234567890123456.us-west-2.databricksapps.com
+#    (run: databricks apps get bricksbot -p dev)
 # 3. Store the secret in scope bricksbot (e.g. routine-webhook-key) — do not commit it.
 # 4. Uncomment / adapt this file under resources/jobs/ and wire it from databricks.yml,
 #    OR create the Job in the workspace UI with an equivalent schedule + notebook/shell task.
@@ -16,12 +17,14 @@
 #     bricksbot_routine_example:
 #       name: "[dev] bricksbot routine webhook"
 #       schedule:
-#         quartz_cron_expression: "0 0 * * * ?"
-#         timezone_id: UTC
+#         quartz_cron_expression: "0 0 9 * * ?"
+#         timezone_id: America/Sao_Paulo
 #       tasks:
 #         - task_key: ping_routine
 #           spark_python_task:
-#             # Replace with a small notebook/python that curls:
-#             # POST ${var.app_url}/api/webhooks/routines/${var.routine_id}
-#             # Header: X-BricksBot-Webhook-Key: <secret from Databricks secret>
+#             # Example POST (replace placeholders):
+#             #   URL: https://bricksbot-1234567890123456.us-west-2.databricksapps.com/api/webhooks/routines/<routine-uuid>
+#             #   Header: x-bricksbot-webhook-key: <secret from Databricks secret scope bricksbot>
+#             #   Alt:   Authorization: Bearer <same secret>
+#             #   Body:  optional JSON {} — prompt comes from the routine row in Lakebase
 #             python_file: ./scripts/ping_routine_webhook.py

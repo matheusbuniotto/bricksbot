@@ -1,4 +1,5 @@
 import type { Bot, Chat, Message, Space, SpaceMember } from '../../../shared/chat/types';
+import type { PendingChoice } from '../../../shared/chat/choice-notice';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -128,18 +129,21 @@ export async function fetchBotChat(botId: string): Promise<{
   chat: Chat;
   messages: Message[];
   pendingApprovals: ApprovalRequest[];
+  pendingChoices: PendingChoice[];
   autoApprovedTools: string[];
 }> {
   const data = await readJson<{
     chat: Chat;
     messages: Message[];
     pendingApprovals?: ApprovalRequest[];
+    pendingChoices?: PendingChoice[];
     autoApprovedTools?: string[];
   }>(await fetch(`/api/bots/${botId}/chat`));
   return {
     chat: data.chat,
     messages: data.messages,
     pendingApprovals: data.pendingApprovals ?? [],
+    pendingChoices: data.pendingChoices ?? [],
     autoApprovedTools: data.autoApprovedTools ?? [],
   };
 }
@@ -151,6 +155,7 @@ export async function sendChatMessage(
   user: Message;
   assistant: Message | null;
   pendingApprovals: ApprovalRequest[];
+  pendingChoices?: PendingChoice[];
   autoApprovedTools?: string[];
   provider: string;
 }> {
@@ -169,6 +174,7 @@ export async function decideApproval(
 ): Promise<{
   assistant: Message | null;
   pendingApprovals: ApprovalRequest[];
+  pendingChoices?: PendingChoice[];
   autoApprovedTools?: string[];
 }> {
   return readJson(
@@ -176,6 +182,25 @@ export async function decideApproval(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ decision }),
+    }),
+  );
+}
+
+export async function submitChoice(
+  chatId: string,
+  choiceId: string,
+  selectedOption: string,
+): Promise<{
+  assistant: Message | null;
+  pendingApprovals: ApprovalRequest[];
+  pendingChoices?: PendingChoice[];
+  autoApprovedTools?: string[];
+}> {
+  return readJson(
+    await fetch(`/api/chats/${chatId}/choices/${choiceId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ selectedOption }),
     }),
   );
 }

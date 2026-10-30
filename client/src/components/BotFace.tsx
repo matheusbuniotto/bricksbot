@@ -1,4 +1,5 @@
 import { useRef, useMemo } from 'react';
+import type { Presence } from '../../../shared/chat/types';
 import {
   type BotConfig,
   DEFAULT_BOT,
@@ -101,8 +102,10 @@ export function BotFace({
   color,
   config,
   thinking = false,
+  presence,
   entering = false,
   track = false,
+  title,
 }: {
   color?: string;
   size: number;
@@ -112,11 +115,14 @@ export function BotFace({
   shape?: number;
   /** Explicit BotConfig; wins over botId and shape. */
   config?: BotConfig;
+  /** @deprecated Prefer `presence`. Kept for call sites that only know thinking/working. */
   thinking?: boolean;
+  presence?: Presence;
   /** Plays the one-shot entrance animation (creator preview). */
   entering?: boolean;
   /** Eyes/body follow the pointer. */
   track?: boolean;
+  title?: string;
 }) {
   const containerRef = useRef<HTMLSpanElement>(null);
   const playEnter = entering || (botId != null && freshIds.delete(botId));
@@ -137,10 +143,20 @@ export function BotFace({
   void color;
   void track;
 
+  const resolvedPresence = presence ?? (thinking ? 'thinking' : 'online');
+
+  const presenceClass = useMemo(() => {
+    if (resolvedPresence === 'waiting') return ' is-waiting';
+    if (resolvedPresence === 'blocked') return ' is-blocked';
+    if (resolvedPresence === 'thinking' || resolvedPresence === 'working') return ' is-thinking';
+    return '';
+  }, [resolvedPresence]);
+
   return (
     <span
       ref={containerRef}
-      className={`bot-face-wrapper${thinking ? ' is-thinking' : ''}${playEnter ? ' is-entering' : ''}`}
+      className={`bot-face-wrapper${presenceClass}${playEnter ? ' is-entering' : ''}`}
+      title={title}
       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: size, height: size }}
       dangerouslySetInnerHTML={{ __html: svgHtml }}
     />

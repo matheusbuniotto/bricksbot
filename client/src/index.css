@@ -604,6 +604,28 @@ textarea.field {
   animation: face-gummy 2.4s ease-in-out infinite;
 }
 
+/* Waiting on user approval: gentle pulse, distinct from thinking liquid motion. */
+.bot-face-wrapper.is-waiting .bt {
+  animation: face-wait-pulse 2.2s ease-in-out infinite;
+}
+
+.bot-face-wrapper.is-blocked .bt {
+  filter: grayscale(0.4) saturate(0.75);
+  opacity: 0.88;
+}
+
+@keyframes face-wait-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(0.96);
+  }
+}
+
 .bot-face-wrapper.is-entering .bt {
   animation: face-jelly 1.3s cubic-bezier(0.37, 0, 0.25, 1) both;
 }
@@ -1549,6 +1571,129 @@ textarea.field {
   cursor: default;
 }
 
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 1150px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 32px 8px;
+  box-sizing: border-box;
+}
+
+.choice-card {
+  max-width: 650px;
+  padding: 16px 18px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: var(--shadow-soft);
+}
+
+.choice-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.choice-tag {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+}
+
+.choice-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.choice-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.choice-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--muted);
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+}
+
+.choice-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--card);
+}
+
+.choice-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.choice-transcript {
+  max-width: 520px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.choice-transcript-prompt {
+  margin: 0 0 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.choice-transcript-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.choice-transcript-option {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.choice-transcript-option-picked {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.choice-answer-notice {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--muted);
+  max-width: fit-content;
+}
+
 /* Tool execution messages in transcript */
 .message-tool {
   align-self: flex-start;
@@ -1788,7 +1933,8 @@ textarea.field {
 
   .transcript,
   .composer-wrap,
-  .approvals {
+  .approvals,
+  .choices {
     padding-left: 16px;
     padding-right: 16px;
   }

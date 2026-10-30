@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Message } from '../../../shared/chat/types';
 import { serializeArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { serializeHandoffNotice } from '../../../shared/chat/handoff-notice';
-import { lastUserFacingPreview, toolLabel, toolResultView } from './user-facing';
+import { lastUserFacingPreview, presenceTooltip, rosterPreviewForPresence, toolLabel, toolResultView } from './user-facing';
 
 function msg(role: Message['role'], content: string): Message {
   return {
@@ -15,6 +15,14 @@ function msg(role: Message['role'], content: string): Message {
 }
 
 describe('user-facing', () => {
+  test('rosterPreviewForPresence prefixes Aguardando when waiting', () => {
+    expect(rosterPreviewForPresence('waiting', 'SQL query')).toBe('Aguardando: SQL query');
+    expect(rosterPreviewForPresence('waiting', '')).toBe('Aguardando:');
+    expect(rosterPreviewForPresence('thinking', 'hello')).toBe('Thinking…');
+    expect(presenceTooltip('waiting')).toBe('Aguardando aprovação');
+    expect(presenceTooltip('blocked')).toBe('Precisa de você');
+  });
+
   test('toolLabel hides snake_case ids', () => {
     expect(toolLabel('handoff_to_bot')).toBe('Message another bot');
     expect(toolLabel('sql_query')).toBe('SQL query');

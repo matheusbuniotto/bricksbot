@@ -13,6 +13,10 @@ const decideSchema = z.object({
   decision: z.enum(['all_the_time', 'always', 'once', 'approved', 'denied', 'not_approved']),
 });
 
+const submitChoiceSchema = z.object({
+  selectedOption: z.string().trim().min(1, 'selectedOption is required'),
+});
+
 const createBotSchema = z.object({
   name: z.string().trim().min(1).max(64),
   spaceId: z.string().uuid().nullable().optional(),
@@ -67,7 +71,9 @@ function isBadRequest(err: unknown): boolean {
       /Cannot (archive|delete|move)/i.test(err.message) ||
       /Unarchive/i.test(err.message) ||
       /index must/i.test(err.message) ||
-      /At least one field/i.test(err.message))
+      /At least one field/i.test(err.message) ||
+      /Invalid option/i.test(err.message) ||
+      /selectedOption/i.test(err.message))
   );
 }
 
@@ -226,8 +232,9 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
       const chat = await store.getOrCreateChatForBot(botId);
       const messages = await store.listMessages(chat.id);
       const pendingApprovals = await service.getApprovals().listPending(chat.id);
+      const pendingChoices = await service.getChoices().listPending(chat.id);
       const autoApprovedTools = await service.getApprovals().listAutoApproved(chat.id);
-      res.json({ chat, messages, pendingApprovals, autoApprovedTools });
+      res.json({ chat, messages, pendingApprovals, pendingChoices, autoApprovedTools });
     } catch (err) {
       res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
     }
@@ -303,6 +310,31 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     try {
       const approvalId = String(req.params.approvalId);
       const result = await service.decideApproval(approvalId, parsed.data.decision);
+      res.json(result);
+    } catch (err) {
+      if (isBadRequest(err)) {
+        res.status(400).json({ error: errorMessage(err) });
+        return;
+      }
+      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.post('/api/chats/:chatId/choices/:choiceId', async (req: Request, res: Response) => {
+    const parsed = submitChoiceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'selectedOption is required' });
+      return;
+    }
+
+    try {
+      const choiceId = String(req.params.choiceId);
+      const pending = await service.getChoices().get(choiceId);
+      if (!pending || pending.chatId !== String(req.params.chatId)) {
+        res.status(404).json({ error: 'Choice not found' });
+        return;
+      }
+      const result = await service.submitChoice(choiceId, parsed.data.selectedOption);
       res.json(result);
     } catch (err) {
       if (isBadRequest(err)) {

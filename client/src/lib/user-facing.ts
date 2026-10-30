@@ -1,7 +1,7 @@
 import { artifactPinPreviewLine, parseArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { parseBotCreatedNotice } from '../../../shared/chat/bot-created-notice';
 import { parseHandoffNotice } from '../../../shared/chat/handoff-notice';
-import type { Message } from '../../../shared/chat/types';
+import type { Message, Presence } from '../../../shared/chat/types';
 import { toolLabel } from '../../../shared/agents/tool-labels';
 
 export { approvalTitle, toolLabel } from '../../../shared/agents/tool-labels';
@@ -9,6 +9,34 @@ export { approvalTitle, toolLabel } from '../../../shared/agents/tool-labels';
 function looksLikeJsonBlob(content: string): boolean {
   const trimmed = content.trim();
   return trimmed.startsWith('{') || trimmed.startsWith('[');
+}
+
+/** Tooltip / title for roster and header bot faces. */
+export function presenceTooltip(presence: Presence): string {
+  switch (presence) {
+    case 'waiting':
+      return 'Aguardando aprovação';
+    case 'blocked':
+      return 'Precisa de você';
+    case 'thinking':
+    case 'working':
+      return 'Pensando…';
+    case 'away':
+      return 'Ausente';
+    case 'offline':
+      return 'Offline';
+    default:
+      return 'Online';
+  }
+}
+
+/** Roster one-liner including live presence copy and optional Aguardando prefix. */
+export function rosterPreviewForPresence(presence: Presence, messagePreview: string): string {
+  const base = messagePreview.replace(/\s+/g, ' ').trim();
+  if (presence === 'thinking' || presence === 'working') return 'Thinking…';
+  if (presence === 'waiting') return base ? `Aguardando: ${base}` : 'Aguardando:';
+  if (presence === 'blocked') return base ? `Precisa de você: ${base}` : 'Precisa de você';
+  return base;
 }
 
 /** One-line roster / list preview. Skips tool noise and raw system JSON. */

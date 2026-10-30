@@ -1,13 +1,14 @@
 # BricksBot — Next must-do roadmap
 
 **Updated:** 2026-10-29  
-**Shipped recently:** seed skills + `pin_artifact` (`5543880`); Genie cost lock (opt-in only).
+**Shipped recently:** seed skills + `pin_artifact`; Genie cost lock (opt-in only).  
+**Batch in flight / done locally:** Bot details sheet, presence waiting/blocked, choice cards, routine trust polish.
 
 ## Must-do now (ordered)
 
-Do these before Genie / MCP / computer.
+Do these before Genie / MCP / computer. *(Items 1–4 implemented in the 2026-10-29 parallel batch — verify on deploy.)*
 
-### 1. Bot details sheet (Track A) — **next sprint**
+### 1. Bot details sheet (Track A) — **done (pending deploy)**
 
 **Why:** Grok’s routines + Biblioteca live on Bot details; we already have `RoutinesPanel`, `MemoryPanel`, `InstallWizard`, and pin chips — but they are **not mounted** in `App.tsx`.
 
@@ -20,34 +21,17 @@ Do these before Genie / MCP / computer.
 
 **Spec to write:** `docs/specs/YYYY-MM-DD-bot-details-sheet.md`
 
-### 2. Presence: `waiting` / `blocked` (Track B)
+### 2. Presence: `waiting` / `blocked` (Track B) — **done (pending deploy)**
 
-**Why:** Approvals already pause the loop; roster still looks “online,” so the app feels stuck.
+See [specs/2026-10-29-presence-waiting.md](specs/2026-10-29-presence-waiting.md). Approvals → `waiting`; choices → `blocked`.
 
-**Ship:**
+### 3. Choice / action cards (Track B) — **done (pending deploy)**
 
-- Extend `Presence` with `waiting` (pending approval or choice) and `blocked` (needs user text).
-- Set from `ChatService` when approvals pending; clear on decide / continue.
-- Roster + header face treat `waiting`/`blocked` distinctly (tooltip = current tool or “needs you”).
-- Optional: roster preview prefix `Rascunho:` / `Aguardando:` when pending.
+See [specs/2026-10-29-choice-cards.md](specs/2026-10-29-choice-cards.md). `ask_choice` Ask-first → picker → “Sua resposta”.
 
-### 3. Choice / action cards (Track B)
+### 4. Routine trust polish (Phase 4 finish) — **done (pending deploy)**
 
-**Why:** Grok’s biggest non-tool trust loop; we only have tool approvals today.
-
-**Ship:**
-
-- Tool or message type: agent poses options → user picks → durable transcript row (“Sua resposta”).
-- Blocks turn like Ask-first; no Always-allow for destructive choices without typed confirm later.
-
-### 4. Routine trust polish (Phase 4 finish)
-
-**Why:** Cron is stored; Job wiring is manual; Grok-level Test/history missing.
-
-**Ship:**
-
-- Routine detail: human schedule copy, webhook URL/key copy, **Run now** (exists) labeled as Test.
-- Doc or stub Job YAML filled for one real App URL (ops, not product Genie).
+See [specs/2026-10-29-routine-trust.md](specs/2026-10-29-routine-trust.md). Human cron, webhook copy, **Test** label.
 
 ## Explicitly not next
 

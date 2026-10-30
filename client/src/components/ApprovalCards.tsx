@@ -6,6 +6,11 @@ function readStr(val: unknown): string {
   return typeof val === 'string' ? val : '';
 }
 
+/** Tools that only offer Once / Not approve (no Always allow). */
+function isOnceOnlyApproval(toolName: string): boolean {
+  return toolName === 'create_bot' || toolName === 'ask_choice';
+}
+
 function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
   const { name, arguments: args } = toolCall;
 
@@ -58,6 +63,27 @@ function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
       <div className="approval-details">
         <span className="approval-chip">To {target}</span>
         {brief ? <p className="approval-brief">&ldquo;{brief}&rdquo;</p> : null}
+      </div>
+    );
+  }
+
+  if (name === 'ask_choice') {
+    const prompt = readStr(args.prompt);
+    const options = Array.isArray(args.options)
+      ? args.options.filter((value): value is string => typeof value === 'string')
+      : [];
+    return (
+      <div className="approval-details">
+        {prompt ? <p className="approval-brief">{prompt}</p> : null}
+        {options.length > 0 ? (
+          <ul className="approval-kv">
+            {options.map((option) => (
+              <li key={option}>
+                <span className="approval-kv-value">{option}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     );
   }
@@ -120,8 +146,8 @@ export function ApprovalCards({
       }
 
       const key = event.key.toLowerCase();
-      const askEveryTime = firstApproval.toolCall.name === 'create_bot';
-      if (askEveryTime) {
+      const onceOnly = isOnceOnlyApproval(firstApproval.toolCall.name);
+      if (onceOnly) {
         if (key === 'a' || key === '1') {
           event.preventDefault();
           void onDecide(firstApproval.id, 'once');
@@ -161,7 +187,7 @@ export function ApprovalCards({
           {renderToolDetails(approval.toolCall)}
 
           <div className="approval-actions">
-            {approval.toolCall.name !== 'create_bot' ? (
+            {!isOnceOnlyApproval(approval.toolCall.name) ? (
               <button
                 type="button"
                 className="approval-btn approval-btn-always"
@@ -184,7 +210,7 @@ export function ApprovalCards({
               onClick={() => void onDecide(approval.id, 'once')}
               title="Approve only this execution"
             >
-              <span className="approval-key">{approval.toolCall.name === 'create_bot' ? 'A' : 'B'}</span>
+              <span className="approval-key">{isOnceOnlyApproval(approval.toolCall.name) ? 'A' : 'B'}</span>
               <div className="approval-btn-labels">
                 <span className="approval-main-label">Once</span>
                 <span className="approval-sub-label">Just this once (ask again next time)</span>
@@ -198,7 +224,7 @@ export function ApprovalCards({
               onClick={() => void onDecide(approval.id, 'denied')}
               title="Deny tool execution"
             >
-              <span className="approval-key">{approval.toolCall.name === 'create_bot' ? 'B' : 'C'}</span>
+              <span className="approval-key">{isOnceOnlyApproval(approval.toolCall.name) ? 'B' : 'C'}</span>
               <div className="approval-btn-labels">
                 <span className="approval-main-label">Not approve</span>
                 <span className="approval-sub-label">Cancel action</span>

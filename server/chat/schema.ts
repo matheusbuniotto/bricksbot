@@ -19,7 +19,7 @@ export const CHAT_SCHEMA_STATEMENTS = [
   id UUID PRIMARY KEY,
   name TEXT NOT NULL,
   avatar_label TEXT NOT NULL,
-  presence TEXT NOT NULL CHECK (presence IN ('online', 'away', 'offline', 'thinking', 'working')),
+  presence TEXT NOT NULL CHECK (presence IN ('online', 'away', 'offline', 'thinking', 'working', 'waiting', 'blocked')),
   space_id UUID REFERENCES bricksbot.spaces(id) ON DELETE SET NULL,
   is_primary BOOLEAN NOT NULL DEFAULT FALSE,
   owner_id TEXT NOT NULL DEFAULT 'workspace-user',
@@ -59,7 +59,7 @@ export const CHAT_SCHEMA_STATEMENTS = [
   `ALTER TABLE bricksbot.messages DROP CONSTRAINT IF EXISTS messages_role_check`,
   `ALTER TABLE bricksbot.messages ADD CONSTRAINT messages_role_check CHECK (role IN ('user', 'assistant', 'system', 'tool'))`,
   `ALTER TABLE bricksbot.bots DROP CONSTRAINT IF EXISTS bots_presence_check`,
-  `ALTER TABLE bricksbot.bots ADD CONSTRAINT bots_presence_check CHECK (presence IN ('online', 'away', 'offline', 'thinking', 'working'))`,
+  `ALTER TABLE bricksbot.bots ADD CONSTRAINT bots_presence_check CHECK (presence IN ('online', 'away', 'offline', 'thinking', 'working', 'waiting', 'blocked'))`,
   `CREATE TABLE IF NOT EXISTS bricksbot.routines (
   id UUID PRIMARY KEY,
   bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,
