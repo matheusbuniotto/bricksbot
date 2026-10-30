@@ -122,4 +122,32 @@ export const CHAT_SCHEMA_STATEMENTS = [
   result_json TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.sandbox_sessions (
+  id UUID PRIMARY KEY,
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  backend TEXT NOT NULL CHECK (backend IN ('databricks', 'python_exec', 'e2b')),
+  external_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('creating', 'ready', 'running', 'stopped', 'failed', 'deleted')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  stopped_at TIMESTAMPTZ,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+)`,
+  `ALTER TABLE bricksbot.sandbox_sessions DROP CONSTRAINT IF EXISTS sandbox_sessions_backend_check`,
+  `ALTER TABLE bricksbot.sandbox_sessions ADD CONSTRAINT sandbox_sessions_backend_check CHECK (backend IN ('databricks', 'python_exec', 'e2b'))`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_sandbox_sessions_chat
+  ON bricksbot.sandbox_sessions(chat_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_sandbox_sessions_user_status
+  ON bricksbot.sandbox_sessions(user_id, status)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.sandbox_events (
+  id UUID PRIMARY KEY,
+  session_id UUID NOT NULL REFERENCES bricksbot.sandbox_sessions(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('create', 'command', 'upload', 'download', 'stop', 'delete', 'error')),
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_sandbox_events_session
+  ON bricksbot.sandbox_events(session_id, created_at DESC)`,
 ] as const;

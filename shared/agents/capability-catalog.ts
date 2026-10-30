@@ -18,8 +18,8 @@ export interface SkillIndexEntry {
 }
 
 export interface CapabilitySoftLimits {
-  /** MVP has no desktop or sandbox (Phase 5). */
-  computer: false;
+  /** False unless Phase 5 sandbox tools are enabled. */
+  computer: boolean;
   sqlReadOnly: boolean;
   webFetchRegistered: boolean;
 }
@@ -67,11 +67,12 @@ export function buildCapabilityCatalog(input: BuildCapabilityCatalogInput): Capa
   const tools = names.map((name) => ({ name, label: toolLabel(name) }));
   const webFetchRegistered = names.includes('web_fetch');
   const sqlReadOnly = names.includes('sql_query');
+  const computer = names.includes('sandbox_exec');
 
   return {
     tools,
     softLimits: {
-      computer: false,
+      computer,
       sqlReadOnly,
       webFetchRegistered,
     },
@@ -94,7 +95,9 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
       : 'none';
 
   const limits: string[] = [
-    'No computer or sandbox in MVP (Phase 5 later).',
+    catalog.softLimits.computer
+      ? 'Isolated Linux sandbox is enabled for this chat; never place secrets in the sandbox, and use sandbox_save_artifact before deleting a sandbox.'
+      : 'Sandbox tools are disabled (SANDBOX_BACKEND=off).',
   ];
   if (catalog.softLimits.sqlReadOnly) {
     limits.push('SQL via sql_query is read-only (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN).');
@@ -139,6 +142,11 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
   if (catalog.tools.some((tool) => tool.name === 'schedule_routine')) {
     blocks[0] +=
       ' Routines CRUD: list_routines (auto), schedule_routine / update_routine (Ask-first), delete_routine (Ask every time). Job wiring stays a human step after create.';
+  }
+
+  if (catalog.tools.some((tool) => tool.name === 'sandbox_exec')) {
+    blocks[0] +=
+      ' Sandbox tools: python_exec / sandbox_exec / sandbox_upload / sandbox_download / sandbox_save_artifact (Ask-first), sandbox_stop (auto), sandbox_delete (Ask every time). Prefer python_exec for self-contained Python calculations or data scripts.';
   }
 
   const creatable: string[] = [];

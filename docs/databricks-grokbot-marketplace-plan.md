@@ -12,7 +12,7 @@
 | --- | --- |
 | **Codebase** | **Greenfield slim App** with a **high-fidelity Grok Bot–cloned UI** (roster, presence, transcript chrome). Steal patterns from Rakazo/Pi Durable; do **not** fork Rakazo as the Marketplace binary. |
 | **Models** | **OpenAI-compatible** provider first (OpenRouter-like base URL + API key via Secret). **Databricks-native** Model Serving / Unity Gateway as a first-class install option. xAI is just another OpenAI-compatible endpoint if desired. |
-| **Computer** | **Defer full cloud desktop.** MVP = lakehouse + web tools only. Phase 5 plugs a `SandboxProvider` (see §2.1 recommendation: Daytona free credits / E2B Desktop when paid; no free forever “Grok computer”). |
+| **Computer** | **Defer full cloud desktop.** MVP = lakehouse + web tools only. Phase 5 plugs a `SandboxProvider` (**updated 2026-10-30:** Databricks Sandbox first, then E2B; no Daytona — [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md)). |
 | **Marketplace** | **Plan call:** apply Data Partner Program now; ship **workspace-installable App** immediately; list on **public Marketplace Apps** when PartnerOps confirms App listing artifact. Do not block MVP on public listing. Private exchange is fine as interim distribution. |
 | **Tenancy** | **User-level** ownership of Bots + **team sharing**. Organize with in-app **Spaces / folders** (project/team boundaries) inside one App install per Databricks workspace. Map Databricks groups → Space membership where possible. |
 
@@ -111,7 +111,7 @@ Goal: same *product semantics* inside a customer workspace via **Databricks Apps
         ├─ AI Search index (memory/RAG)
         ├─ Lakeflow Jobs (routines)
         ├─ Secrets (LLM keys, connectors; later sandbox keys)
-        └─ (phase 5) SandboxProvider via egress ──► Daytona / E2B Desktop / …
+        └─ (phase 5) SandboxProvider ──► Databricks Sandbox (native) / E2B Cloud (opt-in)
 ```
 
 `app.yaml` drives command + `env`/`valueFrom` bindings ([app runtime](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/app-runtime)); resources configured at install/deploy ([resources](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/resources)).
@@ -124,7 +124,7 @@ Goal: same *product semantics* inside a customer workspace via **Databricks Apps
 | --- | --- | --- | --- | --- |
 | **No computer** — SQL/UC/Vector/`web_fetch` only | $0 beyond App DBUs | Lowest | No desktop; still useful lakehouse agent | **MVP default (locked)** |
 | **In-app Playwright / browser-use** | $0 (App CPU) | Medium; Chromium in App env is **unknown**/fragile; weak isolation (shares App process) | Browse-only, no real desktop/takeover | Optional thin “browser tool” only if Apps system image allows Chromium; not a security boundary |
-| **Daytona** hosted | Free compute credits (~$200 cited in 2026 comparisons); then ~$0.05/vCPU-h + $0.016/GiB-h ([Daytona pricing](https://www.daytona.io/pricing); [comparison](https://pinggy.io/blog/best_cloud_computers_for_ai_agents/)) | Medium: Secret + egress + SDK; Computer Use available | Closest paid path with good free runway | **Preferred Phase 5 default provider** |
+| **Daytona** hosted | Free compute credits (~$200 cited in 2026 comparisons); then ~$0.05/vCPU-h + $0.016/GiB-h ([Daytona pricing](https://www.daytona.io/pricing); [comparison](https://pinggy.io/blog/best_cloud_computers_for_ai_agents/)) | Medium: Secret + egress + SDK; Computer Use available | Closest paid path with good free runway | ~~Preferred Phase 5 default~~ **Superseded 2026-10-30: no Daytona for now** ([specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md)) |
 | **E2B** (+ Desktop) | Hobby: **$100 one-time** credit, 20 concurrent, 1 h sessions; Pro $150/mo ([E2B pricing](https://e2b.dev/pricing)) | Medium; strongest agent-ecosystem SDKs; pause keeps memory | Yes (E2B Desktop) | Strong alt; use if team prefers E2B Desktop UX |
 | **OpenComputer** | ~$10 free credit; Apache-2.0 self-host possible ([pinggy roundup](https://pinggy.io/blog/best_cloud_computers_for_ai_agents/)) | Hosted: easy SDK; self-host: **hard** (needs KVM workers outside Apps) | Partial (8 h hard ceiling on hosted v2) | Prototype only; self-host not Marketplace-friendly |
 | **Self-host Docker / OpenComputer / E2B runtime on customer VMs** | Infra cost only | High ops; Apps call out via egress | Yes if customer runs it | Enterprise “BYOC computer” later—not MVP |
@@ -298,7 +298,7 @@ Publish an install checklist of domains the App may need under [network policies
 - Always: `*.databricksapps.com`, PyPI/npm build hosts as required by Databricks ([networking](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/networking))
 - If OpenAI-compatible: customer’s `LLM_BASE_URL` host (e.g. `openrouter.ai`, `api.x.ai`, …)
 - If connectors: per-provider OAuth/API hosts
-- If Phase 5 sandbox: Daytona / E2B (or chosen provider) API + screen endpoints
+- If Phase 5 sandbox: Databricks Sandbox uses workspace-internal `/api/2.0/sandboxes`; E2B Cloud requires `api.e2b.dev` / `*.e2b.dev` (or custom `E2B_DOMAIN`)
 
 ### Multi-workspace considerations
 
@@ -328,7 +328,7 @@ Slim App + **cloned Grok UI**, durable and data-native, **no cloud desktop**:
 
 ### Full 1:1 track (after MVP)
 
-1. `SandboxProvider` (Daytona first / E2B Desktop alt; later BYOC Docker) + portable home on UC Volume.
+1. `SandboxProvider` (Databricks Sandbox first, E2B second; no Daytona for now) + portable home on UC Volume.
 2. Screen preview + takeover in App iframe.
 3. Connector pack + Auto Review; egress checklist per connector.
 4. Event-driven routines; webhook key rotation UI.
@@ -346,7 +346,7 @@ Slim App + **cloned Grok UI**, durable and data-native, **no cloud desktop**:
 | **2** | OpenAI-compatible + DBX model options; SQL/UC/Vector tools; approvals | Wedge + flexible LLMs |
 | **3** | Multi-Bot, Spaces/folders, sharing, skills, Primary Bot | Team product |
 | **4** | Jobs routines + install wizard + private/public listing push | MVP ship |
-| **5** | SandboxProvider (Daytona/E2B) | Computer parity |
+| **5** | SandboxProvider (Databricks Sandbox/E2B) | Computer parity |
 | **6** | Connectors + voice | Breadth |
 
 ---

@@ -41,7 +41,7 @@ C — Lakehouse tools     volume_write, Vector Search (thin)
 D — Distribution        OSS GitHub primary; PartnerOps optional
 E — Ops routines        Lakeflow Job → webhook (parameterized)
 F — Databricks platform See databricks-platform-integration-plan.md (Genie opt-in)
-5 — Computer            Daytona/E2B later
+5 — Computer            Databricks Sandbox + E2B later (no Daytona)
 6 — Connectors/voice    Prefer system.ai.* external MCPs when ready
 ```
 

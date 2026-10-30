@@ -4,7 +4,7 @@ Databricks App aiming for near 1:1 Grok Bot product shape (Bot roster, durable a
 
 ## Locked decisions (2026-10-28)
 
-- **Computer**: Defer full persistent desktop. Phase 5 default lean Daytona (free-ish credits); E2B Desktop as alt. No Playwright-in-App as “real” computer.
+- **Computer**: Defer full persistent desktop / Playwright-in-App. **Updated 2026-10-30:** Phase 5 **execution sandbox is implemented** behind `SANDBOX_BACKEND` (default `off`): **Databricks Sandbox first**, then `python_exec` / E2B; **no Daytona**. Spec: [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md).
 - **Codebase**: Slim greenfield Databricks App with a strongly cloned Grok Bot UI — not Rakazo-based.
 - **Models**: OpenAI-compatible primary (OpenRouter-like); Databricks Model Serving as an option.
 - **Tenancy**: User-owned Bots; Spaces/folders; team sharing. Egress allowlists for LLM, connectors, and future sandbox.
@@ -22,7 +22,7 @@ Databricks App aiming for near 1:1 Grok Bot product shape (Bot roster, durable a
 
 ## Shipped product core (through 2026-10-30)
 
-Roster + presence (`waiting` / `blocked`), durable chat, dual ChatClient, lakehouse tools + meta/seeds, approvals, handoff/`create_bot`, `pin_artifact`, `ask_choice`, Bot details (Details / Library / Computer asleep), routines + webhook + trust polish.
+Roster + presence (`waiting` / `blocked`), durable chat, dual ChatClient, lakehouse tools + meta/seeds, approvals, handoff/`create_bot`, `pin_artifact`, `ask_choice`, Bot details (Details / Library / Computer), routines + webhook + trust polish, Phase 5 sandbox exec (flagged off by default).
 
 ## Agent / platform tracks
 
@@ -34,6 +34,5 @@ Roster + presence (`waiting` / `blocked`), durable chat, dual ChatClient, lakeho
 
 - License choice for public repo (Apache-2.0 vs MIT vs Databricks community norms)
 - Websocket / scaling approach for the App
-- Daytona vs E2B when Phase 5 computer starts
 - Genie kill switch / per-Bot Genie grant UX (see platform plan open questions)
 - Whether to pursue PartnerOps Apps listing **after** OSS v0

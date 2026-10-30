@@ -8,7 +8,18 @@ function readStr(val: unknown): string {
 
 /** Tools that only offer Once / Not approve (no Always allow). */
 function isOnceOnlyApproval(toolName: string): boolean {
-  return toolName === 'create_bot' || toolName === 'ask_choice' || toolName === 'delete_routine';
+  return (
+    toolName === 'create_bot' ||
+    toolName === 'ask_choice' ||
+    toolName === 'delete_routine' ||
+    toolName === 'sandbox_delete'
+  );
+}
+
+function baseName(rawPath: string): string {
+  const clean = rawPath.trim().replace(/\\/g, '/');
+  const parts = clean.split('/').filter(Boolean);
+  return parts[parts.length - 1] ?? clean;
 }
 
 function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
@@ -136,6 +147,65 @@ function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
     return (
       <div className="approval-details">
         <span className="approval-chip">Delete {label}</span>
+      </div>
+    );
+  }
+
+  if (name === 'python_exec') {
+    const code = readStr(args.code);
+    return (
+      <div className="approval-details">
+        <pre className="approval-code-block">
+          <code>{code}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  if (name === 'sandbox_exec') {
+    const command = readStr(args.command);
+    return (
+      <div className="approval-details">
+        <pre className="approval-code-block">
+          <code>{command}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  if (name === 'sandbox_upload') {
+    const dest = baseName(readStr(args.destination) || 'file');
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">Write {dest}</span>
+      </div>
+    );
+  }
+
+  if (name === 'sandbox_download') {
+    const src = baseName(readStr(args.source) || 'file');
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">Read {src}</span>
+      </div>
+    );
+  }
+
+  if (name === 'sandbox_save_artifact') {
+    const file = baseName(readStr(args.source_path) || 'artifact');
+    const volumePath = readStr(args.volume_path);
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">{file}</span>
+        {volumePath ? <span className="approval-path">{volumePath}</span> : null}
+      </div>
+    );
+  }
+
+  if (name === 'sandbox_delete') {
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">Delete sandbox</span>
       </div>
     );
   }

@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { X } from 'lucide-react';
 import type { ArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
 import type { Routine } from '../../../shared/routines/types';
+import type { SandboxUiStatus } from '../../../shared/sandbox/types';
 import { listArtifactPinsFromMessages } from '../lib/artifact-pins';
 import { RoutinesPanel } from './RoutinesPanel';
 
@@ -46,16 +48,23 @@ export function BotDetailsSheet({
   routines,
   routineBusyId,
   lastWebhookSecret,
+  sandboxStatus,
+  sandboxBusy,
   onCreateRoutine,
   onUpdateRoutine,
   onRunRoutine,
   onDeleteRoutine,
+  onStopSandbox,
+  onDeleteSandbox,
+  onClose,
 }: {
   bot: Bot;
   messages: Message[];
   routines: Routine[];
   routineBusyId: string | null;
   lastWebhookSecret: string | null;
+  sandboxStatus?: SandboxUiStatus | null;
+  sandboxBusy?: boolean;
   onCreateRoutine: (input: {
     botId: string;
     name: string;
@@ -68,6 +77,9 @@ export function BotDetailsSheet({
   ) => Promise<void>;
   onRunRoutine: (id: string) => Promise<void>;
   onDeleteRoutine: (id: string) => Promise<void>;
+  onStopSandbox?: () => Promise<void>;
+  onDeleteSandbox?: () => Promise<void>;
+  onClose: () => void;
 }) {
   const [tab, setTab] = useState<BotDetailsTab>('details');
   const files = listArtifactPinsFromMessages(messages);
@@ -78,13 +90,23 @@ export function BotDetailsSheet({
       aria-label={`Details for ${bot.name}`}
     >
       <header className="shrink-0 border-b border-border/80 px-4 py-3 space-y-2">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-sm font-medium truncate">{bot.name}</h2>
-          {bot.isPrimary ? (
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
-              Primary
-            </span>
-          ) : null}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <h2 className="text-sm font-medium truncate">{bot.name}</h2>
+            {bot.isPrimary ? (
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
+                Primary
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="bot-details-close"
+            aria-label="Close details"
+            onClick={onClose}
+          >
+            <X size={16} strokeWidth={2} aria-hidden />
+          </button>
         </div>
         <div className="flex flex-wrap gap-1" role="tablist" aria-label="Bot details sections">
           {(Object.keys(TAB_LABELS) as BotDetailsTab[]).map((key) => (
@@ -102,7 +124,7 @@ export function BotDetailsSheet({
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="bot-details-scroll flex-1 min-h-0 overflow-y-auto">
         {tab === 'details' ? (
           <div role="tabpanel" aria-label="Details">
             <RoutinesPanel
@@ -152,16 +174,105 @@ export function BotDetailsSheet({
         ) : null}
 
         {tab === 'computer' ? (
-          <div
-            role="tabpanel"
-            aria-label="Computer"
-            className="px-4 py-10 flex flex-col items-center justify-center text-center gap-2"
-          >
-            <div className="size-16 rounded-xl border border-dashed border-border/70 bg-muted/30" />
-            <p className="text-sm font-medium text-foreground">Computer is asleep</p>
-            <p className="text-xs text-muted-foreground max-w-[220px] leading-relaxed">
-              Desktop tools come later. For now this bot works from chat.
-            </p>
+          <div role="tabpanel" aria-label="Computer" className="px-4 py-4 space-y-4">
+            {!sandboxStatus?.enabled ? (
+              <div className="py-6 flex flex-col items-center justify-center text-center gap-2">
+                <div className="size-16 rounded-xl border border-dashed border-border/70 bg-muted/30" />
+                <p className="text-sm font-medium text-foreground">Computer is asleep</p>
+                <p className="text-xs text-muted-foreground max-w-[220px] leading-relaxed">
+                  Sandbox tools are off (`SANDBOX_BACKEND=off`). Enable databricks, python_exec, or
+                  e2b to run code in an isolated Linux sandbox.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-lg border border-border/80 bg-muted/20 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-foreground">
+                      {(sandboxStatus.session?.backend ?? sandboxStatus.backend) === 'databricks'
+                        ? 'Databricks Sandbox'
+                        : (sandboxStatus.session?.backend ?? sandboxStatus.backend) ===
+                            'python_exec'
+                          ? 'Databricks system.ai.python_exec'
+                          : 'E2B Sandbox'}
+                    </span>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {bot.presence === 'working' || sandboxStatus.session?.status === 'running'
+                        ? 'Working'
+                        : sandboxStatus.session?.status &&
+                            sandboxStatus.session.status !== 'deleted'
+                          ? sandboxStatus.session.status
+                          : 'Asleep'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {bot.presence === 'working' || sandboxStatus.session?.status === 'running'
+                      ? 'Running command in isolated Linux sandbox…'
+                      : sandboxStatus.session?.status === 'ready'
+                        ? 'Sandbox session is active and ready for commands.'
+                        : sandboxStatus.session?.status === 'stopped'
+                          ? 'Sandbox is paused. Next command resumes this session (same home directory).'
+                          : sandboxStatus.session?.status === 'failed'
+                            ? 'Last sandbox operation reported an error.'
+                            : 'Computer is asleep. Starts lazily on the first sandbox command.'}
+                  </p>
+                  {sandboxStatus.session && sandboxStatus.session.status !== 'deleted' ? (
+                    <div className="flex items-center gap-2 pt-1">
+                      {sandboxStatus.session.status === 'ready' ||
+                      sandboxStatus.session.status === 'running' ||
+                      sandboxStatus.session.status === 'creating' ? (
+                        <button
+                          type="button"
+                          disabled={sandboxBusy}
+                          onClick={() => void onStopSandbox?.()}
+                          className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                        >
+                          Stop
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={sandboxBusy}
+                        onClick={() => void onDeleteSandbox?.()}
+                        className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-destructive hover:bg-muted disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {sandboxStatus.recentEvents.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Recent sandbox activity</p>
+                    <ul className="space-y-1.5">
+                      {sandboxStatus.recentEvents.map((event) => {
+                        const when = formatPinTime(event.createdAt);
+                        return (
+                          <li
+                            key={event.id}
+                            className="rounded-md border border-border/60 px-2.5 py-1.5 text-xs space-y-0.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium truncate">{event.summary}</span>
+                              {event.exitCode !== undefined ? (
+                                <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                                  exit {event.exitCode}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                              <span>{event.artifactName ?? event.type}</span>
+                              {when ? <span>{when}</span> : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
         ) : null}
       </div>

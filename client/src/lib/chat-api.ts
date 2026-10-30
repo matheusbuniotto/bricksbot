@@ -1,6 +1,7 @@
 import type { Bot, Chat, Message, Space, SpaceMember } from '../../../shared/chat/types';
 import type { PendingChoice } from '../../../shared/chat/choice-notice';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
+import type { SandboxUiStatus } from '../../../shared/sandbox/types';
 
 async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -131,6 +132,7 @@ export async function fetchBotChat(botId: string): Promise<{
   pendingApprovals: ApprovalRequest[];
   pendingChoices: PendingChoice[];
   autoApprovedTools: string[];
+  sandboxStatus: SandboxUiStatus | null;
 }> {
   const data = await readJson<{
     chat: Chat;
@@ -138,6 +140,7 @@ export async function fetchBotChat(botId: string): Promise<{
     pendingApprovals?: ApprovalRequest[];
     pendingChoices?: PendingChoice[];
     autoApprovedTools?: string[];
+    sandboxStatus?: SandboxUiStatus;
   }>(await fetch(`/api/bots/${botId}/chat`));
   return {
     chat: data.chat,
@@ -145,7 +148,22 @@ export async function fetchBotChat(botId: string): Promise<{
     pendingApprovals: data.pendingApprovals ?? [],
     pendingChoices: data.pendingChoices ?? [],
     autoApprovedTools: data.autoApprovedTools ?? [],
+    sandboxStatus: data.sandboxStatus ?? null,
   };
+}
+
+export async function stopBotSandbox(botId: string): Promise<SandboxUiStatus> {
+  const data = await readJson<{ sandbox: SandboxUiStatus }>(
+    await fetch(`/api/bots/${botId}/sandbox/stop`, { method: 'POST' }),
+  );
+  return data.sandbox;
+}
+
+export async function deleteBotSandbox(botId: string): Promise<SandboxUiStatus> {
+  const data = await readJson<{ sandbox: SandboxUiStatus }>(
+    await fetch(`/api/bots/${botId}/sandbox`, { method: 'DELETE' }),
+  );
+  return data.sandbox;
 }
 
 export async function sendChatMessage(

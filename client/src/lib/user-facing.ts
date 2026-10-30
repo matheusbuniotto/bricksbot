@@ -90,8 +90,10 @@ export interface ToolResultView {
 function summarizeToolSubject(parsed: Record<string, unknown>, label: string): string {
   const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
   const key = typeof parsed.key === 'string' ? parsed.key.trim() : '';
+  const title = typeof parsed.title === 'string' ? parsed.title.trim() : '';
   if (name) return `${label}: ${name}`;
   if (key) return `${label}: ${key}`;
+  if (title) return `${label}: ${title}`;
   return label;
 }
 
@@ -117,6 +119,8 @@ export function toolResultView(content: string, toolNameHint = ''): ToolResultVi
       (typeof parsed.result === 'string' && parsed.result) ||
       (typeof parsed.message === 'string' && parsed.message) ||
       (typeof parsed.content === 'string' && parsed.content) ||
+      (typeof parsed.stdout === 'string' && parsed.stdout.trim()) ||
+      (typeof parsed.volumePath === 'string' && parsed.volumePath.trim()) ||
       null;
 
     if (preferred) {

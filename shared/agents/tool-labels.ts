@@ -19,6 +19,13 @@ const TOOL_LABELS: Record<string, string> = {
   list_routines: 'List routines',
   update_routine: 'Update a routine',
   delete_routine: 'Delete a routine',
+  python_exec: 'Run Python code',
+  sandbox_exec: 'Run sandbox command',
+  sandbox_upload: 'Upload file to sandbox',
+  sandbox_download: 'Read file from sandbox',
+  sandbox_save_artifact: 'Save sandbox artifact',
+  sandbox_stop: 'Stop sandbox',
+  sandbox_delete: 'Delete sandbox',
 };
 
 export function toolLabel(name: string): string {
@@ -67,6 +74,20 @@ export function approvalTitle(toolName: string): string {
       return 'Allow this bot to update a routine?';
     case 'delete_routine':
       return 'Allow this bot to delete a routine?';
+    case 'python_exec':
+      return 'Allow this bot to run Python code in the sandbox?';
+    case 'sandbox_exec':
+      return 'Allow this bot to run a command in the sandbox?';
+    case 'sandbox_upload':
+      return 'Allow this bot to write a file into the sandbox?';
+    case 'sandbox_download':
+      return 'Allow this bot to read a file from the sandbox?';
+    case 'sandbox_save_artifact':
+      return 'Allow this bot to save a sandbox file to a Volume and pin it?';
+    case 'sandbox_stop':
+      return 'Allow this bot to stop the sandbox?';
+    case 'sandbox_delete':
+      return 'Allow this bot to permanently delete the sandbox?';
     default:
       return `Allow this bot to run “${toolLabel(toolName)}”?`;
   }
