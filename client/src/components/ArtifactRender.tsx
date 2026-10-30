@@ -9,10 +9,69 @@ import {
   type ChartData,
   type VegaSpec,
 } from '../lib/artifact-render';
+import { useIsDarkTheme } from '../lib/use-is-dark-theme';
 
 const W = 480;
 const H = 160;
 const PAD = 24;
+
+const DARK_VEGA_CONFIG = {
+  background: 'transparent',
+  view: { stroke: 'rgba(255,255,255,0.12)' },
+  axis: {
+    domainColor: 'rgba(255,255,255,0.28)',
+    gridColor: 'rgba(255,255,255,0.10)',
+    tickColor: 'rgba(255,255,255,0.28)',
+    labelColor: '#e6e4de',
+    titleColor: '#f3f1ec',
+  },
+  legend: {
+    labelColor: '#e6e4de',
+    titleColor: '#f3f1ec',
+  },
+  header: {
+    labelColor: '#e6e4de',
+    titleColor: '#f3f1ec',
+  },
+  title: {
+    color: '#f3f1ec',
+    subtitleColor: '#b8b4aa',
+  },
+  text: { fill: '#e6e4de' },
+  rule: { stroke: '#e6e4de' },
+  range: {
+    category: ['#60a5fa', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb923c', '#38bdf8'],
+  },
+};
+
+const LIGHT_VEGA_CONFIG = {
+  background: 'transparent',
+  view: { stroke: 'rgba(0,0,0,0.08)' },
+  axis: {
+    domainColor: 'rgba(0,0,0,0.25)',
+    gridColor: 'rgba(0,0,0,0.07)',
+    tickColor: 'rgba(0,0,0,0.25)',
+    labelColor: '#2b2b2b',
+    titleColor: '#171717',
+  },
+  legend: {
+    labelColor: '#2b2b2b',
+    titleColor: '#171717',
+  },
+  header: {
+    labelColor: '#2b2b2b',
+    titleColor: '#171717',
+  },
+  title: {
+    color: '#171717',
+    subtitleColor: '#666666',
+  },
+  text: { fill: '#2b2b2b' },
+  rule: { stroke: '#2b2b2b' },
+  range: {
+    category: ['#2563eb', '#059669', '#d97706', '#db2777', '#7c3aed', '#ea580c', '#0284c7'],
+  },
+};
 
 function Chart({ data }: { data: ChartData }) {
   const max = Math.max(...data.y, 0) || 1;
@@ -59,15 +118,28 @@ function Chart({ data }: { data: ChartData }) {
 function VegaChart({ spec }: { spec: VegaSpec }) {
   const ref = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
+  const dark = useIsDarkTheme();
 
   useEffect(() => {
     let view: { finalize(): void } | undefined;
     let cancelled = false;
+    const baseConfig = dark ? DARK_VEGA_CONFIG : LIGHT_VEGA_CONFIG;
+    const userConfig =
+      spec.config && typeof spec.config === 'object' && !Array.isArray(spec.config)
+        ? (spec.config as Record<string, unknown>)
+        : {};
+    const themedSpec = {
+      width: 440,
+      ...spec,
+      background: 'transparent',
+      config: { ...baseConfig, ...userConfig },
+    };
     void import('vega-embed')
       .then(({ default: embed }) =>
-        embed(ref.current!, { width: 440, ...spec, background: 'transparent' } as never, {
+        embed(ref.current!, themedSpec as never, {
           actions: { export: true, source: false, compiled: false, editor: false },
           renderer: 'svg',
+          theme: dark ? 'dark' : undefined,
         }),
       )
       .then((result) => {
@@ -79,7 +151,7 @@ function VegaChart({ spec }: { spec: VegaSpec }) {
       cancelled = true;
       view?.finalize();
     };
-  }, [spec]);
+  }, [spec, dark]);
 
   if (failed) return <pre className="artifact-fallback">{JSON.stringify(spec, null, 2)}</pre>;
   return <div ref={ref} className="artifact-vega" />;
