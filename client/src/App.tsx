@@ -27,34 +27,14 @@ import {
   updateBot,
 } from './lib/chat-api';
 import {
-  createSkill,
-  deleteSkill,
-  fetchMemories,
-  fetchSkills,
-  upsertMemory,
-} from './lib/memory-api';
-import {
   createRoutine,
   fetchRoutines,
-  fetchSetupStatus,
   runRoutine,
   updateRoutine,
-  type SetupStatus,
 } from './lib/routines-api';
 import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
 import { lastUserFacingPreview, presenceTooltip, toolLabel } from './lib/user-facing';
-import type { BotMemory, BotSkill } from '../../shared/agents/memory/types';
 import type { Routine } from '../../shared/routines/types';
-
-const INSTALL_DISMISS_KEY = 'bricksbot-install-wizard-dismissed';
-
-function readInstallWizardDismissed(): boolean {
-  try {
-    return localStorage.getItem(INSTALL_DISMISS_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
 
 export default function App() {
   useMouseFollow();
@@ -75,15 +55,9 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
-  const [installWizardDismissed, setInstallWizardDismissed] = useState(() =>
-    readInstallWizardDismissed(),
-  );
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routineBusyId, setRoutineBusyId] = useState<string | null>(null);
   const [lastWebhookSecret, setLastWebhookSecret] = useState<string | null>(null);
-  const [memories, setMemories] = useState<BotMemory[]>([]);
-  const [skills, setSkills] = useState<BotSkill[]>([]);
 
   function handleThemeChange(next: Theme) {
     applyTheme(next);
@@ -107,15 +81,6 @@ export default function App() {
     return { nextBots, nextArchived };
   }, []);
 
-  const loadBotDetails = useCallback(async (botId: string) => {
-    const [nextMemories, nextSkills] = await Promise.all([
-      fetchMemories(botId),
-      fetchSkills(botId),
-    ]);
-    setMemories(nextMemories);
-    setSkills(nextSkills);
-  }, []);
-
   const refreshRoutines = useCallback(async () => {
     const next = await fetchRoutines();
     setRoutines(next);
@@ -130,8 +95,7 @@ export default function App() {
     setPendingChoices(data.pendingChoices ?? []);
     setAutoApprovedTools(data.autoApprovedTools ?? []);
     setPreviews((prev) => ({ ...prev, [botId]: lastUserFacingPreview(data.messages) }));
-    await loadBotDetails(botId);
-  }, [loadBotDetails]);
+  }, []);
 
   const hydratePreviews = useCallback((nextBots: Bot[]) => {
     void Promise.all(
@@ -152,18 +116,16 @@ export default function App() {
     let cancelled = false;
     void (async () => {
       try {
-        const [nextSpaces, nextBots, nextArchived, status, nextRoutines] = await Promise.all([
+        const [nextSpaces, nextBots, nextArchived, nextRoutines] = await Promise.all([
           fetchSpaces(),
           fetchBots(undefined, 'active'),
           fetchBots(undefined, 'archived'),
-          fetchSetupStatus().catch(() => null),
           fetchRoutines().catch(() => [] as Routine[]),
         ]);
         if (cancelled) return;
         setSpaces(nextSpaces);
         setBots(nextBots);
         setArchivedBots(nextArchived);
-        setSetupStatus(status);
         setRoutines(nextRoutines);
         const nextSelected = nextBots.find((bot) => bot.isPrimary)?.id ?? nextBots[0]?.id ?? null;
         setSelectedBotId(nextSelected);
@@ -375,24 +337,6 @@ export default function App() {
     }
   }
 
-  function handleInstallWizardDismiss() {
-    setInstallWizardDismissed(true);
-    try {
-      localStorage.setItem(INSTALL_DISMISS_KEY, '1');
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function handleInstallWizardOpen() {
-    setInstallWizardDismissed(false);
-    try {
-      localStorage.removeItem(INSTALL_DISMISS_KEY);
-    } catch {
-      /* ignore */
-    }
-  }
-
   async function handleCreateRoutine(input: {
     botId: string;
     name: string;
@@ -430,39 +374,6 @@ export default function App() {
       setError(err instanceof Error ? err.message : 'Routine run failed');
     } finally {
       setRoutineBusyId(null);
-    }
-  }
-
-  async function handleSaveMemory(key: string, content: string) {
-    if (!selectedBotId) return;
-    setError(null);
-    try {
-      await upsertMemory(selectedBotId, key, content);
-      await loadBotDetails(selectedBotId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to save memory');
-    }
-  }
-
-  async function handleCreateSkill(name: string, body: string) {
-    if (!selectedBotId) return;
-    setError(null);
-    try {
-      await createSkill(selectedBotId, name, body);
-      await loadBotDetails(selectedBotId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to add skill');
-    }
-  }
-
-  async function handleDeleteSkill(skillId: string) {
-    if (!selectedBotId) return;
-    setError(null);
-    try {
-      await deleteSkill(selectedBotId, skillId);
-      await loadBotDetails(selectedBotId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to delete skill');
     }
   }
 
@@ -569,21 +480,12 @@ export default function App() {
         <BotDetailsSheet
           bot={selectedBot}
           messages={visibleMessages}
-          setupStatus={setupStatus}
-          installWizardDismissed={installWizardDismissed}
-          onInstallWizardDismiss={handleInstallWizardDismiss}
-          onInstallWizardOpen={handleInstallWizardOpen}
           routines={botRoutines}
           routineBusyId={routineBusyId}
           lastWebhookSecret={lastWebhookSecret}
-          memories={memories}
-          skills={skills}
           onCreateRoutine={handleCreateRoutine}
           onToggleRoutine={handleToggleRoutine}
           onRunRoutine={handleRunRoutine}
-          onSaveMemory={handleSaveMemory}
-          onCreateSkill={handleCreateSkill}
-          onDeleteSkill={handleDeleteSkill}
         />
       ) : null}
     </div>

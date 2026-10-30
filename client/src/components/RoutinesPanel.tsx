@@ -1,4 +1,3 @@
-import { Button } from '@databricks/appkit-ui/react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Select } from './Select';
 import type { Bot } from '../../../shared/chat/types';
@@ -26,9 +25,9 @@ function CopyableField({ label, value, mono = true }: { label: string; value: st
           className={`field text-[11px] flex-1 min-w-0 ${mono ? 'font-mono' : ''}`}
           onFocus={(e) => e.target.select()}
         />
-        <Button type="button" size="sm" variant="ghost" onClick={() => copyText(value)}>
+        <button type="button" className="pane-btn pane-btn-ghost" onClick={() => copyText(value)}>
           Copy
-        </Button>
+        </button>
       </div>
     </div>
   );
@@ -68,6 +67,13 @@ export function RoutinesPanel({
   const cronLocale = useMemo(() => defaultCronDescribeLocale(), []);
   const createCronHint = describeCronExpression(cron.trim() || '0 9 * * *', cronLocale);
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const showBotSelect = bots.length > 1;
+
+  useEffect(() => {
+    if (bots[0]?.id && !bots.some((b) => b.id === botId)) {
+      setBotId(bots[0].id);
+    }
+  }, [bots, botId]);
 
   useEffect(() => {
     if (!lastWebhookSecret) {
@@ -101,19 +107,24 @@ export function RoutinesPanel({
     trustRoutineId && appOrigin ? `${appOrigin}${routineWebhookPath(trustRoutineId)}` : null;
 
   return (
-    <div className="border-t border-border/80 px-3 py-3 space-y-3">
+    <div className="px-4 py-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Routines
-        </p>
-        <Button type="button" size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+        <div>
+          <p className="text-sm font-medium">Routines</p>
+          <p className="text-xs text-muted-foreground">Scheduled jobs for this bot</p>
+        </div>
+        <button
+          type="button"
+          className="pane-btn pane-btn-ghost"
+          onClick={() => setOpen((v) => !v)}
+        >
           {open ? 'Cancel' : 'Add'}
-        </Button>
+        </button>
       </div>
 
       {lastWebhookSecret ? (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-2 py-2 space-y-2">
-          <p className="text-[11px] text-foreground font-medium">
+        <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2.5 space-y-2">
+          <p className="text-xs text-foreground font-medium">
             Webhook secret (shown once — copy now)
           </p>
           <CopyableField label="Secret" value={lastWebhookSecret} />
@@ -130,21 +141,17 @@ export function RoutinesPanel({
             label="Or Authorization"
             value={`Authorization: Bearer ${lastWebhookSecret}`}
           />
-          <p className="text-[10px] text-muted-foreground">
-            Lakeflow Jobs call this URL on schedule. Store the secret in Databricks secrets scope{' '}
-            <span className="font-mono">bricksbot</span>; see{' '}
-            <span className="font-mono">resources/jobs/routine-webhook.job.yml.stub</span>.
-          </p>
         </div>
       ) : null}
 
       {open ? (
-        <form className="space-y-2" onSubmit={handleCreate}>
+        <form className="space-y-2 rounded-lg border border-border/60 px-3 py-3" onSubmit={handleCreate}>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Name"
             className="field"
+            autoFocus
           />
           <input
             value={cron}
@@ -153,12 +160,14 @@ export function RoutinesPanel({
             className="field font-mono"
           />
           <p className="text-[11px] text-muted-foreground">{createCronHint}</p>
-          <Select
-            ariaLabel="Bot"
-            value={selectedBotId}
-            onChange={setBotId}
-            options={bots.map((bot) => ({ value: bot.id, label: bot.name }))}
-          />
+          {showBotSelect ? (
+            <Select
+              ariaLabel="Bot"
+              value={selectedBotId}
+              onChange={setBotId}
+              options={bots.map((bot) => ({ value: bot.id, label: bot.name }))}
+            />
+          ) : null}
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -166,28 +175,38 @@ export function RoutinesPanel({
             rows={2}
             className="field"
           />
-          <Button type="submit" size="sm" disabled={creating || !bots.length}>
+          <button
+            type="submit"
+            className="pane-btn pane-btn-solid"
+            disabled={creating || !bots.length}
+          >
             Create
-          </Button>
+          </button>
         </form>
       ) : null}
 
-      <ul className="space-y-2 max-h-48 overflow-y-auto">
-        {routines.length === 0 ? (
-          <li className="text-xs text-muted-foreground">No routines yet.</li>
-        ) : (
-          routines.map((routine) => {
+      {routines.length === 0 && !open ? (
+        <div className="rounded-lg border border-dashed border-border/70 px-4 py-8 text-center">
+          <p className="text-sm text-muted-foreground">No routines yet</p>
+          <p className="mt-1 text-xs text-muted-foreground/80">
+            Ask the bot in chat to add one, or tap Add.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {routines.map((routine) => {
             const scheduleLabel = describeCronExpression(routine.cron, cronLocale);
-            const path = routineWebhookPath(routine.id);
-            const fullUrl = appOrigin ? `${appOrigin}${path}` : path;
             return (
               <li
                 key={routine.id}
-                className="rounded-md border border-border/70 px-2 py-2 space-y-1.5"
+                className="rounded-lg border border-border/60 px-3 py-2.5 space-y-2"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium truncate">{routine.name}</p>
-                  <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{routine.name}</p>
+                    <p className="text-xs text-muted-foreground">{scheduleLabel}</p>
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 pt-0.5">
                     <input
                       type="checkbox"
                       checked={routine.enabled}
@@ -196,40 +215,19 @@ export function RoutinesPanel({
                     On
                   </label>
                 </div>
-                <p className="text-[11px] text-foreground">{scheduleLabel}</p>
-                <p className="text-[10px] font-mono text-muted-foreground truncate">{routine.cron}</p>
-                <div className="flex gap-1 items-center">
-                  <input
-                    readOnly
-                    value={fullUrl}
-                    title={ROUTINE_WEBHOOK_PATH_TEMPLATE}
-                    className="field font-mono text-[10px] flex-1 min-w-0 py-1"
-                    onFocus={(e) => e.target.select()}
-                  />
-                  <Button type="button" size="sm" variant="ghost" onClick={() => copyText(fullUrl)}>
-                    Copy
-                  </Button>
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  Auth: header{' '}
-                  <span className="font-mono">{ROUTINE_WEBHOOK_HEADER}</span> or{' '}
-                  <span className="font-mono">Authorization: Bearer</span> (secret shown once at
-                  create).
-                </p>
-                <Button
+                <button
                   type="button"
-                  size="sm"
-                  variant="secondary"
+                  className="pane-btn pane-btn-outline"
                   disabled={busyId === routine.id}
                   onClick={() => void onRun(routine.id)}
                 >
                   {busyId === routine.id ? 'Running…' : 'Test'}
-                </Button>
+                </button>
               </li>
             );
-          })
-        )}
-      </ul>
+          })}
+        </ul>
+      )}
     </div>
   );
 }

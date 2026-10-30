@@ -8,18 +8,18 @@
 
 Do these before Genie / MCP / computer. *(Items 1–4 implemented in the 2026-10-29 parallel batch — verify on deploy.)*
 
-### 1. Bot details sheet (Track A) — **done (pending deploy)**
+### 1. Bot details sheet (Track A) — **done**
 
-**Why:** Grok’s routines + Biblioteca live on Bot details; we already have `RoutinesPanel`, `MemoryPanel`, `InstallWizard`, and pin chips — but they are **not mounted** in `App.tsx`.
+**Why:** Grok’s routines + Library live on Bot details.
 
 **Ship:**
 
-- Right/detail pane on selected Bot: tabs **Detalhes** | **Biblioteca** | Computador (empty / deferred copy).
-- Detalhes: mount routines (list / pause / run) + light memory/skills list (or chat-only memory note).
-- Biblioteca: list `artifact_pin` notices from that bot’s chat (read-only from transcript for v1).
-- Wire `InstallWizard` when provider is stub.
+- Right/detail pane: tabs **Details** | **Library** | **Computer**.
+- Details: routines only (list / pause / Test / Add). No install wizard; memory/skills stay chat-driven.
+- Library: `artifact_pin` notices from that bot’s chat (read-only).
+- Computer: “asleep” / Phase 5 deferred.
 
-**Spec to write:** `docs/specs/YYYY-MM-DD-bot-details-sheet.md`
+**Spec:** [specs/2026-10-29-bot-details-sheet.md](specs/2026-10-29-bot-details-sheet.md)
 
 ### 2. Presence: `waiting` / `blocked` (Track B) — **done (pending deploy)**
 

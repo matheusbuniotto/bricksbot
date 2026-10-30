@@ -10,7 +10,7 @@ export interface ArtifactPinListItem {
   notice: ArtifactPinNotice;
 }
 
-/** Newest pins first (Biblioteca v1 reads transcript only). */
+/** Newest pins first (Library v1 reads transcript only). */
 export function listArtifactPinsFromMessages(messages: Message[]): ArtifactPinListItem[] {
   const items: ArtifactPinListItem[] = [];
   for (const message of messages) {
