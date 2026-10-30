@@ -136,6 +136,31 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
       ' Use ask_choice (Ask-first, no Always allow) when the user must pick one of 2–5 options; the answer is stored in the transcript.';
   }
 
+  if (catalog.tools.some((tool) => tool.name === 'schedule_routine')) {
+    blocks[0] +=
+      ' Routines CRUD: list_routines (auto), schedule_routine / update_routine (Ask-first), delete_routine (Ask every time). Job wiring stays a human step after create.';
+  }
+
+  const creatable: string[] = [];
+  if (catalog.tools.some((tool) => tool.name === 'schedule_routine')) {
+    creatable.push('routines (schedule_routine)');
+  }
+  if (catalog.tools.some((tool) => tool.name === 'create_bot')) {
+    creatable.push('teammate bots (create_bot, Primary only)');
+  }
+  if (catalog.tools.some((tool) => tool.name === 'pin_artifact')) {
+    creatable.push('artifact pins (pin_artifact)');
+  }
+  if (catalog.tools.some((tool) => tool.name === 'save_skill')) {
+    creatable.push('skills (save_skill)');
+  }
+  if (catalog.tools.some((tool) => tool.name === 'remember')) {
+    creatable.push('memories (remember)');
+  }
+  if (creatable.length > 0) {
+    blocks.push(`You can create: ${creatable.join('; ')}. Prefer ask_choice when the user has not confirmed details.`);
+  }
+
   const canCreateBot = catalog.tools.some((tool) => tool.name === 'create_bot');
   const canHandoff = catalog.tools.some((tool) => tool.name === 'handoff_to_bot');
 

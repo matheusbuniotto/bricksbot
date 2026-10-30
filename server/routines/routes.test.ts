@@ -112,6 +112,11 @@ describe('routines HTTP API', () => {
         body: JSON.stringify({ webhookKey: created.webhookSecret }),
       });
       expect(bodyHook.status).toBe(201);
+
+      const del = await fetch(`${baseUrl}/api/routines/${created.routine.id}/delete`, {
+        method: 'POST',
+      });
+      expect(del.status).toBe(204);
     });
   });
 });

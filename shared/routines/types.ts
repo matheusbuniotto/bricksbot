@@ -43,6 +43,7 @@ export interface RoutineStore {
   getRoutineAuth(routineId: string): Promise<{ routine: Routine; webhookKeyHash: string } | null>;
   createRoutine(input: CreateRoutineInput): Promise<CreateRoutineResult>;
   updateRoutine(routineId: string, ownerId: string, patch: UpdateRoutineInput): Promise<Routine>;
+  deleteRoutine(routineId: string, ownerId: string): Promise<void>;
   markRoutineRun(routineId: string, ranAt?: string): Promise<Routine>;
 }
 

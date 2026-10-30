@@ -31,6 +31,7 @@ import type {
   ToolDefinition,
 } from '../../shared/agents/types.js';
 import type { MemorySkillStore } from '../../shared/agents/memory/types.js';
+import type { RoutineStore } from '../../shared/routines/types.js';
 import {
   createHandoffTool,
   HANDOFF_TOOL_NAME,
@@ -49,15 +50,25 @@ import { createSqlQueryTool, type SqlQueryToolOptions } from '../agents/tools/sq
 import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tools/volume-read.js';
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
 import { ASK_CHOICE_TOOL_NAME, createAskChoiceTool, planAskChoice } from '../agents/tools/ask-choice.js';
+import {
+  createRoutineTools,
+  DELETE_ROUTINE_TOOL_NAME,
+  isAutoRoutineTool,
+} from '../agents/tools/routine-tools.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
+import { MemoryRoutineStore } from '../routines/memory-store.js';
 import { ApprovalStore } from './approvals.js';
 import { ChoiceStore } from './choices.js';
 
 /** Never persist “Always allow” for these tools. */
 function requiresAlwaysAsk(toolName: string): boolean {
-  return toolName === CREATE_BOT_TOOL_NAME || toolName === ASK_CHOICE_TOOL_NAME;
+  return (
+    toolName === CREATE_BOT_TOOL_NAME ||
+    toolName === ASK_CHOICE_TOOL_NAME ||
+    toolName === DELETE_ROUTINE_TOOL_NAME
+  );
 }
 
 export interface ChatServiceOptions {
@@ -71,6 +82,8 @@ export interface ChatServiceOptions {
   volumeRead?: VolumeReadToolOptions;
   /** Defaults to an in-memory store so meta tools stay on for every bot. */
   memory?: MemorySkillStore;
+  /** Defaults to in-memory so schedule_routine works in tests/local without Lakebase. */
+  routines?: RoutineStore;
   compaction?: CompactionStore;
   compactionSettings?: CompactionSettings;
   idempotency?: IdempotencyStore;
@@ -182,6 +195,9 @@ export class ChatService {
     tools.push(...createPiSkillTools(this.memory));
     tools.push(createPinArtifactTool(options.store));
     tools.push(createAskChoiceTool());
+    tools.push(
+      ...createRoutineTools(options.routines ?? new MemoryRoutineStore(), options.store),
+    );
     this.tools = tools;
   }
 
@@ -470,6 +486,7 @@ export class ChatService {
             !requiresAlwaysAsk(toolCall.name) &&
             (opts.autoApproveAll ||
               isDefaultMetaTool(toolCall.name) ||
+              isAutoRoutineTool(toolCall.name) ||
               (await this.approvals.isAutoApproved(chatId, toolCall.name)))
           ) {
             toAutoExecute.push(toolCall);

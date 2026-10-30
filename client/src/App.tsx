@@ -28,6 +28,7 @@ import {
 } from './lib/chat-api';
 import {
   createRoutine,
+  deleteRoutine,
   fetchRoutines,
   runRoutine,
   updateRoutine,
@@ -353,10 +354,13 @@ export default function App() {
     }
   }
 
-  async function handleToggleRoutine(id: string, enabled: boolean) {
+  async function handleUpdateRoutine(
+    id: string,
+    patch: { name?: string; cron?: string; prompt?: string; enabled?: boolean },
+  ) {
     setError(null);
     try {
-      await updateRoutine(id, { enabled });
+      await updateRoutine(id, patch);
       await refreshRoutines();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update routine');
@@ -372,6 +376,19 @@ export default function App() {
       if (selectedBotId) await loadChat(selectedBotId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Routine run failed');
+    } finally {
+      setRoutineBusyId(null);
+    }
+  }
+
+  async function handleDeleteRoutine(id: string) {
+    setRoutineBusyId(id);
+    setError(null);
+    try {
+      await deleteRoutine(id);
+      await refreshRoutines();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete routine');
     } finally {
       setRoutineBusyId(null);
     }
@@ -484,8 +501,9 @@ export default function App() {
           routineBusyId={routineBusyId}
           lastWebhookSecret={lastWebhookSecret}
           onCreateRoutine={handleCreateRoutine}
-          onToggleRoutine={handleToggleRoutine}
+          onUpdateRoutine={handleUpdateRoutine}
           onRunRoutine={handleRunRoutine}
+          onDeleteRoutine={handleDeleteRoutine}
         />
       ) : null}
     </div>

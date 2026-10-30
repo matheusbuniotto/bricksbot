@@ -134,6 +134,14 @@ export class LakebaseRoutineStore implements RoutineStore {
     return mapRoutine(result.rows[0]);
   }
 
+  async deleteRoutine(routineId: string, ownerId: string): Promise<void> {
+    const result = await this.query(
+      `DELETE FROM bricksbot.routines WHERE id = $1 AND owner_id = $2 RETURNING id`,
+      [routineId, ownerId],
+    );
+    if (!result.rows[0]) throw new Error('Routine not found');
+  }
+
   async markRoutineRun(routineId: string, ranAt?: string): Promise<Routine> {
     const result = await this.query(
       `UPDATE bricksbot.routines

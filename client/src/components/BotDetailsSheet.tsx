@@ -47,8 +47,9 @@ export function BotDetailsSheet({
   routineBusyId,
   lastWebhookSecret,
   onCreateRoutine,
-  onToggleRoutine,
+  onUpdateRoutine,
   onRunRoutine,
+  onDeleteRoutine,
 }: {
   bot: Bot;
   messages: Message[];
@@ -61,8 +62,12 @@ export function BotDetailsSheet({
     cron: string;
     prompt: string;
   }) => Promise<void>;
-  onToggleRoutine: (id: string, enabled: boolean) => Promise<void>;
+  onUpdateRoutine: (
+    id: string,
+    patch: { name?: string; cron?: string; prompt?: string; enabled?: boolean },
+  ) => Promise<void>;
   onRunRoutine: (id: string) => Promise<void>;
+  onDeleteRoutine: (id: string) => Promise<void>;
 }) {
   const [tab, setTab] = useState<BotDetailsTab>('details');
   const files = listArtifactPinsFromMessages(messages);
@@ -106,8 +111,9 @@ export function BotDetailsSheet({
               lastWebhookSecret={lastWebhookSecret}
               busyId={routineBusyId}
               onCreate={onCreateRoutine}
-              onToggle={onToggleRoutine}
+              onUpdate={onUpdateRoutine}
               onRun={onRunRoutine}
+              onDelete={onDeleteRoutine}
             />
           </div>
         ) : null}

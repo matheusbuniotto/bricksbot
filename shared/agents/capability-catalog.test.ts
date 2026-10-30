@@ -87,6 +87,18 @@ describe('capability-catalog', () => {
     expect(prompt).toContain('seed skills');
   });
 
+  test('capability prompt mentions schedule_routine when registered', () => {
+    const catalog = buildCapabilityCatalog({
+      toolNames: ['schedule_routine', 'remember'],
+    });
+    const prompt = formatCapabilityPrompt(catalog);
+    expect(prompt).toContain('schedule_routine');
+    expect(prompt).toContain('Routines CRUD');
+    expect(prompt).toContain('You can create:');
+    expect(prompt).toContain('routines (schedule_routine)');
+    expect(prompt).toContain('memories (remember)');
+  });
+
   test('catalog build stays under 5 ms', () => {
     const skills = Array.from({ length: 20 }, (_, i) => ({
       name: `Skill ${i}`,

@@ -136,6 +136,18 @@ export function registerRoutineRoutes(
     }
   });
 
+  const deleteHandler = async (req: Request, res: Response) => {
+    try {
+      await store.deleteRoutine(String(req.params.id), resolveOwnerId(req));
+      res.status(204).end();
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+    }
+  };
+
+  app.delete('/api/routines/:id', deleteHandler);
+  app.post('/api/routines/:id/delete', deleteHandler);
+
   app.post('/api/webhooks/routines/:routineId', async (req: Request, res: Response) => {
     // Order: dedicated header → body.webhookKey → Bearer.
     // Jobs send Apps OAuth in Authorization and the shared secret in header/body;

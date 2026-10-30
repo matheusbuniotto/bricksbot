@@ -36,6 +36,10 @@ describe('MemoryRoutineStore', () => {
 
     const ran = await store.markRoutineRun(created.routine.id, '2026-10-28T12:00:00.000Z');
     expect(ran.lastRunAt).toBe('2026-10-28T12:00:00.000Z');
+
+    await store.deleteRoutine(created.routine.id, 'owner-a');
+    expect(await store.getRoutine(created.routine.id)).toBeNull();
+    await expect(store.deleteRoutine(created.routine.id, 'owner-a')).rejects.toThrow(/not found/i);
   });
 
   test('rejects empty name or cron', async () => {

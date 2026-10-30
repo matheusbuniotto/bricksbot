@@ -15,6 +15,10 @@ const TOOL_LABELS: Record<string, string> = {
   list_memories: 'List memories',
   pin_artifact: 'Pin finding',
   ask_choice: 'Ask for your choice',
+  schedule_routine: 'Schedule a routine',
+  list_routines: 'List routines',
+  update_routine: 'Update a routine',
+  delete_routine: 'Delete a routine',
 };
 
 export function toolLabel(name: string): string {
@@ -55,6 +59,14 @@ export function approvalTitle(toolName: string): string {
       return 'Allow this bot to pin a finding on this chat?';
     case 'ask_choice':
       return 'Allow this bot to ask you to choose an option?';
+    case 'schedule_routine':
+      return 'Allow this bot to schedule a routine?';
+    case 'list_routines':
+      return 'Allow this bot to list routines?';
+    case 'update_routine':
+      return 'Allow this bot to update a routine?';
+    case 'delete_routine':
+      return 'Allow this bot to delete a routine?';
     default:
       return `Allow this bot to run “${toolLabel(toolName)}”?`;
   }

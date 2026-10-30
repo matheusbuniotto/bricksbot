@@ -77,6 +77,7 @@ createApp({
       store: chats,
       client,
       memory,
+      routines,
       compaction,
       idempotency,
       approvals,

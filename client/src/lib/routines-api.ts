@@ -69,3 +69,11 @@ export async function runRoutine(id: string): Promise<{
     }),
   );
 }
+
+export async function deleteRoutine(id: string): Promise<void> {
+  const res = await fetch(`/api/routines/${id}/delete`, { method: 'POST' });
+  if (!res.ok && res.status !== 204) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Request failed (${res.status})`);
+  }
+}

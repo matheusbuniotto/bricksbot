@@ -8,7 +8,7 @@ function readStr(val: unknown): string {
 
 /** Tools that only offer Once / Not approve (no Always allow). */
 function isOnceOnlyApproval(toolName: string): boolean {
-  return toolName === 'create_bot' || toolName === 'ask_choice';
+  return toolName === 'create_bot' || toolName === 'ask_choice' || toolName === 'delete_routine';
 }
 
 function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
@@ -97,6 +97,45 @@ function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
         <span className="approval-chip">{botName}</span>
         {section ? <span className="approval-target">{section}</span> : null}
         {job ? <p className="approval-brief">&ldquo;{job}&rdquo;</p> : null}
+      </div>
+    );
+  }
+
+  if (name === 'schedule_routine') {
+    const routineName = readStr(args.name) || 'routine';
+    const cron = readStr(args.cron);
+    const prompt = readStr(args.prompt);
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">{routineName}</span>
+        {cron ? <span className="approval-target font-mono">{cron}</span> : null}
+        {prompt ? <p className="approval-brief">&ldquo;{prompt}&rdquo;</p> : null}
+      </div>
+    );
+  }
+
+  if (name === 'update_routine') {
+    const label =
+      readStr(args.new_name) || readStr(args.name) || readStr(args.routine_id) || 'routine';
+    const cron = readStr(args.cron);
+    const prompt = readStr(args.prompt);
+    const enabled =
+      args.enabled === undefined ? '' : args.enabled ? 'enable' : 'pause';
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">{label}</span>
+        {cron ? <span className="approval-target font-mono">{cron}</span> : null}
+        {enabled ? <span className="approval-target">{enabled}</span> : null}
+        {prompt ? <p className="approval-brief">&ldquo;{prompt}&rdquo;</p> : null}
+      </div>
+    );
+  }
+
+  if (name === 'delete_routine') {
+    const label = readStr(args.name) || readStr(args.routine_id) || 'routine';
+    return (
+      <div className="approval-details">
+        <span className="approval-chip">Delete {label}</span>
       </div>
     );
   }

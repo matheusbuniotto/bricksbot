@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { DEFAULT_META_TOOL_NAMES } from '../../shared/agents/meta-tools.js';
 import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../shared/agents/types.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
+import { MemoryRoutineStore } from '../routines/memory-store.js';
 import { MemoryChatStore } from './memory-store.js';
 import { ChatService } from './service.js';
 
@@ -806,6 +807,56 @@ describe('ChatService', () => {
     await service.sendUserMessage(chat.id, 'can you create a bot?');
     expect(client.requests[0]?.tools?.some((tool) => tool.name === 'create_bot')).toBe(false);
     expect(client.requests[0]?.messages[0]?.content).toContain('cannot create bots');
+  });
+
+  test('schedule_routine asks first then creates a routine for the bot', async () => {
+    const store = new MemoryChatStore();
+    const routines = new MemoryRoutineStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const service = new ChatService({
+      store,
+      routines,
+      client: new ScriptedClient([
+        {
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_sched',
+              name: 'schedule_routine',
+              arguments: {
+                name: 'Nightly',
+                cron: '0 9 * * *',
+                prompt: 'Check overnight jobs',
+              },
+            },
+          ],
+        },
+        { content: 'Scheduled Nightly for you.', toolCalls: [] },
+      ]),
+    });
+
+    const pending = await service.sendUserMessage(chat.id, 'schedule a morning check');
+    expect(pending.pendingApprovals).toHaveLength(1);
+    expect(pending.pendingApprovals[0]?.toolCall.name).toBe('schedule_routine');
+
+    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
+    expect(continued.assistant?.content).toMatch(/Scheduled Nightly/i);
+
+    const listed = await routines.listRoutines(bot.ownerId);
+    expect(listed.some((r) => r.name === 'Nightly' && r.botId === bot.id)).toBe(true);
+
+    const messages = await store.listMessages(chat.id);
+    expect(
+      messages.some(
+        (m) => m.role === 'system' && m.content.includes('[routine:Nightly] created'),
+      ),
+    ).toBe(true);
+    expect(
+      messages.some(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_sched' && m.content.includes('webhookSecret'),
+      ),
+    ).toBe(true);
   });
 
   test('ask_choice waits for approval then user pick before continuing', async () => {

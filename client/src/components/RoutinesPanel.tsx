@@ -39,29 +39,40 @@ function newestRoutine(routines: Routine[]): Routine | null {
   return [...routines].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
 }
 
+export type RoutineUpdatePatch = {
+  name?: string;
+  cron?: string;
+  prompt?: string;
+  enabled?: boolean;
+};
+
 export function RoutinesPanel({
   bots,
   routines,
   lastWebhookSecret,
   busyId,
   onCreate,
-  onToggle,
+  onUpdate,
   onRun,
+  onDelete,
 }: {
   bots: Bot[];
   routines: Routine[];
   lastWebhookSecret: string | null;
   busyId: string | null;
   onCreate: (input: { botId: string; name: string; cron: string; prompt: string }) => Promise<void>;
-  onToggle: (id: string, enabled: boolean) => Promise<void>;
+  onUpdate: (id: string, patch: RoutineUpdatePatch) => Promise<void>;
   onRun: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [cron, setCron] = useState('0 9 * * *');
   const [prompt, setPrompt] = useState('');
   const [botId, setBotId] = useState(bots[0]?.id ?? '');
   const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [trustRoutineId, setTrustRoutineId] = useState<string | null>(null);
 
   const selectedBotId = botId || bots[0]?.id || '';
@@ -86,6 +97,36 @@ export function RoutinesPanel({
     if (match) setTrustRoutineId(match.id);
   }, [lastWebhookSecret, routines]);
 
+  useEffect(() => {
+    if (editingId && !routines.some((r) => r.id === editingId)) {
+      setEditingId(null);
+    }
+  }, [routines, editingId]);
+
+  function startCreate() {
+    setEditingId(null);
+    setName('');
+    setCron('0 9 * * *');
+    setPrompt('');
+    setOpen(true);
+  }
+
+  function startEdit(routine: Routine) {
+    setOpen(false);
+    setEditingId(routine.id);
+    setName(routine.name);
+    setCron(routine.cron);
+    setPrompt(routine.prompt);
+  }
+
+  function cancelForms() {
+    setOpen(false);
+    setEditingId(null);
+    setName('');
+    setCron('0 9 * * *');
+    setPrompt('');
+  }
+
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
     if (!selectedBotId || !name.trim() || !cron.trim()) return;
@@ -97,16 +138,33 @@ export function RoutinesPanel({
         cron: cron.trim(),
         prompt: prompt.trim() || `Scheduled routine: ${name.trim()}`,
       });
-      setName('');
-      setPrompt('');
-      setOpen(false);
+      cancelForms();
     } finally {
       setCreating(false);
     }
   }
 
+  async function handleSaveEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editingId || !name.trim() || !cron.trim() || !prompt.trim()) return;
+    setSaving(true);
+    try {
+      await onUpdate(editingId, {
+        name: name.trim(),
+        cron: cron.trim(),
+        prompt: prompt.trim(),
+      });
+      cancelForms();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const trustWebhookUrl =
     trustRoutineId && appOrigin ? `${appOrigin}${routineWebhookPath(trustRoutineId)}` : null;
+
+  const editCronHint = describeCronExpression(cron.trim() || '0 9 * * *', cronLocale);
+  const editQuartzHint = unixCronToQuartzHint(cron.trim() || '0 9 * * *');
 
   return (
     <div className="px-4 py-4 space-y-3">
@@ -118,9 +176,12 @@ export function RoutinesPanel({
         <button
           type="button"
           className="pane-btn pane-btn-ghost"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => {
+            if (open || editingId) cancelForms();
+            else startCreate();
+          }}
         >
-          {open ? 'Cancel' : 'Add'}
+          {open || editingId ? 'Cancel' : 'Add'}
         </button>
       </div>
 
@@ -157,6 +218,7 @@ export function RoutinesPanel({
 
       {open ? (
         <form className="space-y-2 rounded-lg border border-border/60 px-3 py-3" onSubmit={handleCreate}>
+          <p className="text-xs font-medium text-foreground">New routine</p>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -214,6 +276,65 @@ export function RoutinesPanel({
           {routines.map((routine) => {
             const scheduleLabel = describeCronExpression(routine.cron, cronLocale);
             const quartzHint = unixCronToQuartzHint(routine.cron);
+            const isEditing = editingId === routine.id;
+
+            if (isEditing) {
+              return (
+                <li
+                  key={routine.id}
+                  className="rounded-lg border border-border/60 px-3 py-2.5 space-y-2"
+                >
+                  <form className="space-y-2" onSubmit={handleSaveEdit}>
+                    <p className="text-xs font-medium text-foreground">Edit routine</p>
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Name"
+                      className="field"
+                      autoFocus
+                    />
+                    <input
+                      value={cron}
+                      onChange={(e) => setCron(e.target.value)}
+                      placeholder="Cron (e.g. 0 9 * * *)"
+                      className="field font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground">{editCronHint}</p>
+                    {editQuartzHint ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        Job schedule (Quartz):{' '}
+                        <span className="font-mono">{editQuartzHint}</span>
+                      </p>
+                    ) : null}
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="Prompt"
+                      rows={3}
+                      className="field"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="submit"
+                        className="pane-btn pane-btn-solid"
+                        disabled={saving || busyId === routine.id}
+                      >
+                        {saving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        className="pane-btn pane-btn-ghost"
+                        disabled={saving}
+                        onClick={cancelForms}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </li>
+              );
+            }
+
             return (
               <li
                 key={routine.id}
@@ -228,24 +349,52 @@ export function RoutinesPanel({
                         Quartz: {quartzHint}
                       </p>
                     ) : null}
+                    {routine.prompt ? (
+                      <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">
+                        {routine.prompt}
+                      </p>
+                    ) : null}
                   </div>
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 pt-0.5">
                     <input
                       type="checkbox"
                       checked={routine.enabled}
-                      onChange={(e) => void onToggle(routine.id, e.target.checked)}
+                      disabled={busyId === routine.id || Boolean(editingId)}
+                      onChange={(e) => void onUpdate(routine.id, { enabled: e.target.checked })}
                     />
                     On
                   </label>
                 </div>
-                <button
-                  type="button"
-                  className="pane-btn pane-btn-outline"
-                  disabled={busyId === routine.id}
-                  onClick={() => void onRun(routine.id)}
-                >
-                  {busyId === routine.id ? 'Running…' : 'Test'}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="pane-btn pane-btn-outline"
+                    disabled={busyId === routine.id || Boolean(editingId)}
+                    onClick={() => void onRun(routine.id)}
+                  >
+                    {busyId === routine.id ? 'Running…' : 'Test'}
+                  </button>
+                  <button
+                    type="button"
+                    className="pane-btn pane-btn-ghost"
+                    disabled={busyId === routine.id || Boolean(editingId)}
+                    onClick={() => startEdit(routine)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="pane-btn pane-btn-ghost"
+                    disabled={busyId === routine.id || Boolean(editingId)}
+                    onClick={() => {
+                      if (window.confirm(`Delete routine “${routine.name}”?`)) {
+                        void onDelete(routine.id);
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </li>
             );
           })}
