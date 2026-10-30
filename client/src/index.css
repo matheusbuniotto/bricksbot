@@ -65,6 +65,40 @@ body,
 
 html {
   font-family: var(--font-sans);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+}
+
+/* Refined, low-chrome scrollbars (Firefox + WebKit) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--foreground) 16%, transparent);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--foreground) 28%, transparent);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .theme-switch {
@@ -194,6 +228,77 @@ select {
   min-height: 0;
   overflow-y: auto;
   padding: 0 16px 16px;
+  scrollbar-gutter: stable;
+}
+
+.bot-details-pane {
+  position: relative;
+}
+
+.bot-details-pane.is-resizing {
+  user-select: none;
+}
+
+.bot-details-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 7px;
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.bot-details-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.bot-details-resizer:hover::after,
+.bot-details-resizer:focus-visible::after,
+.bot-details-pane.is-resizing .bot-details-resizer::after {
+  background: color-mix(in oklab, var(--foreground) 28%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.bot-details-resizer:focus-visible {
+  outline: none;
+}
+
+.bot-details-scroll {
+  scrollbar-gutter: stable;
+}
+
+.bot-details-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin: -4px -6px -4px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.bot-details-close:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.bot-details-close:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
+  outline-offset: 2px;
 }
 
 .roster-section {
@@ -895,11 +1000,73 @@ textarea.field {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  max-width: min(420px, calc(100vw - 48px));
+  padding: 6px 10px 6px 8px;
+  border: 0;
   border-radius: 999px;
   background: var(--background);
   box-shadow: var(--shadow-soft);
   pointer-events: auto;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease,
+    max-width 180ms ease;
+}
+
+.chat-pill:hover,
+.chat-pill:focus-visible,
+.chat-pill.is-open {
+  background: color-mix(in oklab, var(--muted) 70%, var(--background));
+  box-shadow:
+    var(--shadow-soft),
+    0 0 0 1px color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.chat-pill:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.chat-pill-name {
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 767px) {
+  .chat-pill-chevron {
+    display: none;
+  }
+
+  .chat-pill {
+    cursor: default;
+  }
+}
+
+.chat-pill-chevron {
+  flex: none;
+  width: 14px;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transform: translateX(-2px);
+  pointer-events: none;
+  transition:
+    transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 140ms ease;
+}
+
+.chat-pill:hover .chat-pill-chevron,
+.chat-pill:focus-visible .chat-pill-chevron,
+.chat-pill.is-open:hover .chat-pill-chevron,
+.chat-pill.is-open:focus-visible .chat-pill-chevron {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .auto-approvals-bar {
@@ -999,6 +1166,7 @@ textarea.field {
   min-height: 0;
   overflow-y: auto;
   padding: 80px 32px 24px;
+  scrollbar-gutter: stable;
 }
 
 .transcript-column {

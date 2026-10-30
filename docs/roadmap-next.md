@@ -47,7 +47,7 @@ What / not / local / deploy / smoke path. Fix stale “no UC volume tools.” OS
 | --- | --- |
 | Genie Agent / Genie One MCP | After cheap path + OSS share feel solid — [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
 | `system.ai.*` broad MCP | After first opt-in Genie experiment |
-| Phase 5 computer / sandbox | Locked defer |
+| Desktop / Playwright “computer” UI | Still deferred; **sandbox exec is shipped behind `SANDBOX_BACKEND=off`** — [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md) |
 | PartnerOps / Marketplace Apps listing | Optional parallel; OSS GitHub is the primary share path |
 | Vector Search | Nice; after `volume_write` / audit if needed |
 
@@ -62,6 +62,10 @@ What / not / local / deploy / smoke path. Fix stale “no UC volume tools.” OS
 **Open (implement next):**
 
 - [specs/2026-10-30-lakeflow-routine-job.md](specs/2026-10-30-lakeflow-routine-job.md)
+
+**Closed (Phase 5 sandbox exec — flagged off by default):**
+
+- [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md)
 
 ## One-line north star
 

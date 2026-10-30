@@ -55,10 +55,18 @@ import {
   DELETE_ROUTINE_TOOL_NAME,
   isAutoRoutineTool,
 } from '../agents/tools/routine-tools.js';
+import {
+  createSandboxTools,
+  isAskFirstSandboxTool,
+  isAutoSandboxTool,
+  SANDBOX_DELETE_TOOL_NAME,
+} from '../agents/tools/sandbox-tools.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
+import type { ArtifactSyncService } from '../sandbox/artifact-sync.js';
+import type { SandboxSessionService } from '../sandbox/session-service.js';
 import { ApprovalStore } from './approvals.js';
 import { ChoiceStore } from './choices.js';
 
@@ -67,7 +75,8 @@ function requiresAlwaysAsk(toolName: string): boolean {
   return (
     toolName === CREATE_BOT_TOOL_NAME ||
     toolName === ASK_CHOICE_TOOL_NAME ||
-    toolName === DELETE_ROUTINE_TOOL_NAME
+    toolName === DELETE_ROUTINE_TOOL_NAME ||
+    toolName === SANDBOX_DELETE_TOOL_NAME
   );
 }
 
@@ -87,6 +96,9 @@ export interface ChatServiceOptions {
   compaction?: CompactionStore;
   compactionSettings?: CompactionSettings;
   idempotency?: IdempotencyStore;
+  /** Optional Phase 5 sandbox execution service (tools registered only when enabled). */
+  sandbox?: SandboxSessionService;
+  sandboxArtifactSync?: ArtifactSyncService;
 }
 
 type RegisteredTool = {
@@ -198,6 +210,17 @@ export class ChatService {
     tools.push(
       ...createRoutineTools(options.routines ?? new MemoryRoutineStore(), options.store),
     );
+    if (options.sandbox?.isEnabled()) {
+      tools.push(
+        ...createSandboxTools({
+          sessionService: options.sandbox,
+          chatStore: options.store,
+          artifactSync: options.sandboxArtifactSync,
+          host: sqlOptions.host,
+          getToken: sqlOptions.getToken,
+        }),
+      );
+    }
     this.tools = tools;
   }
 
@@ -207,6 +230,10 @@ export class ChatService {
 
   getChoices(): ChoiceStore {
     return this.choices;
+  }
+
+  getSandbox(): SandboxSessionService | undefined {
+    return this.options.sandbox;
   }
 
   async sendUserMessage(
@@ -269,6 +296,9 @@ export class ChatService {
     } else {
       const botId = await this.options.store.findBotIdForChat(chatId);
       const bot = botId ? await this.options.store.getBot(botId) : null;
+      if (botId) {
+        await this.options.store.setBotPresence(botId, 'working');
+      }
       const toolResult = await this.executeTool(approval.toolCall, { chatId, bot });
       await this.options.store.addMessage(chatId, 'tool', toolResult, {
         toolCallId: approval.toolCall.id,
@@ -481,13 +511,16 @@ export class ChatService {
             refusals.push({ toolCall, reason: refusal });
             continue;
           }
-          // create_bot always Ask-first. Default meta tools never Ask-first.
+          // create_bot / sandbox_delete / ask_choice always Ask-first.
+          // Default meta + sandbox_stop never Ask-first.
+          // Handoff autoApproveAll still requires Ask-first for sandbox exec/upload/download/artifact.
           if (
             !requiresAlwaysAsk(toolCall.name) &&
-            (opts.autoApproveAll ||
-              isDefaultMetaTool(toolCall.name) ||
+            (isDefaultMetaTool(toolCall.name) ||
               isAutoRoutineTool(toolCall.name) ||
-              (await this.approvals.isAutoApproved(chatId, toolCall.name)))
+              isAutoSandboxTool(toolCall.name) ||
+              (await this.approvals.isAutoApproved(chatId, toolCall.name)) ||
+              (opts.autoApproveAll && !isAskFirstSandboxTool(toolCall.name)))
           ) {
             toAutoExecute.push(toolCall);
           } else {

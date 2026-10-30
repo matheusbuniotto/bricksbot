@@ -3,6 +3,7 @@ import type { ChatStore } from '../shared/chat/types.js';
 import type { CompactionStore, IdempotencyStore } from '../shared/durable/types.js';
 import type { MemorySkillStore } from '../shared/agents/memory/types.js';
 import type { RoutineStore } from '../shared/routines/types.js';
+import type { SandboxStore } from '../shared/sandbox/types.js';
 import { ApprovalStore } from './chat/approvals.js';
 import { LakebaseChatStore, type LakebaseQuery } from './chat/lakebase-store.js';
 import { MemoryChatStore } from './chat/memory-store.js';
@@ -20,6 +21,11 @@ import { LakebaseRoutineStore } from './routines/lakebase-store.js';
 import { MemoryRoutineStore } from './routines/memory-store.js';
 import { registerRoutineRoutes } from './routines/routes.js';
 import { RoutineService } from './routines/service.js';
+import { LakebaseSandboxStore } from './sandbox/lakebase-store.js';
+import { MemorySandboxStore } from './sandbox/memory-store.js';
+import { SandboxReaper } from './sandbox/reaper.js';
+import { createSandboxRegistryFromEnv } from './sandbox/registry.js';
+import { SandboxSessionService } from './sandbox/session-service.js';
 
 function lakebaseConfigured(): boolean {
   return Boolean(process.env.LAKEBASE_ENDPOINT || process.env.PGHOST);
@@ -32,6 +38,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   compaction: CompactionStore;
   idempotency: IdempotencyStore;
   approvals: ApprovalStore;
+  sandbox: SandboxStore;
 }> {
   const ownerId = process.env.BRICKSBOT_USER_ID?.trim() || 'workspace-user';
   if (lakebaseConfigured() && query) {
@@ -45,6 +52,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       compaction: new LakebaseCompactionStore(query),
       idempotency: new LakebaseIdempotencyStore(query),
       approvals: new ApprovalStore(query),
+      sandbox: new LakebaseSandboxStore(query),
     };
   }
 
@@ -58,6 +66,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     compaction: new MemoryCompactionStore(),
     idempotency: new MemoryIdempotencyStore(),
     approvals: new ApprovalStore(),
+    sandbox: new MemorySandboxStore(),
   };
 }
 
@@ -70,9 +79,26 @@ createApp({
       'lakebase' in appkit && appkit.lakebase
         ? (sql: string, params?: unknown[]) => appkit.lakebase.query(sql, params)
         : undefined;
-    const { chats, routines, memory, compaction, idempotency, approvals } = await createStores(query);
+    const { chats, routines, memory, compaction, idempotency, approvals, sandbox } =
+      await createStores(query);
     const client = createChatClientFromEnv(process.env);
     console.info(`[bricksbot] ChatClient provider=${client.provider}`);
+    const sqlQuery = sqlQueryConfigFromEnv(process.env);
+    const { config: sandboxConfig, registry: sandboxRegistry } = createSandboxRegistryFromEnv(
+      process.env,
+      { getDatabricksToken: sqlQuery.getToken },
+    );
+    const sandboxService = new SandboxSessionService({
+      store: sandbox,
+      registry: sandboxRegistry,
+      config: sandboxConfig,
+    });
+    if (sandboxService.isEnabled()) {
+      console.info(`[bricksbot] Sandbox backend=${sandboxConfig.backend}`);
+      const reaper = new SandboxReaper({ sessionService: sandboxService });
+      await reaper.reconcileAtStartup();
+      reaper.start();
+    }
     const chatService = new ChatService({
       store: chats,
       client,
@@ -82,7 +108,8 @@ createApp({
       idempotency,
       approvals,
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
-      sqlQuery: sqlQueryConfigFromEnv(process.env),
+      sqlQuery,
+      sandbox: sandboxService,
     });
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {

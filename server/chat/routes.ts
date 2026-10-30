@@ -234,7 +234,64 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
       const pendingApprovals = await service.getApprovals().listPending(chat.id);
       const pendingChoices = await service.getChoices().listPending(chat.id);
       const autoApprovedTools = await service.getApprovals().listAutoApproved(chat.id);
-      res.json({ chat, messages, pendingApprovals, pendingChoices, autoApprovedTools });
+      const sandboxStatus = service.getSandbox()
+        ? await service.getSandbox()!.getUiStatusForChat(chat.id)
+        : { enabled: false, backend: 'off' as const, session: null, recentEvents: [] };
+      res.json({
+        chat,
+        messages,
+        pendingApprovals,
+        pendingChoices,
+        autoApprovedTools,
+        sandboxStatus,
+      });
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.get('/api/bots/:botId/sandbox', async (req: Request, res: Response) => {
+    try {
+      const botId = String(req.params.botId);
+      const chat = await store.getOrCreateChatForBot(botId);
+      const sandbox = service.getSandbox()
+        ? await service.getSandbox()!.getUiStatusForChat(chat.id)
+        : { enabled: false, backend: 'off' as const, session: null, recentEvents: [] };
+      res.json({ sandbox });
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.post('/api/bots/:botId/sandbox/stop', async (req: Request, res: Response) => {
+    try {
+      const botId = String(req.params.botId);
+      const chat = await store.getOrCreateChatForBot(botId);
+      const sandboxSvc = service.getSandbox();
+      if (sandboxSvc?.isEnabled()) {
+        await sandboxSvc.stopSession(chat.id, 'user_ui');
+      }
+      const sandbox = sandboxSvc
+        ? await sandboxSvc.getUiStatusForChat(chat.id)
+        : { enabled: false, backend: 'off' as const, session: null, recentEvents: [] };
+      res.json({ sandbox });
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.delete('/api/bots/:botId/sandbox', async (req: Request, res: Response) => {
+    try {
+      const botId = String(req.params.botId);
+      const chat = await store.getOrCreateChatForBot(botId);
+      const sandboxSvc = service.getSandbox();
+      if (sandboxSvc?.isEnabled()) {
+        await sandboxSvc.deleteSession(chat.id, 'user_ui');
+      }
+      const sandbox = sandboxSvc
+        ? await sandboxSvc.getUiStatusForChat(chat.id)
+        : { enabled: false, backend: 'off' as const, session: null, recentEvents: [] };
+      res.json({ sandbox });
     } catch (err) {
       res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
     }

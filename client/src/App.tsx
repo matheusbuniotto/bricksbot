@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { PendingChoice } from '../../shared/chat/choice-notice';
 import type { Bot, Chat, Message, Space } from '../../shared/chat/types';
 import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/types';
@@ -16,16 +17,19 @@ import {
   createSpace,
   decideApproval,
   deleteBot,
+  deleteBotSandbox,
   fetchBotChat,
   fetchBots,
   fetchSpaces,
   moveBot,
   revokeAutoApproval,
   sendChatMessage,
+  stopBotSandbox,
   submitChoice,
   unarchiveBot,
   updateBot,
 } from './lib/chat-api';
+import type { SandboxUiStatus } from '../../shared/sandbox/types';
 import {
   createRoutine,
   deleteRoutine,
@@ -34,8 +38,19 @@ import {
   updateRoutine,
 } from './lib/routines-api';
 import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
-import { lastUserFacingPreview, presenceTooltip, toolLabel } from './lib/user-facing';
+import { lastUserFacingPreview, toolLabel } from './lib/user-facing';
 import type { Routine } from '../../shared/routines/types';
+
+const DETAILS_WIDTH_KEY = 'bricksbot.detailsWidth';
+const DETAILS_WIDTH_DEFAULT = 360;
+const DETAILS_WIDTH_MIN = 280;
+const DETAILS_WIDTH_MAX = 720;
+
+function readDetailsWidth(): number {
+  const raw = Number(localStorage.getItem(DETAILS_WIDTH_KEY));
+  if (!Number.isFinite(raw)) return DETAILS_WIDTH_DEFAULT;
+  return Math.min(DETAILS_WIDTH_MAX, Math.max(DETAILS_WIDTH_MIN, raw));
+}
 
 export default function App() {
   useMouseFollow();
@@ -59,6 +74,27 @@ export default function App() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routineBusyId, setRoutineBusyId] = useState<string | null>(null);
   const [lastWebhookSecret, setLastWebhookSecret] = useState<string | null>(null);
+  const [sandboxStatus, setSandboxStatus] = useState<SandboxUiStatus | null>(null);
+  const [sandboxBusy, setSandboxBusy] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState<boolean>(
+    () => localStorage.getItem('bricksbot.detailsOpen') === '1',
+  );
+  const [detailsWidth, setDetailsWidth] = useState<number>(() => readDetailsWidth());
+  const toggleDetails = useCallback(() => {
+    setDetailsOpen((open) => {
+      localStorage.setItem('bricksbot.detailsOpen', open ? '0' : '1');
+      return !open;
+    });
+  }, []);
+  const closeDetails = useCallback(() => {
+    setDetailsOpen(false);
+    localStorage.setItem('bricksbot.detailsOpen', '0');
+  }, []);
+  const handleDetailsWidthChange = useCallback((width: number) => {
+    const next = Math.min(DETAILS_WIDTH_MAX, Math.max(DETAILS_WIDTH_MIN, Math.round(width)));
+    setDetailsWidth(next);
+    localStorage.setItem(DETAILS_WIDTH_KEY, String(next));
+  }, []);
 
   function handleThemeChange(next: Theme) {
     applyTheme(next);
@@ -95,6 +131,7 @@ export default function App() {
     setPendingApprovals(data.pendingApprovals);
     setPendingChoices(data.pendingChoices ?? []);
     setAutoApprovedTools(data.autoApprovedTools ?? []);
+    setSandboxStatus(data.sandboxStatus ?? null);
     setPreviews((prev) => ({ ...prev, [botId]: lastUserFacingPreview(data.messages) }));
   }, []);
 
@@ -394,6 +431,34 @@ export default function App() {
     }
   }
 
+  async function handleStopSandbox() {
+    if (!selectedBotId) return;
+    setSandboxBusy(true);
+    setError(null);
+    try {
+      const next = await stopBotSandbox(selectedBotId);
+      setSandboxStatus(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to stop sandbox');
+    } finally {
+      setSandboxBusy(false);
+    }
+  }
+
+  async function handleDeleteSandbox() {
+    if (!selectedBotId) return;
+    setSandboxBusy(true);
+    setError(null);
+    try {
+      const next = await deleteBotSandbox(selectedBotId);
+      setSandboxStatus(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete sandbox');
+    } finally {
+      setSandboxBusy(false);
+    }
+  }
+
   const visibleMessages = messages;
 
   return (
@@ -422,17 +487,38 @@ export default function App() {
       <section className="chat-pane" aria-label={selectedBot ? `Chat with ${selectedBot.name}` : 'Chat'}>
         {selectedBot ? (
           <div className="chat-heading">
-            <div className="chat-pill">
+            <button
+              type="button"
+              className={detailsOpen ? 'chat-pill is-open' : 'chat-pill'}
+              aria-pressed={detailsOpen}
+              aria-label={
+                detailsOpen
+                  ? `Hide details for ${selectedBot.name}`
+                  : `Show details for ${selectedBot.name}`
+              }
+              onClick={(event) => {
+                // Details pane is md+ only; keep the pill as identity chrome on narrow screens.
+                if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+                  event.preventDefault();
+                  return;
+                }
+                toggleDetails();
+              }}
+            >
               <BotFace
                 color={accent}
                 size={26}
                 botId={selectedBot.id}
                 track
                 presence={selectedBot.presence}
-                title={presenceTooltip(selectedBot.presence)}
               />
-              <span>{selectedBot.name}</span>
-            </div>
+              <span className="chat-pill-name">{selectedBot.name}</span>
+              {detailsOpen ? (
+                <ChevronLeft className="chat-pill-chevron" size={14} strokeWidth={2} aria-hidden />
+              ) : (
+                <ChevronRight className="chat-pill-chevron" size={14} strokeWidth={2} aria-hidden />
+              )}
+            </button>
 
             {autoApprovedTools.length > 0 ? (
               <div className="auto-approvals-bar" role="status" aria-label="Active auto-approvals">
@@ -493,17 +579,26 @@ export default function App() {
         )}
       </section>
 
-      {selectedBot ? (
+      {selectedBot && detailsOpen ? (
         <BotDetailsSheet
           bot={selectedBot}
           messages={visibleMessages}
           routines={botRoutines}
           routineBusyId={routineBusyId}
           lastWebhookSecret={lastWebhookSecret}
+          sandboxStatus={sandboxStatus}
+          sandboxBusy={sandboxBusy}
+          width={detailsWidth}
+          minWidth={DETAILS_WIDTH_MIN}
+          maxWidth={DETAILS_WIDTH_MAX}
+          onWidthChange={handleDetailsWidthChange}
           onCreateRoutine={handleCreateRoutine}
           onUpdateRoutine={handleUpdateRoutine}
           onRunRoutine={handleRunRoutine}
           onDeleteRoutine={handleDeleteRoutine}
+          onStopSandbox={handleStopSandbox}
+          onDeleteSandbox={handleDeleteSandbox}
+          onClose={closeDetails}
         />
       ) : null}
     </div>

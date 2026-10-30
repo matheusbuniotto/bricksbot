@@ -1,6 +1,6 @@
 # BricksBot
 
-Greenfield Databricks App (AppKit, TypeScript, React) for a Grok Bot–style roster and transcript. This tree is not a Rakazo fork. There is no computer or sandbox runtime in the MVP.
+Greenfield Databricks App (AppKit, TypeScript, React) for a Grok Bot–style roster and transcript. This tree is not a Rakazo fork. Optional Phase 5 sandbox execution is **off by default** (`SANDBOX_BACKEND=off`).
 
 Product locks: [docs/project-context.md](docs/project-context.md). Research plan: [docs/databricks-grokbot-marketplace-plan.md](docs/databricks-grokbot-marketplace-plan.md). **What’s left for open-source community share:** [docs/oss-community-release.md](docs/oss-community-release.md) · next actions: [docs/roadmap-next.md](docs/roadmap-next.md).
 
@@ -193,11 +193,27 @@ Without `LAKEBASE_ENDPOINT` / `PGHOST`, the server falls back to an in-memory st
 
 ## Phase 4+ trust UI (shipped)
 
-- Bot details sheet: **Details** (routines) | **Library** (artifact pins) | **Computer** (asleep / deferred)
+- Bot details sheet: **Details** (routines) | **Library** (artifact pins) | **Computer** (sandbox status when enabled)
 - Presence: `waiting` (approvals) and `blocked` (choice cards)
 - `ask_choice` Ask-first picker → transcript “Sua resposta”
 - Routine trust: human cron copy, webhook secret banner, **Test** run
 
+## Phase 5 sandbox (optional, off by default)
+
+Isolated Linux exec for bots. Spec: [docs/specs/2026-10-30-phase5-sandbox-execution.md](docs/specs/2026-10-30-phase5-sandbox-execution.md).
+
+| Var | Meaning |
+| --- | --- |
+| `SANDBOX_BACKEND` | `off` (default) \| `databricks` \| `python_exec` \| `e2b` |
+| `SANDBOX_IDLE_MINUTES` | Idle reaper (default `15`) |
+| `SANDBOX_EXEC_TIMEOUT_SEC` | Per-command timeout (default `120`) |
+| `SANDBOX_MAX_SESSION_MINUTES` | Hard max session age (default `120`) |
+| `SANDBOX_MAX_ACTIVE_PER_USER` | Concurrent sandboxes per user (default `3`) |
+| `SANDBOX_ARTIFACT_VOLUME_PATH` | Default UC Volume root for `sandbox_save_artifact` |
+| `E2B_API_KEY` / `E2B_DOMAIN` | Required when `SANDBOX_BACKEND=e2b` |
+
+**Beta caveats:** Databricks Sandboxes is Public Beta (workspace Previews opt-in, regional). If the API is unavailable, the Databricks backend may fall back to `system.ai.python_exec` and the session is labeled accordingly. Prefer syncing artifacts out before delete. Egress is governed by workspace Serverless Egress Control / E2B account policy (`SANDBOX_EGRESS_ALLOWLIST` is reserved, not enforced in-app).
+
 ## What is intentionally out
 
-No computer/sandbox, no `volume_write` / Vector Search yet, no Genie by default (opt-in later), no PartnerOps Marketplace Apps listing required for OSS share. `sql_query` is read-only and needs `DATABRICKS_WAREHOUSE_ID` plus `DATABRICKS_HOST` and `DATABRICKS_TOKEN`. `volume_read` is available when UC Volumes are reachable.
+No desktop/browser “computer” UI, no `volume_write` / Vector Search yet, no Genie by default (opt-in later), no PartnerOps Marketplace Apps listing required for OSS share. `sql_query` is read-only and needs `DATABRICKS_WAREHOUSE_ID` plus `DATABRICKS_HOST` and `DATABRICKS_TOKEN`. `volume_read` is available when UC Volumes are reachable.

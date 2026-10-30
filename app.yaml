@@ -28,3 +28,18 @@ env:
   #   value: databricks
   # - name: DATABRICKS_SERVING_ENDPOINT_NAME
   #   valueFrom: serving-endpoint
+
+  # Phase 5 Sandbox (off by default — Public Beta; set databricks | python_exec | e2b to enable):
+  - name: SANDBOX_BACKEND
+    value: "off"
+  # - name: SANDBOX_IDLE_MINUTES
+  #   value: "15"
+  # - name: SANDBOX_EXEC_TIMEOUT_SEC
+  #   value: "120"
+  # - name: SANDBOX_MAX_SESSION_MINUTES
+  #   value: "120"
+  # - name: SANDBOX_MAX_ACTIVE_PER_USER
+  #   value: "3"
+  # - name: SANDBOX_ARTIFACT_VOLUME_PATH
+  #   value: /Volumes/main/default/bricksbot_artifacts
+
