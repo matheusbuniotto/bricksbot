@@ -9,10 +9,12 @@ Improve **agent behavior** (tools, skills, prompts, trust loops) toward Grok Bot
 
 ## Current baseline (shipped)
 
-- Tools: `sql_query`, `lakehouse_catalog`, `volume_read`, conditional `web_fetch`, Primary `handoff_to_bot` / `create_bot`, meta tools (`remember` / `forget` / `list_memories` / `save_skill` / `activate_skill` / `read_skill_resource`)
+- Tools: `sql_query`, `lakehouse_catalog`, `volume_read`, conditional `web_fetch`, Primary `handoff_to_bot` / `create_bot`, Ask-first `pin_artifact`, meta tools (`remember` / `forget` / `list_memories` / `save_skill` / `activate_skill` / `read_skill_resource`)
+- Seed skills: `sql-explore`, `catalog-recon`, `weekly-table-health`, `pin-finding` (merged via `effective-skills`)
 - Durable: compaction, approvals, `requestId`, per-bot memory/skills stores
-- UI: roster, chat, approval cards; **MemoryPanel / RoutinesPanel / InstallWizard exist but are not mounted in `App.tsx`**
-- `skills/` empty; no seed skill pack; presence = `thinking` | `working` | `online` only
+- UI: roster, chat, approval cards, pin chips; **MemoryPanel / RoutinesPanel / InstallWizard exist but are not mounted in `App.tsx`**
+- Presence = `thinking` | `working` | `online` only (no `waiting` / `blocked` yet)
+- **Next ordered work:** [roadmap-next.md](roadmap-next.md)
 
 ## Live Grok UI double-check (2026-10-29)
 
@@ -32,7 +34,8 @@ Improve **agent behavior** (tools, skills, prompts, trust loops) toward Grok Bot
 
 ```text
 A — Phase 4 UI        Wire Memory / Routines / Wizard; prefer Bot details sheet
-B — Agent quality     Seed skills, prompt habits, choice cards, presence  ← NOW
+A — Phase 4 UI        Bot details sheet (next must-do — see roadmap-next.md)
+B — Agent quality     Seeds + pin_artifact done; next: presence, choice cards
 C — Lakehouse tools   volume_write, Vector Search (thin)
 D — Distribution      PartnerOps / Marketplace (non-code)
 E — Ops routines      Lakeflow Job → webhook

@@ -17,8 +17,9 @@ Databricks Marketplace App aiming for near 1:1 Grok Bot product shape (Bot roste
 
 ## Agent improvement track (2026-10-29)
 
-- Behaviors / Grok UI: [agent-improvement-plan.md](agent-improvement-plan.md) (Track B skills shipped; Track F points at platform plan).
+- Behaviors / Grok UI: [agent-improvement-plan.md](agent-improvement-plan.md) (Track B skills + `pin_artifact` shipped; Track F points at platform plan).
 - Platform (Genie, Ontology, `system.ai` MCP, Biblioteca): [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md).
+- **Next must-do:** [roadmap-next.md](roadmap-next.md) — (1) Bot details sheet, (2) presence waiting/blocked, (3) choice cards, (4) routine trust. Genie not next.
 
 ## Still open
 

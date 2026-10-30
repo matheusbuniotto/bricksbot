@@ -12,7 +12,8 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 - Capability discovery is Pi-shaped: `buildCapabilityCatalog` / `formatCapabilityPrompt` in `shared/agents/capability-catalog.ts` (register new tools in the `ChatService` constructor, not ad-hoc prompt `if`s).
 - Built-in seed skills live in `shared/agents/seed-skills.ts` and merge via `mergeEffectiveSkills` (bot `save_skill` overrides same name). Agent improvement plan: `docs/agent-improvement-plan.md`.
 - **Genie / Ontology / `system.ai` MCP:** go slow — cheap lakehouse tools stay default; Genie is opt-in (cost). Plan: `docs/databricks-platform-integration-plan.md`. Do not register Genie as always-on or “prefer Genie for most questions.”
-- Default meta tools (`DEFAULT_META_TOOL_NAMES` in `shared/agents/meta-tools.ts`) are on for **every** bot; `handoff_to_bot` and `create_bot` are Primary-only. Meta tools auto-run (no Ask-first). `create_bot` is always Ask-first (never “Always allow”).
+- **Next must-do order:** `docs/roadmap-next.md` (Bot details sheet → presence waiting/blocked → choice cards → routine trust).
+- Default meta tools (`DEFAULT_META_TOOL_NAMES` in `shared/agents/meta-tools.ts`) are on for **every** bot; `handoff_to_bot` and `create_bot` are Primary-only. Meta tools auto-run (no Ask-first). `create_bot` is always Ask-first (never “Always allow”). `pin_artifact` is Ask-first for all bots.
 
 ## Layout
 
