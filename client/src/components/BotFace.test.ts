@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_BOT,
@@ -11,7 +13,7 @@ import {
   hatChip,
   glassesChip,
 } from './bricksbot-avatar';
-import { decodeLook, encodeLook, botLook, registerBotLooks } from './BotFace';
+import { BotFace, decodeLook, encodeLook, botLook, registerBotLooks } from './BotFace';
 
 describe('bricksbot avatar system', () => {
   it('round-trips all valid configurations through encodeBot / decodeBot', () => {
@@ -80,5 +82,16 @@ describe('bricksbot avatar system', () => {
     ]);
     expect(botLook('primary-1', true)).toEqual(DEFAULT_BOT);
     expect(botLook('mate-1', false)).toEqual({ shape: 2, color: 5, hat: 1, glasses: 1 });
+  });
+
+  it('updates rendered BotFace markup when a bot look is edited for the same botId', () => {
+    registerBotLooks([{ id: 'bot-edit-1', avatarLabel: '0.2.0.0', isPrimary: false }]);
+    const before = renderToStaticMarkup(createElement(BotFace, { botId: 'bot-edit-1', size: 48 }));
+    expect(before).toContain(COLORS[2][0]);
+
+    registerBotLooks([{ id: 'bot-edit-1', avatarLabel: '4.6.2.1', isPrimary: false }]);
+    const after = renderToStaticMarkup(createElement(BotFace, { botId: 'bot-edit-1', size: 48 }));
+    expect(after).not.toBe(before);
+    expect(after).toContain(COLORS[6][0]);
   });
 });

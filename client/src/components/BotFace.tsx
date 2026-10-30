@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useSyncExternalStore } from 'react';
 import type { Presence } from '../../../shared/chat/types';
 import {
   type BotConfig,
@@ -59,12 +59,35 @@ function hashId(id: string): number {
 
 const labels = new Map<string, string>();
 const primaryIds = new Set<string>();
+const listeners = new Set<() => void>();
+let notifyScheduled = false;
+
+function subscribeLookChanges(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 
 /** Called by the app whenever the roster changes so any BotFace can resolve its look by bot id. */
 export function registerBotLooks(bots: { id: string; avatarLabel: string; isPrimary?: boolean }[]) {
+  let changed = false;
   for (const bot of bots) {
-    labels.set(bot.id, bot.avatarLabel);
-    if (bot.isPrimary) primaryIds.add(bot.id);
+    if (labels.get(bot.id) !== bot.avatarLabel) {
+      labels.set(bot.id, bot.avatarLabel);
+      changed = true;
+    }
+    if (bot.isPrimary && !primaryIds.has(bot.id)) {
+      primaryIds.add(bot.id);
+      changed = true;
+    }
+  }
+  if (changed && listeners.size > 0 && !notifyScheduled) {
+    notifyScheduled = true;
+    queueMicrotask(() => {
+      notifyScheduled = false;
+      for (const listener of listeners) listener();
+    });
   }
 }
 
@@ -127,12 +150,23 @@ export function BotFace({
   const containerRef = useRef<HTMLSpanElement>(null);
   const playEnter = entering || (botId != null && freshIds.delete(botId));
 
+  const storedLabel = useSyncExternalStore(
+    subscribeLookChanges,
+    () => (botId ? labels.get(botId) : undefined),
+    () => (botId ? labels.get(botId) : undefined),
+  );
+  const isPrimary = useSyncExternalStore(
+    subscribeLookChanges,
+    () => (botId ? primaryIds.has(botId) : false),
+    () => (botId ? primaryIds.has(botId) : false),
+  );
+
   const resolvedConfig = useMemo<BotConfig>(() => {
     if (config) return config;
-    const base = { ...(botId ? botLook(botId, false) : DEFAULT_BOT) };
+    const base = { ...(botId ? botLook(botId, isPrimary) : DEFAULT_BOT) };
     if (shape !== undefined) base.shape = shape;
     return base;
-  }, [config, botId, shape]);
+  }, [config, botId, shape, storedLabel, isPrimary]);
 
   const svgHtml = useMemo(
     () => renderBot(resolvedConfig, size),

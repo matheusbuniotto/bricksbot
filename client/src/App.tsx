@@ -56,7 +56,6 @@ export default function App() {
   useMouseFollow();
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
-  registerBotLooks(bots);
   const [archivedBots, setArchivedBots] = useState<Bot[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
@@ -106,6 +105,7 @@ export default function App() {
   }
 
   const rosterBots = [...bots, ...archivedBots];
+  registerBotLooks(rosterBots);
   const selectedBot = rosterBots.find((bot) => bot.id === selectedBotId) ?? null;
   const accent = selectedBot ? botColor(selectedBot.id, selectedBot.isPrimary) : 'oklch(0.58 0.22 25)';
   const botRoutines = selectedBotId
@@ -231,11 +231,14 @@ export default function App() {
 
   async function handleChangeLook(botId: string, avatarLabel: string) {
     setError(null);
+    setBots((prev) => prev.map((bot) => (bot.id === botId ? { ...bot, avatarLabel } : bot)));
+    setArchivedBots((prev) => prev.map((bot) => (bot.id === botId ? { ...bot, avatarLabel } : bot)));
     try {
       await updateBot(botId, { avatarLabel });
       await refreshRoster();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to change look');
+      await refreshRoster();
     }
   }
 
