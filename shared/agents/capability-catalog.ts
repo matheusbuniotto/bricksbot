@@ -141,7 +141,7 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
 
   if (catalog.tools.some((tool) => tool.name === 'pin_chart')) {
     blocks[0] +=
-      ' Interactive charts, tables, and diagrams render directly in the chat UI: for SQL results call pin_chart with the sql_query tool call id and a Vega-Lite encoding; for Python/simulation results or computed distributions call pin_artifact with kind "chart" and a Vega-Lite v5 JSON spec containing inline data.values (or kind "table" / "mermaid"). Never say you cannot attach images or fall back to ASCII/text bar charts.';
+      ' Interactive charts, tables, and diagrams render directly in the chat UI: use pin_chart for sql_query results, or pin_artifact (kind "chart" with a Vega-Lite v5 spec and inline data.values, "table", or "mermaid") for any other data. Always use a chart tool when asked for a plot—never draw ASCII/text charts or claim you cannot attach images.';
   }
 
   if (catalog.tools.some((tool) => tool.name === 'ask_choice')) {
