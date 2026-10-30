@@ -1,0 +1,6 @@
+# Copy to dev.local.yml (gitignored) and add to databricks.yml `include:` when using file-based overrides.
+# targets:
+#   dev:
+#     variables:
+#       routine_webhook_app_base_url: https://bricksbot-1234567890123456.us-west-2.databricksapps.com
+#       routine_webhook_routine_id: "<routine-uuid-from-trust-banner>"

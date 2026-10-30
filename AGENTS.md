@@ -2,7 +2,7 @@
 
 Greenfield **Databricks App** (AppKit + TypeScript/React): Grok Bot–style Spaces, bot roster, durable chat, lakehouse tools, approvals, routines. **Not** a Rakazo fork. **No computer/sandbox** in MVP (Phase 5 later).
 
-Canonical product locks: [`docs/project-context.md`](docs/project-context.md). Full plan: [`docs/databricks-grokbot-marketplace-plan.md`](docs/databricks-grokbot-marketplace-plan.md).
+Canonical product locks: [`docs/project-context.md`](docs/project-context.md). Full plan: [`docs/databricks-grokbot-marketplace-plan.md`](docs/databricks-grokbot-marketplace-plan.md). OSS community share: [`docs/oss-community-release.md`](docs/oss-community-release.md).
 
 ## Intent
 
@@ -12,8 +12,8 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 - Capability discovery is Pi-shaped: `buildCapabilityCatalog` / `formatCapabilityPrompt` in `shared/agents/capability-catalog.ts` (register new tools in the `ChatService` constructor, not ad-hoc prompt `if`s).
 - Built-in seed skills live in `shared/agents/seed-skills.ts` and merge via `mergeEffectiveSkills` (bot `save_skill` overrides same name). Agent improvement plan: `docs/agent-improvement-plan.md`.
 - **Genie / Ontology / `system.ai` MCP:** go slow — cheap lakehouse tools stay default; Genie is opt-in (cost). Plan: `docs/databricks-platform-integration-plan.md`. Do not register Genie as always-on or “prefer Genie for most questions.”
-- **Next must-do order:** `docs/roadmap-next.md` (Bot details sheet → presence waiting/blocked → choice cards → routine trust).
-- Default meta tools (`DEFAULT_META_TOOL_NAMES` in `shared/agents/meta-tools.ts`) are on for **every** bot; `handoff_to_bot` and `create_bot` are Primary-only. Meta tools auto-run (no Ask-first). `create_bot` is always Ask-first (never “Always allow”). `pin_artifact` is Ask-first for all bots.
+- **Next must-do order:** `docs/roadmap-next.md` → OSS community share first (`docs/oss-community-release.md`: license, self-contained install, README). UI trust batch (details / waiting / choices / routine trust) is shipped.
+- Default meta tools (`DEFAULT_META_TOOL_NAMES` in `shared/agents/meta-tools.ts`) are on for **every** bot; `handoff_to_bot` and `create_bot` are Primary-only. Meta tools auto-run (no Ask-first). `create_bot` is always Ask-first (never “Always allow”). `pin_artifact` and `ask_choice` are Ask-first for all bots (`ask_choice` never “Always allow”).
 
 ## Layout
 
@@ -34,7 +34,7 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 ## Domains (vocabulary)
 
 - **Space** — folder of bots; membership roles; Personal space on bootstrap.
-- **Bot** — named agent; one is **Primary** (router + `handoff_to_bot`); presence includes thinking/working.
+- **Bot** — named agent; one is **Primary** (router + `handoff_to_bot`); presence includes thinking/working/waiting/blocked.
 - **Chat** — one chat per bot; messages: `user` \| `assistant` \| `system` \| `tool`.
 - **Tool call replay** — assistant rows must store `toolCalls`; tool rows need matching `toolCallId`. Never send orphan tool results to the LLM.
 - **Handoff** — Primary `handoff_to_bot` runs the teammate one turn (tools auto-approved), relays the reply, and posts a tight “N messages with …” chip on both chats (click → peek).

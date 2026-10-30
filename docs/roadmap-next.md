@@ -1,55 +1,68 @@
 # BricksBot — Next must-do roadmap
 
-**Updated:** 2026-10-29  
-**Shipped recently:** seed skills + `pin_artifact`; Genie cost lock (opt-in only).  
-**Batch in flight / done locally:** Bot details sheet, presence waiting/blocked, choice cards, routine trust polish.
+**Updated:** 2026-10-30  
+**Shipped (2026-10-29 → 30):** seed skills, `pin_artifact`, Bot details sheet, presence `waiting`/`blocked`, choice cards (`ask_choice`), routine trust polish. Genie stays opt-in only.
 
-## Must-do now (ordered)
+**Distribution north star:** [oss-community-release.md](oss-community-release.md) — GitHub + DAB, not PartnerOps-first.
 
-Do these before Genie / MCP / computer. *(Items 1–4 implemented in the 2026-10-29 parallel batch — verify on deploy.)*
+## Must-do now (ordered) — OSS community share
 
-### 1. Bot details sheet (Track A) — **done**
+Product UX batch is **done**. Next blockers are packaging and a stranger-safe install.
 
-**Why:** Grok’s routines + Library live on Bot details.
+### 1. License + CONTRIBUTING + scrub clawhouse-only defaults
 
-**Ship:**
+See OSS map P0 §1. `package.json` is still `Unlicensed`.
 
-- Right/detail pane: tabs **Details** | **Library** | **Computer**.
-- Details: routines only (list / pause / Test / Add). No install wizard; memory/skills stay chat-driven.
-- Library: `artifact_pin` notices from that bot’s chat (read-only).
-- Computer: “asleep” / Phase 5 deferred.
+### 2. Self-contained deploy docs + resource stubs
 
-**Spec:** [specs/2026-10-29-bot-details-sheet.md](specs/2026-10-29-bot-details-sheet.md)
+Own Lakebase / BYO path; egress + secrets checklist; Job stub usable with App URL + webhook secret. OSS map P0 §2.
 
-### 2. Presence: `waiting` / `blocked` (Track B) — **done (pending deploy)**
+### 3. README rewrite as community homepage
 
-See [specs/2026-10-29-presence-waiting.md](specs/2026-10-29-presence-waiting.md). Approvals → `waiting`; choices → `blocked`.
+What / not / local / deploy / smoke path. Fix stale “no UC volume tools.” OSS map P0 §3–4.
 
-### 3. Choice / action cards (Track B) — **done (pending deploy)**
+### 4. Smoke greenlight
 
-See [specs/2026-10-29-choice-cards.md](specs/2026-10-29-choice-cards.md). `ask_choice` Ask-first → picker → “Sua resposta”.
+`npm test` + build + stub local chat + one documented workspace deploy with LLM secret or Serving.
 
-### 4. Routine trust polish (Phase 4 finish) — **done (pending deploy)**
+## In flight (P1 product — implement now)
 
-See [specs/2026-10-29-routine-trust.md](specs/2026-10-29-routine-trust.md). Human cron, webhook copy, **Test** label.
+| Priority | Item | Notes |
+| --- | --- | --- |
+| 1 | **Lakeflow Job → routine webhook** | Spec: [specs/2026-10-30-lakeflow-routine-job.md](specs/2026-10-30-lakeflow-routine-job.md) — bundle vars + Job resource + ping script; finishes Phase 4 schedule path |
+
+## After announce (P1 product)
+
+| Priority | Item | Notes |
+| --- | --- | --- |
+| 1 | Space members UI | API exists; roster/share UX missing |
+| 2 | ~~Lakeflow Job example wired~~ | → **in flight** (spec above) |
+| 3 | `volume_write` Ask-first | Biblioteca / Volume pins |
+| 4 | Deny-until-new-message | Track B trust |
+| 5 | Approval trail | Approvals → UC or structured log |
 
 ## Explicitly not next
 
 | Item | When |
 | --- | --- |
-| Genie Agent / Genie One MCP | After cheap path UX feels solid — [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
+| Genie Agent / Genie One MCP | After cheap path + OSS share feel solid — [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
 | `system.ai.*` broad MCP | After first opt-in Genie experiment |
 | Phase 5 computer / sandbox | Locked defer |
-| PartnerOps / Marketplace listing | Parallel non-code; don’t block product must-dos |
-| `volume_write` / Vector Search | Nice; after details + presence |
+| PartnerOps / Marketplace Apps listing | Optional parallel; OSS GitHub is the primary share path |
+| Vector Search | Nice; after `volume_write` / audit if needed |
+
+## Closed specs (do not reopen as “next”)
+
+- [specs/2026-10-29-pin-artifact.md](specs/2026-10-29-pin-artifact.md)
+- [specs/2026-10-29-bot-details-sheet.md](specs/2026-10-29-bot-details-sheet.md)
+- [specs/2026-10-29-presence-waiting.md](specs/2026-10-29-presence-waiting.md)
+- [specs/2026-10-29-choice-cards.md](specs/2026-10-29-choice-cards.md)
+- [specs/2026-10-29-routine-trust.md](specs/2026-10-29-routine-trust.md)
+
+**Open (implement next):**
+
+- [specs/2026-10-30-lakeflow-routine-job.md](specs/2026-10-30-lakeflow-routine-job.md)
 
 ## One-line north star
 
-**Make the existing agent loop feel trustworthy and Grok-shaped in the UI** (details, waiting presence, choices) before spending Genie money.
-
-## Pointers
-
-- [agent-improvement-plan.md](agent-improvement-plan.md)  
-- [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md)  
-- [project-context.md](project-context.md)  
-- Spec done: [specs/2026-10-29-pin-artifact.md](specs/2026-10-29-pin-artifact.md)
+**Make a cold clone installable and trustworthy for the Databricks community** before spending Genie money or building computer.

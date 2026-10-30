@@ -1,11 +1,12 @@
 # Spec: Presence waiting / blocked
 
 **Date:** 2026-10-29  
-**Roadmap:** [roadmap-next.md](../roadmap-next.md) item 2
+**Status:** implemented (2026-10-29)  
+**Roadmap:** closed — see [roadmap-next.md](../roadmap-next.md)
 
 ## Goal
 
-When the agent loop pauses on tool approvals, roster and server presence should show **waiting**, not **online**. Reserve **blocked** for future choice / “needs your text” flows.
+When the agent loop pauses on tool approvals, roster and server presence should show **waiting**, not **online**. **`blocked`** is used when a user choice (`ask_choice`) is pending.
 
 ## Ship checklist
 

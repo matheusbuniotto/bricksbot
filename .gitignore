@@ -4,6 +4,8 @@ client/dist/
 dist/
 build/
 .env
+dev.local.yml
+*.databricks.env
 .databricks/
 .smoke-test/
 test-results/

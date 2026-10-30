@@ -9,6 +9,8 @@ export interface SetupStatus {
   secretKeys: string[];
   servingHint: string;
   putSecretExamples: string[];
+  appPublicUrl?: string | null;
+  routineWebhookSecretPutExample?: string[];
 }
 
 async function readJson<T>(res: Response): Promise<T> {

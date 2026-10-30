@@ -1,5 +1,8 @@
 # Spec: Choice / action cards
 
+**Status:** implemented (2026-10-29)  
+**Roadmap:** closed — see [roadmap-next.md](../roadmap-next.md)
+
 Ask-first `ask_choice` tool: agent proposes 2–5 options → user approves showing the card → user picks → durable transcript row (“Sua resposta”) → tool result resumes the turn. Mirrors approval UX; blocks composer until resolved. No Genie.
 
 ## Goals

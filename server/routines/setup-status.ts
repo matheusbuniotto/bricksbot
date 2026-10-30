@@ -9,6 +9,10 @@ export interface SetupStatus {
   secretKeys: string[];
   servingHint: string;
   putSecretExamples: string[];
+  /** From BRICKSBOT_PUBLIC_APP_URL when set (optional; UI may use window.location). */
+  appPublicUrl: string | null;
+  /** CLI examples for routine webhook secret — never includes a real secret value. */
+  routineWebhookSecretPutExample: string[];
 }
 
 function truthySecret(value: string | undefined): boolean {
@@ -31,6 +35,10 @@ export function buildSetupStatus(
   const needsLlmSetup =
     provider === 'stub' || (!hasOpenAI && provider !== 'databricks-serving');
 
+  const appPublicUrl = env.BRICKSBOT_PUBLIC_APP_URL?.trim() || null;
+  const routineWebhookScope = env.ROUTINE_WEBHOOK_SECRET_SCOPE?.trim() || 'bricksbot';
+  const routineWebhookKey = env.ROUTINE_WEBHOOK_SECRET_KEY?.trim() || 'routine-webhook-key';
+
   return {
     provider,
     needsLlmSetup,
@@ -43,6 +51,12 @@ export function buildSetupStatus(
       `# Same key as clawhouse — scope \`${scope}\`, secret \`${secretKey}\``,
       `databricks secrets put-secret ${scope} ${secretKey} --string-value 'YOUR_KEY' -p dev`,
       `# Optional local override: LLM_BASE_URL + LLM_MODEL in .env (defaults match clawhouse OpenRouter)`,
+    ],
+    appPublicUrl,
+    routineWebhookSecretPutExample: [
+      `# After creating a routine in the App, store its one-time webhook secret`,
+      `databricks secrets put-secret ${routineWebhookScope} ${routineWebhookKey} --string-value 'YOUR_WEBHOOK_SECRET' -p dev`,
+      `# Set bundle variables routine_webhook_app_base_url + routine_webhook_routine_id, then bundle deploy`,
     ],
   };
 }

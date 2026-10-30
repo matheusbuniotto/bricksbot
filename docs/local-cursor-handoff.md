@@ -3,7 +3,8 @@
 **For:** Matheus working in local Cursor (machine + workspace)  
 **From:** cloud research agents (BB-1 plan, BB-2 skills research)  
 **Date:** 2026-10-28 (America/Sao_Paulo)  
-**Goal of this handoff:** bootstrap local toolchain + greenfield App skeleton; do **not** re-research product strategy.
+**Updated:** 2026-10-30 — Phase 0–4 product core + trust UI shipped; next = OSS community share ([oss-community-release.md](oss-community-release.md)).  
+**Original goal:** bootstrap local toolchain + greenfield App skeleton; do **not** re-research product strategy.
 
 ---
 
@@ -42,6 +43,8 @@ Do not: fork Rakazo; add computer/sandbox; invent custom Databricks platform ski
 | --- | --- |
 | Context / locks | `docs/project-context.md` |
 | Full product plan | `docs/databricks-grokbot-marketplace-plan.md` |
+| OSS community share | `docs/oss-community-release.md` |
+| Next must-do | `docs/roadmap-next.md` |
 | Skills / tooling research | `docs/databricks-dev-skills-research.md` |
 | This handoff | `docs/local-cursor-handoff.md` |
 
@@ -106,9 +109,10 @@ Do not reinvent `databricks-apps` / `databricks-dabs` / `databricks-lakebase`.
 ## Open decisions (do not block Phase 0)
 
 - Pi Durable vs thin harness  
-- PartnerOps owner (`partnerops@databricks.com`)  
+- License for public GitHub (see oss-community-release)  
 - Websocket / horizontal scaling  
-- Phase 5 Daytona vs E2B (lean Daytona when the time comes)
+- Phase 5 Daytona vs E2B (lean Daytona when the time comes)  
+- PartnerOps Apps listing — optional after OSS v0
 
 ---
 

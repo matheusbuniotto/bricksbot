@@ -19,6 +19,10 @@ env:
   - name: WEB_FETCH_ALLOWLIST
     valueFrom: web-fetch-allowlist
 
+  # Optional: surfaced on GET /api/setup/status as appPublicUrl (UI may use window.location when open)
+  # - name: BRICKSBOT_PUBLIC_APP_URL
+  #   value: https://bricksbot-1234567890123456.us-west-2.databricksapps.com
+
   # Databricks Serving option (bind a serving-endpoint resource, then uncomment):
   # - name: LLM_PROVIDER
   #   value: databricks

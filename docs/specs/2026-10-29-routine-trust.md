@@ -1,7 +1,8 @@
 # Spec: Routine trust polish
 
 **Status:** Implemented (2026-10-29)  
-**Roadmap:** [roadmap-next.md](../roadmap-next.md) item 4 — Phase 4 finish  
+**Status:** implemented (2026-10-29)  
+**Roadmap:** closed — Phase 4 finish; see [roadmap-next.md](../roadmap-next.md)  
 **Scope:** UI + shared helpers + Job stub docs. No Genie, no auto-deploy Jobs.
 
 ## Problem

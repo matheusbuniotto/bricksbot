@@ -124,6 +124,46 @@ export function describeCronExpression(
   return cron;
 }
 
+const QUARTZ_DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
+
+/**
+ * Quartz schedule hint for v1 Unix cron shapes handled by `describeCronExpression`.
+ * Operators set `routine_webhook_quartz_cron` to match manually.
+ */
+export function unixCronToQuartzHint(cron: string): string | null {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+
+  const minute = parseCronField(parts[0]!);
+  const hour = parseCronField(parts[1]!);
+  const dom = parts[2];
+  const month = parts[3];
+  const dow = parts[4];
+
+  if (
+    minute === null ||
+    hour === null ||
+    dom === undefined ||
+    month === undefined ||
+    dow === undefined
+  ) {
+    return null;
+  }
+  if (typeof minute !== 'number' || typeof hour !== 'number') return null;
+  if (dom !== '*' || month !== '*') return null;
+
+  if (dow === '*') {
+    return `0 ${minute} ${hour} * * ?`;
+  }
+
+  const dowNum = parseCronField(dow);
+  if (typeof dowNum === 'number' && dowNum >= 0 && dowNum <= 6) {
+    return `0 ${minute} ${hour} ? * ${QUARTZ_DOW[dowNum]}`;
+  }
+
+  return null;
+}
+
 /** Prefer Portuguese copy when the browser locale is pt*. */
 export function defaultCronDescribeLocale(): CronDescribeLocale {
   if (typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('pt')) {

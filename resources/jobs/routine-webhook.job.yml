@@ -1,0 +1,38 @@
+# Parameterized Lakeflow Job → BricksBot routine webhook (serverless).
+# Operator checklist: README.md § Wiring a scheduled Job (#wiring-a-scheduled-job)
+#
+# 1. Create routine in App → copy one-time webhookSecret + routine id
+# 2. databricks secrets put-secret <scope> <key> --string-value '<secret>' -p dev
+# 3. Set bundle vars routine_webhook_app_base_url + routine_webhook_routine_id (gitignored target override)
+# 4. databricks bundle deploy -p dev
+# 5. Enable routine (On) — Test still works when Off; webhook requires enabled
+#
+# Workspace note: classic job clusters are rejected when the workspace is serverless-only.
+# This Job uses environment_key + environments (serverless Python script task).
+#
+# Apps ingress: Job run-as must have CAN_USE on the App. The ping script sends
+# OAuth (SDK unified auth) + x-bricksbot-webhook-key / body.webhookKey.
+
+resources:
+  jobs:
+    bricksbot_routine_webhook:
+      name: "[${bundle.target}] bricksbot routine webhook"
+      schedule:
+        quartz_cron_expression: ${var.routine_webhook_quartz_cron}
+        timezone_id: ${var.routine_webhook_timezone_id}
+      tasks:
+        - task_key: ping_routine
+          spark_python_task:
+            python_file: ../../scripts/ping_routine_webhook.py
+            parameters:
+              - ${var.routine_webhook_app_base_url}
+              - ${var.routine_webhook_routine_id}
+              - ${var.routine_webhook_secret_scope}
+              - ${var.routine_webhook_secret_key}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies:
+              - databricks-sdk

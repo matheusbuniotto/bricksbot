@@ -7,6 +7,7 @@ import {
   defaultCronDescribeLocale,
   describeCronExpression,
   routineWebhookPath,
+  unixCronToQuartzHint,
   type Routine,
 } from '../../../shared/routines/types';
 
@@ -66,6 +67,7 @@ export function RoutinesPanel({
   const selectedBotId = botId || bots[0]?.id || '';
   const cronLocale = useMemo(() => defaultCronDescribeLocale(), []);
   const createCronHint = describeCronExpression(cron.trim() || '0 9 * * *', cronLocale);
+  const createQuartzHint = unixCronToQuartzHint(cron.trim() || '0 9 * * *');
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const showBotSelect = bots.length > 1;
 
@@ -141,6 +143,15 @@ export function RoutinesPanel({
             label="Or Authorization"
             value={`Authorization: Bearer ${lastWebhookSecret}`}
           />
+          <p className="text-[11px] text-muted-foreground leading-snug">
+            For scheduled runs, store this secret in scope{' '}
+            <span className="font-mono">bricksbot</span> / key{' '}
+            <span className="font-mono">routine-webhook-key</span>, set bundle variables{' '}
+            <span className="font-mono">routine_webhook_app_base_url</span> and{' '}
+            <span className="font-mono">routine_webhook_routine_id</span>, then{' '}
+            <span className="font-mono">databricks bundle deploy</span>. See README{' '}
+            <span className="font-mono">#wiring-a-scheduled-job</span>.
+          </p>
         </div>
       ) : null}
 
@@ -160,6 +171,12 @@ export function RoutinesPanel({
             className="field font-mono"
           />
           <p className="text-[11px] text-muted-foreground">{createCronHint}</p>
+          {createQuartzHint ? (
+            <p className="text-[11px] text-muted-foreground">
+              Job schedule (Quartz):{' '}
+              <span className="font-mono">{createQuartzHint}</span>
+            </p>
+          ) : null}
           {showBotSelect ? (
             <Select
               ariaLabel="Bot"
@@ -196,6 +213,7 @@ export function RoutinesPanel({
         <ul className="space-y-2">
           {routines.map((routine) => {
             const scheduleLabel = describeCronExpression(routine.cron, cronLocale);
+            const quartzHint = unixCronToQuartzHint(routine.cron);
             return (
               <li
                 key={routine.id}
@@ -205,6 +223,11 @@ export function RoutinesPanel({
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{routine.name}</p>
                     <p className="text-xs text-muted-foreground">{scheduleLabel}</p>
+                    {quartzHint ? (
+                      <p className="text-[11px] text-muted-foreground/90 font-mono">
+                        Quartz: {quartzHint}
+                      </p>
+                    ) : null}
                   </div>
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 pt-0.5">
                     <input

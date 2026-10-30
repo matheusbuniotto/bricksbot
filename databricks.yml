@@ -1,6 +1,9 @@
 bundle:
   name: bricksbot
 
+include:
+  - resources/jobs/*.yml
+
 variables:
   lakebase_branch:
     description: Lakebase branch resource name for BricksBot durable chat
@@ -15,6 +18,24 @@ variables:
   app_secret_scope:
     description: Secret scope for BricksBot-only settings (e.g. web_fetch allowlist)
     default: bricksbot
+  routine_webhook_app_base_url:
+    description: Deployed App origin without trailing slash (databricks apps get bricksbot)
+    default: ""
+  routine_webhook_routine_id:
+    description: Routine UUID from Routines trust banner / list row
+    default: ""
+  routine_webhook_secret_scope:
+    description: Secret scope holding the routine webhook shared secret
+    default: ${var.app_secret_scope}
+  routine_webhook_secret_key:
+    description: Secret key name for the routine webhook (value via put-secret)
+    default: routine-webhook-key
+  routine_webhook_quartz_cron:
+    description: Quartz 6-field cron for the example Lakeflow Job
+    default: "0 0 9 * * ?"
+  routine_webhook_timezone_id:
+    description: Timezone for the example Job schedule
+    default: America/Sao_Paulo
 
 resources:
   apps:

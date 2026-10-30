@@ -2,7 +2,7 @@
 
 Greenfield Databricks App (AppKit, TypeScript, React) for a Grok Bot–style roster and transcript. This tree is not a Rakazo fork. There is no computer or sandbox runtime in the MVP.
 
-Product locks and build order live in [docs/project-context.md](docs/project-context.md) and [docs/databricks-grokbot-marketplace-plan.md](docs/databricks-grokbot-marketplace-plan.md).
+Product locks: [docs/project-context.md](docs/project-context.md). Research plan: [docs/databricks-grokbot-marketplace-plan.md](docs/databricks-grokbot-marketplace-plan.md). **What’s left for open-source community share:** [docs/oss-community-release.md](docs/oss-community-release.md) · next actions: [docs/roadmap-next.md](docs/roadmap-next.md).
 
 ## Prerequisites
 
@@ -89,8 +89,8 @@ npm test
   - `POST /api/routines/:id/run` (manual → system note + prompt via ChatService)
   - `POST /api/webhooks/routines/:routineId` with header `X-BricksBot-Webhook-Key` (or `Authorization: Bearer`)
   - `GET /api/setup/status` (provider, Lakebase flag, put-secret examples; never invents secret values)
-- UI: Routines panel (list / create / enable / Run now) + first-run install wizard when `provider === stub`
-- Job stub only: `resources/jobs/routine-webhook.job.yml.stub` — workspace Job creation stays **manual** until App URL + per-routine secret are parameterized. Do not uncomment into `databricks.yml` until those values exist.
+- UI: Routines panel (list / create / enable / Test) + first-run install wizard when `provider === stub`
+- Bundle Job [`resources/jobs/routine-webhook.job.yml`](resources/jobs/routine-webhook.job.yml) POSTs to the routine webhook on a Quartz schedule (parameterized via `databricks.yml` variables).
 
 ### LLM secrets (workspace deploy)
 
@@ -116,14 +116,70 @@ databricks bundle deploy -p dev && databricks bundle run app -p dev
 
 Missing `openrouter-api-key` keeps the stub ChatClient. Local `npm run dev` can use `.env` (`OPENROUTER_API_KEY` or `LLM_API_KEY`; see `.env.example`). The install wizard surfaces the same scope/key when the stub provider is active.
 
-### Wiring a scheduled Job (manual)
+### Wiring a scheduled Job
 
-1. Create a routine in the App (Detalhes → Routines) and copy the one-time `webhookSecret` from the trust banner.
-2. Create a Lakeflow Job (workspace UI or adapt [`resources/jobs/routine-webhook.job.yml.stub`](resources/jobs/routine-webhook.job.yml.stub)) that POSTs to  
-   `https://<app-url>/api/webhooks/routines/<routineId>`  
-   with header `x-bricksbot-webhook-key: <secret>` or `Authorization: Bearer <secret>`.
-3. Example App URL shape: `https://bricksbot-1234567890123456.us-west-2.databricksapps.com` (`databricks apps get bricksbot -p dev`).
-4. Prefer storing the secret in scope `bricksbot` and reading it from the Job task — never commit it.
+Scheduled runs use a **Lakeflow Job** → `POST /api/webhooks/routines/:routineId`. The App stores Unix 5-field cron on the routine row for display only; the Job uses **Quartz** (`routine_webhook_quartz_cron`). Keep them aligned manually.
+
+| Bundle variable | Purpose | Default |
+| --- | --- | --- |
+| `routine_webhook_app_base_url` | App origin, no trailing slash | `""` (required before Job runs) |
+| `routine_webhook_routine_id` | Routine UUID from trust banner / list | `""` |
+| `routine_webhook_secret_scope` | Scope for webhook secret | `${var.app_secret_scope}` → `bricksbot` |
+| `routine_webhook_secret_key` | Secret key name | `routine-webhook-key` |
+| `routine_webhook_quartz_cron` | Job schedule (Quartz 6-field) | `0 0 9 * * ?` (↔ routine `0 9 * * *`) |
+| `routine_webhook_timezone_id` | Job timezone | `America/Sao_Paulo` |
+
+**Apps ingress note:** Databricks Apps reject anonymous POSTs (HTTP 401 `{}`). The Job script sends **OAuth M2M** (`Authorization: Bearer`) plus the routine shared secret (`x-bricksbot-webhook-key` / `body.webhookKey`). Store a service principal’s client credentials in the same secret scope (SP needs **CAN_USE** on the App and **READ** on the scope):
+
+```bash
+databricks secrets put-secret bricksbot apps-oauth-client-id --string-value '<sp-application-id>' -p dev
+databricks secrets put-secret bricksbot apps-oauth-client-secret --string-value '<sp-oauth-secret>' -p dev
+```
+
+Job resource uses **serverless** (`environment_key`); classic `new_cluster` is rejected in serverless-only workspaces.
+
+**Checklist**
+
+1. Deploy the App; open **Detalhes → Routines** and **Add** a routine (copy the one-time `webhookSecret`, routine id, and webhook URL from the trust banner).
+2. Store the webhook secret (never commit it):
+
+   ```bash
+   databricks secrets put-secret bricksbot routine-webhook-key --string-value '<paste webhookSecret>' -p dev
+   ```
+
+3. Store Apps OAuth M2M client id/secret (above) and grant the SP **CAN_USE** on App `bricksbot`.
+4. Discover the App URL: `databricks apps get bricksbot -p dev` → `url` field.
+5. Set bundle variables on the `dev` target (do not commit workspace-specific values). Either add a gitignored `dev.local.yml` (see `dev.local.yml.example`) with `include` from your fork, or pass at deploy time:
+
+   ```bash
+   databricks bundle deploy -p dev \
+     --var routine_webhook_app_base_url=https://bricksbot-1234567890123456.us-west-2.databricksapps.com \
+     --var routine_webhook_routine_id=<routine-uuid>
+   ```
+
+6. Deploy bundle (creates/updates Job `bricksbot_routine_webhook`):
+
+   ```bash
+   databricks bundle deploy -p dev
+   ```
+
+7. Toggle routine **On** in the UI. **Test** (`POST /api/routines/:id/run`) still works when **Off**; the webhook returns **403** when disabled.
+
+8. **Run now** on the Job once. Expect HTTP **201** and a `[routine:name] scheduled run` note in bot chat. Empty `routine_webhook_app_base_url` / `routine_webhook_routine_id` makes the ping script fail fast with a clear error.
+
+**Job identity:** the run-as principal needs **READ** on the secret scope (webhook + optional M2M keys) and HTTPS egress to the App URL. Prefer M2M SP with **CAN_USE** on the App.
+
+**Manual curl** (needs a user/SP OAuth token — Apps reject anonymous POSTs):
+
+```bash
+TOKEN=$(databricks auth token -p dev -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+curl -sS -X POST "$APP_URL/api/webhooks/routines/$ROUTINE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"webhookKey\":\"$SECRET\"}"
+```
+
+Job task script: [`scripts/ping_routine_webhook.py`](scripts/ping_routine_webhook.py). Resource: [`resources/jobs/routine-webhook.job.yml`](resources/jobs/routine-webhook.job.yml).
 
 ## Lakebase
 
@@ -135,6 +191,13 @@ Workspace project limit is 3, so the `dev` target reuses the clawhouse project w
 
 Without `LAKEBASE_ENDPOINT` / `PGHOST`, the server falls back to an in-memory store so `npm run dev` still works.
 
+## Phase 4+ trust UI (shipped)
+
+- Bot details sheet: **Details** (routines) | **Library** (artifact pins) | **Computer** (asleep / deferred)
+- Presence: `waiting` (approvals) and `blocked` (choice cards)
+- `ask_choice` Ask-first picker → transcript “Sua resposta”
+- Routine trust: human cron copy, webhook secret banner, **Test** run
+
 ## What is intentionally out
 
-No computer/sandbox, no UC volume tools yet, no Marketplace PartnerOps listing push (Phase 4 ships routines + wizard only). `sql_query` is read-only and needs `DATABRICKS_WAREHOUSE_ID` plus `DATABRICKS_HOST` and `DATABRICKS_TOKEN`.
+No computer/sandbox, no `volume_write` / Vector Search yet, no Genie by default (opt-in later), no PartnerOps Marketplace Apps listing required for OSS share. `sql_query` is read-only and needs `DATABRICKS_WAREHOUSE_ID` plus `DATABRICKS_HOST` and `DATABRICKS_TOKEN`. `volume_read` is available when UC Volumes are reachable.

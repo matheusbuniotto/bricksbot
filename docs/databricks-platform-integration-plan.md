@@ -90,8 +90,8 @@ MVP Biblioteca without Genie: SQL result pin, Volume markdown brief, later Genie
 
 ```text
 F0  Docs + cost posture locked (this file)                          ← done
-F1  Biblioteca chrome + cheap artifact types (no Genie)            ← parallel with Track A/B
-F2  Optional Genie Agent resource + Ask-first tool (single space)  ← first Genie spend
+F1  Biblioteca chrome + cheap artifact types (no Genie)            ← mostly done (Library tab + pin_artifact); volume_write / richer kinds later
+F2  Optional Genie Agent resource + Ask-first tool (single space)  ← first Genie spend (after OSS share)
 F3  Measure cost/UX; only then consider Genie One MCP
 F4  Broader system.ai registry / external connectors
 F5  Ontology enrich helpers (metric view drafts) — last
@@ -113,8 +113,8 @@ F5  Ontology enrich helpers (metric view drafts) — last
 - [ ] Genie tools absent from default `toolsFor` until resource configured  
 - [ ] Ask-first on Genie; no Always-allow default  
 - [ ] Capability prompt escalation language (not Genie-first) when tool present  
-- [ ] Biblioteca ≥1 artifact type without Genie  
-- [ ] Install wizard / egress notes Genie cost + optional bind  
+- [x] Biblioteca ≥1 artifact type without Genie (`pin_artifact` + Library tab)  
+- [ ] Install wizard / egress notes Genie cost + optional bind (when F2 starts)  
 
 ## References
 

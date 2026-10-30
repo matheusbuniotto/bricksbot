@@ -105,6 +105,13 @@ describe('routines HTTP API', () => {
         headers: { [WEBHOOK_HEADER]: created.webhookSecret },
       });
       expect(okHook.status).toBe(201);
+
+      const bodyHook = await fetch(`${baseUrl}/api/webhooks/routines/${created.routine.id}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ webhookKey: created.webhookSecret }),
+      });
+      expect(bodyHook.status).toBe(201);
     });
   });
 });

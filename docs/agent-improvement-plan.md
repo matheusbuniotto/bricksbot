@@ -1,78 +1,62 @@
 # BricksBot — Agent improvement & Grok parity plan
 
-**Status:** living plan (saved 2026-10-29).  
-**Sources:** marketplace plan, live Grok Bot Mac UI (Zelador), `docs/durable-harness.md`, codebase inventory.
+**Status:** living plan (updated 2026-10-30).  
+**Sources:** marketplace plan, live Grok Bot Mac UI, `docs/durable-harness.md`, codebase.
 
 ## Goal
 
-Improve **agent behavior** (tools, skills, prompts, trust loops) toward Grok Bot quality **without** Phase 5 computer. Lakehouse tools stay the wedge.
+Improve **agent behavior** (tools, skills, prompts, trust loops) toward Grok Bot quality **without** Phase 5 computer. Lakehouse tools stay the wedge. Distribution for community share is tracked separately: [oss-community-release.md](oss-community-release.md).
 
 ## Current baseline (shipped)
 
-- Tools: `sql_query`, `lakehouse_catalog`, `volume_read`, conditional `web_fetch`, Primary `handoff_to_bot` / `create_bot`, Ask-first `pin_artifact`, meta tools (`remember` / `forget` / `list_memories` / `save_skill` / `activate_skill` / `read_skill_resource`)
+- Tools: `sql_query`, `lakehouse_catalog`, `volume_read`, conditional `web_fetch`, Primary `handoff_to_bot` / `create_bot`, Ask-first `pin_artifact` + `ask_choice`, meta tools (`remember` / `forget` / `list_memories` / `save_skill` / `activate_skill` / `read_skill_resource`)
 - Seed skills: `sql-explore`, `catalog-recon`, `weekly-table-health`, `pin-finding` (merged via `effective-skills`)
 - Durable: compaction, approvals, `requestId`, per-bot memory/skills stores
-- UI: roster, chat, approval cards, pin chips; **MemoryPanel / RoutinesPanel / InstallWizard exist but are not mounted in `App.tsx`**
-- Presence = `thinking` | `working` | `online` only (no `waiting` / `blocked` yet)
-- **Next ordered work:** [roadmap-next.md](roadmap-next.md)
+- UI: roster, chat, approval + choice cards, pin chips, **Bot details sheet** (Details = routines, Library = pins, Computer = asleep)
+- Presence: `thinking` | `working` | `online` | **`waiting`** | **`blocked`**
+- Routines: human cron copy, webhook trust banner, **Test** run from details
+- **Next ordered work:** [roadmap-next.md](roadmap-next.md) (OSS share first) · [oss-community-release.md](oss-community-release.md)
 
 ## Live Grok UI double-check (2026-10-29)
 
 | Pattern | Note for BricksBot |
 | --- | --- |
-| Choice / action cards in transcript | Agent asks A/B; answer persists as “Sua resposta” / “Dispensado” — **not** only tool approvals |
-| Bot details sheet | Tabs: Detalhes (routines + pause), Biblioteca (artifacts), Computador |
-| Routines live on Bot details | Human schedule + pause; not a global-only sidebar |
-| Biblioteca empty copy | Artifacts: pages/files/apps the Bot creates |
-| `Rascunho:` roster preview | Draft / needs-attention prefix |
-| `Acordando…` + computer sleep/wake | Richer presence; computer → Phase 5 |
-| Skill chips in prose | Named skills called out inline |
-| Authority rules | Bot cannot delete bots; some actions need typed confirm, not card tap |
-| Personal bots: no memory screen | Chat + remember/forget; a Memory panel is optional lakehouse extra |
+| Choice / action cards in transcript | **Shipped** — `ask_choice` + “Sua resposta” |
+| Bot details sheet | **Shipped** — Details / Library / Computer |
+| Routines live on Bot details | **Shipped** |
+| Biblioteca empty copy | **Shipped** (pins read-only) |
+| `Rascunho:` / waiting roster preview | **Shipped** as `Aguardando:` when `waiting` |
+| `Acordando…` + computer sleep/wake | Computer → Phase 5; sheet shows asleep |
+| Skill chips in prose | Still nice-to-have |
+| Authority rules | Typed confirm for destructive later; `create_bot` / `ask_choice` never Always-allow |
+| Personal bots: no memory screen | Chat + remember/forget (kept) |
 
 ## Workstreams (parallel-safe)
 
 ```text
-A — Phase 4 UI        Wire Memory / Routines / Wizard; prefer Bot details sheet
-A — Phase 4 UI        Bot details sheet (next must-do — see roadmap-next.md)
-B — Agent quality     Seeds + pin_artifact done; next: presence, choice cards
-C — Lakehouse tools   volume_write, Vector Search (thin)
-D — Distribution      PartnerOps / Marketplace (non-code)
-E — Ops routines      Lakeflow Job → webhook
-F — Databricks platform  See docs/databricks-platform-integration-plan.md (Genie opt-in / cost-aware)
-5 — Computer          Daytona/E2B later (sandbox MCP is related but separate)
-6 — Connectors/voice  Prefer system.ai.* external MCPs when ready
+OSS — Community share   License, self-contained install, README  ← next (see oss-community-release.md)
+A — Phase 4 UI          Bot details + routines trust             ← done
+B — Agent quality       Seeds, pin, presence, choices            ← done slice; deny / Auto Review later
+C — Lakehouse tools     volume_write, Vector Search (thin)
+D — Distribution        OSS GitHub primary; PartnerOps optional
+E — Ops routines        Lakeflow Job → webhook (parameterized)
+F — Databricks platform See databricks-platform-integration-plan.md (Genie opt-in)
+5 — Computer            Daytona/E2B later
+6 — Connectors/voice    Prefer system.ai.* external MCPs when ready
 ```
 
-## Track B — Agent quality (this epic)
+## Track B — Agent quality
 
-### B1. Seed lakehouse skills (in progress / first slice)
+### B1–B2 — Done
 
-Built-in skills available to every bot (Account-wide Grok pattern → shared seed pack + per-bot overrides):
+Seed skills, capability prompt habits (`sql_query` / catalog prefer, `save_skill` contract, operational `create_bot`), soft limits documented.
 
-| Skill | Purpose |
-| --- | --- |
-| `sql-explore` | Safe read-only exploration with `sql_query` + `lakehouse_catalog` |
-| `catalog-recon` | Map UC catalogs → schemas → tables → columns |
-| `weekly-table-health` | Routine-ready health check; stale-data + approval boundaries |
+### B3 — Remaining (not blocking OSS announce)
 
-Each skill body follows Grok’s contract: **when / inputs / steps / validate / return / approvals**.
-
-Bot `save_skill` rows **override** a seed with the same name. `activate_skill` / Skills index merge seed + bot.
-
-### B2. Capability prompt habits
-
-- Prefer live `sql_query` / catalog / volume over memory for consequential decisions
-- After a successful multi-step lakehouse workflow, nudge `save_skill` with the 6-part contract
-- `create_bot` job = operational (goal, sources, style, approval boundary)
-- Soft limits unchanged (no computer, SQL read-only, web_fetch allowlist)
-
-### B3. Next (planned, not this slice)
-
-1. **Choice / action cards** — structured message type or tool that blocks until the user picks; transcript keeps the decision
-2. **Presence** — `waiting` (pending approval / choice), `blocked` (needs user); optional `Rascunho:` preview prefix
-3. **Bot details sheet** — Detalhes (routines), Biblioteca stub (artifact pins), Computador deferred empty state
-4. **Wire / relocate** Memory + Routines UI into details (don’t rely on orphan panels)
+1. ~~Choice / action cards~~ **done**
+2. ~~Presence `waiting` / `blocked`~~ **done**
+3. ~~Bot details sheet~~ **done**
+4. ~~Wire Routines into details~~ **done** (Memory stays chat-driven; no orphan MemoryPanel mount)
 5. **Auto Review lite** — second model pass on risky tools
 6. **Space-scoped skill publish** — later team copy of skills
 7. **Deny semantics** — no auto-retry until a new user message
@@ -83,29 +67,36 @@ Computer / teach-by-demo / shell / browser, voice, Connect apps catalog, X @bot,
 
 ## Track F — Databricks platform (pointer)
 
-Canonical write-up (Ontology, Genie, `system.ai` MCP, artifacts/canvas, **cost-aware Genie opt-in**):
-
 → **[databricks-platform-integration-plan.md](databricks-platform-integration-plan.md)**
 
-Summary locks: cheap lakehouse tools stay default; Genie is Ask-first / opt-in (Genie Agent experiment before Genie One MCP); Ontology only via Genie; Biblioteca can ship without Genie.
+Cheap lakehouse tools default; Genie Ask-first / opt-in; Ontology only via Genie; Biblioteca can ship without Genie (pins already).
 
 ## Success checks
 
-### Track B (skills slice)
+### Track B (skills + UI trust slice)
 
 - [x] Skills index lists seed skills on a fresh Primary with empty `bot_skills`
 - [x] `activate_skill` returns seed body; bot override wins on same name
 - [x] Capability prompt mentions cite-fresh-data + save_skill contract
 - [x] `create_bot` / `save_skill` tool descriptions encode operational / 6-part templates
 - [x] Tests cover merge + prompt + activate seed
+- [x] Bot details + presence waiting/blocked + ask_choice + routine trust
+
+### Track B (still open)
+
+- [ ] Deny-until-new-message
+- [ ] Auto Review lite
+- [ ] Space-scoped skill publish
 
 ### Track F
 
-See success checks in [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md).
+See [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md).
 
 ## Related docs
 
 - [project-context.md](project-context.md)
+- [oss-community-release.md](oss-community-release.md)
+- [roadmap-next.md](roadmap-next.md)
 - [durable-harness.md](durable-harness.md)
 - [databricks-grokbot-marketplace-plan.md](databricks-grokbot-marketplace-plan.md)
 - [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md)

@@ -353,14 +353,24 @@ Slim App + **cloned Grok UI**, durable and data-native, **no cloud desktop**:
 
 ## 7. Remaining open items
 
-Resolved items are in **§0**. Still open:
+Resolved items are in **§0**. Updates through 2026-10-30:
 
-1. **Pi Durable vs thin internal harness** — accept experimental Pi Durable API churn, or ~minimal custom harness with the same checkpoint semantics?
-2. **Horizontal scaling / websockets** — single App instance first vs sticky multi-instance for streaming ([horizontal scaling](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/horizontal-scaling))?
-3. **Who files PartnerOps** — owner for `partnerops@databricks.com` / Data Partner application?
-4. **Phase 5 provider pick** — lock Daytona vs E2B when computer epic starts (recommend Daytona free credits → E2B if Desktop UX wins)?
-5. **Success metric** — UX clone fidelity vs lakehouse capability matrix %?
-6. **Chromium-in-App** — verify whether Databricks Apps system image allows a bounded Playwright tool without a sandbox (optional; not a security boundary).
+| Item | Status |
+| --- | --- |
+| Pi Durable vs thin internal harness | **Resolved:** thin Pi-compatible harness — [durable-harness.md](durable-harness.md) |
+| Genie default vs opt-in | **Resolved:** opt-in / cost-locked — [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
+| Primary distribution | **Resolved for now:** OSS GitHub + DAB first — [oss-community-release.md](oss-community-release.md); PartnerOps Apps listing optional later |
+
+Still open:
+
+1. **Horizontal scaling / websockets** — single App instance first vs sticky multi-instance for streaming ([horizontal scaling](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/horizontal-scaling))?
+2. **License** for public GitHub (Apache-2.0 vs MIT, etc.)
+3. **Phase 5 provider pick** — lock Daytona vs E2B when computer epic starts (recommend Daytona free credits → E2B if Desktop UX wins)?
+4. **Success metric** — UX clone fidelity vs lakehouse capability matrix %?
+5. **Chromium-in-App** — verify whether Databricks Apps system image allows a bounded Playwright tool without a sandbox (optional; not a security boundary).
+6. **Whether to pursue PartnerOps** after OSS v0 — optional; not a product blocker.
+
+**MVP build status** (vs §6): UI + durable chat + dual ChatClient + read lakehouse tools + memory/skills + handoff + routines webhook + trust UI **done**; `volume_write` / Vector / Job automation / audit / Genie / Space-share UI **partial or later**. Live checklist: [oss-community-release.md](oss-community-release.md), [roadmap-next.md](roadmap-next.md).
 
 ---
 

@@ -47,6 +47,7 @@ function isRawSystemBlob(content: string): boolean {
     return false;
   }
   const trimmed = content.trim();
+  if (/^\[routine:[^\]]+\] scheduled run$/i.test(trimmed)) return false;
   return trimmed.startsWith('{') || trimmed.startsWith('[');
 }
 

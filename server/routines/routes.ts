@@ -7,7 +7,11 @@ import { resolveOwnerId } from '../chat/identity.js';
 import type { ChatHttpApp } from '../chat/routes.js';
 import { RoutineService } from './service.js';
 import { buildSetupStatus } from './setup-status.js';
-import { extractWebhookSecret, WEBHOOK_HEADER } from './webhook-auth.js';
+import {
+  extractWebhookSecretBearer,
+  extractWebhookSecretHeader,
+  WEBHOOK_HEADER,
+} from './webhook-auth.js';
 
 const createRoutineSchema = z.object({
   botId: z.string().uuid(),
@@ -133,12 +137,21 @@ export function registerRoutineRoutes(
   });
 
   app.post('/api/webhooks/routines/:routineId', async (req: Request, res: Response) => {
-    const secret = extractWebhookSecret(
-      (req.headers ?? {}) as Record<string, string | string[] | undefined>,
-    );
+    // Order: dedicated header → body.webhookKey → Bearer.
+    // Jobs send Apps OAuth in Authorization and the shared secret in header/body;
+    // do not treat OAuth Bearer as the webhook secret before checking the body.
+    const headers = (req.headers ?? {}) as Record<string, string | string[] | undefined>;
+    const bodyKey =
+      req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+        ? (req.body as { webhookKey?: unknown; webhookSecret?: unknown }).webhookKey ??
+          (req.body as { webhookSecret?: unknown }).webhookSecret
+        : undefined;
+    const secretFromBody = typeof bodyKey === 'string' && bodyKey.trim() ? bodyKey.trim() : null;
+    const secret =
+      extractWebhookSecretHeader(headers) ?? secretFromBody ?? extractWebhookSecretBearer(headers);
     if (!secret) {
       res.status(401).json({
-        error: `Missing ${WEBHOOK_HEADER} header or Authorization Bearer token`,
+        error: `Missing ${WEBHOOK_HEADER} header, body.webhookKey, or Authorization Bearer webhook secret`,
       });
       return;
     }
