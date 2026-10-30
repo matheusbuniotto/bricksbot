@@ -104,6 +104,11 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
   } else {
     limits.push('web_fetch is not registered (empty allowlist).');
   }
+  if (catalog.tools.some((tool) => tool.name === 'pin_artifact')) {
+    limits.push(
+      'pin_artifact pins are short shareable findings (no secrets); use kind volume_path for large content on a Volume.',
+    );
+  }
 
   const blocks: string[] = [
     [
@@ -111,12 +116,19 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
       `Tools: ${toolLine}.`,
       `Soft limits: ${limits.join(' ')}`,
       'Prefer tools over guessing. Memory and skill meta tools (remember, forget, save_skill, activate_skill, read_skill_resource, list_memories) are always available on every bot — use them freely; they do not need approval. Do not remember secrets.',
+      'Memory is not a source of truth: for consequential answers, cite or reopen live lakehouse/web tools instead of relying on remembered facts alone.',
+      'After a successful multi-step lakehouse workflow, offer to save_skill with: when to use, inputs/access, steps, validation, return shape, and what needs approval.',
     ].join('\n'),
   ];
 
   if (catalog.tools.some((tool) => tool.name === 'activate_skill')) {
     blocks[0] +=
-      ' When a listed skill matches the task, call activate_skill before following its steps; use read_skill_resource for bundled paths; use list_memories when a key is outside the prompt window.';
+      ' When a listed skill matches the task, call activate_skill before following its steps; use read_skill_resource for bundled paths; use list_memories when a key is outside the prompt window. Built-in seed skills (sql-explore, catalog-recon, weekly-table-health, pin-finding) appear in the index even before any bot saves its own.';
+  }
+
+  if (catalog.tools.some((tool) => tool.name === 'pin_artifact')) {
+    blocks[0] +=
+      ' Use pin_artifact (Ask-first) for durable shareable findings on this chat; use remember for lasting rules and preferences.';
   }
 
   const canCreateBot = catalog.tools.some((tool) => tool.name === 'create_bot');
@@ -135,7 +147,7 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
 
   if (canCreateBot) {
     blocks.push(
-      'You can create focused teammates with create_bot when a job needs a long-lived owner and no teammate fits. Prefer handoff_to_bot otherwise. Creating a bot always needs user approval — ask before creating several.',
+      'You can create focused teammates with create_bot when a job needs a long-lived owner and no teammate fits. Prefer handoff_to_bot otherwise. Creating a bot always needs user approval — ask before creating several. Pass job as an operational brief: goal/ownership, sources, working style, and approval boundary (what never happens without the user).',
     );
   } else if (!canHandoff) {
     blocks.push(

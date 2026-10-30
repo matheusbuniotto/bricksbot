@@ -60,7 +60,31 @@ describe('capability-catalog', () => {
     expect(prompt).toContain('## Skills');
     expect(prompt).toContain('Long skill');
     expect(prompt).not.toContain(longBody);
-    expect(prompt.length).toBeLessThan(2_000);
+    expect(prompt.length).toBeLessThan(2_500);
+  });
+
+  test('capability prompt mentions pin_artifact when registered', () => {
+    const catalog = buildCapabilityCatalog({
+      toolNames: ['pin_artifact', 'remember', 'sql_query'],
+      skills: [{ name: 'pin-finding', body: '## When to use\nPin findings.' }],
+    });
+    const prompt = formatCapabilityPrompt(catalog);
+    expect(prompt).toContain('pin_artifact');
+    expect(prompt).toContain('remember for lasting rules');
+    expect(prompt).toContain('pin-finding');
+    expect(prompt).toContain('no secrets');
+  });
+
+  test('capability prompt encodes cite-fresh-data and save_skill habits', () => {
+    const catalog = buildCapabilityCatalog({
+      toolNames: ['activate_skill', 'save_skill', 'sql_query'],
+      skills: [{ name: 'sql-explore', body: '## When to use\nExplore SQL safely.' }],
+    });
+    const prompt = formatCapabilityPrompt(catalog);
+    expect(prompt).toContain('Memory is not a source of truth');
+    expect(prompt).toContain('save_skill');
+    expect(prompt).toContain('sql-explore');
+    expect(prompt).toContain('seed skills');
   });
 
   test('catalog build stays under 5 ms', () => {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { parseArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { parseBotCreatedNotice } from '../../../shared/chat/bot-created-notice';
 import {
   collapseHandoffNotices,
@@ -7,6 +8,7 @@ import {
 } from '../../../shared/chat/handoff-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
 import { toolResultView } from '../lib/user-facing';
+import { ArtifactPinStatus } from './ArtifactPinStatus';
 import { BotCreatedStatus } from './BotCreatedStatus';
 import { BotFace } from './BotFace';
 import { ChatMarkdown } from './ChatMarkdown';
@@ -29,7 +31,9 @@ function isCreateBotToolEcho(content: string): boolean {
 }
 
 function isRawSystemBlob(content: string): boolean {
-  if (parseHandoffNotice(content) || parseBotCreatedNotice(content)) return false;
+  if (parseHandoffNotice(content) || parseBotCreatedNotice(content) || parseArtifactPinNotice(content)) {
+    return false;
+  }
   const trimmed = content.trim();
   return trimmed.startsWith('{') || trimmed.startsWith('[');
 }
@@ -115,6 +119,10 @@ export function ChatTranscript({
               return (
                 <BotCreatedStatus key={message.id} notice={created} onOpenBot={onOpenBot} />
               );
+            }
+            const pinned = parseArtifactPinNotice(message.content);
+            if (pinned) {
+              return <ArtifactPinStatus key={message.id} notice={pinned} />;
             }
             if (isRawSystemBlob(message.content)) return null;
           }

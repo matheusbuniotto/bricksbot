@@ -22,7 +22,8 @@ export const createBotToolDefinition: ToolDefinition = {
       name: { type: 'string', description: 'Short display name for the new bot' },
       job: {
         type: 'string',
-        description: 'Operational job / role to remember on the new bot (sources, style, approval boundaries)',
+        description:
+          'Operational job remembered on the new bot. Include: goal/ownership, sources/tools, working style, and approval boundary (what never runs without the user). Avoid vague labels like “General Helper”.',
       },
       space_id: {
         type: 'string',

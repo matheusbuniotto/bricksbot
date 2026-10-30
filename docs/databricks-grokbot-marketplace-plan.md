@@ -94,7 +94,7 @@ Goal: same *product semantics* inside a customer workspace via **Databricks Apps
 | Secrets / Vault | Databricks **Secret** scopes as App resources (`valueFrom` in `app.yaml`) | Scope-level perms; one scope per app ([secrets](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/secrets)). |
 | Network policy | Workspace **NCC** + **network policies** (Enterprise) / SEG for Marketplace apps | Declare egress up front ([networking](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/networking); [Marketplace blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)). |
 | SQL / lakehouse tools | **SQL warehouse** + UC tables/volumes/functions as resources | Differentiator vs consumer Grok Bot: agents that are *data-native*. |
-| Genie / Agent Bricks | Optional Genie Agent resource | NL analytics inside the app ([Marketplace blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)). |
+| Genie / Agent Bricks | Optional Genie Agent resource | NL analytics inside the app ([Marketplace blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)). **Cost lock (2026-10-29):** Genie opt-in, not default — [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md). |
 | Billing compute | App instance size Medium/Large/XLarge (0.5 / 1 / 3 DBU/hr) + warehouse/serving usage | ([compute size](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/compute-size)). |
 
 ### Recommended reference architecture (MVP+)
@@ -317,7 +317,7 @@ Slim App + **cloned Grok UI**, durable and data-native, **no cloud desktop**:
 1. High-fidelity UI: Bot roster, avatars/presence, chat transcript, approval cards, Spaces/folders sidebar.
 2. Durable harness on Lakebase (Pi Durable patterns: tasks, checkpoints, compaction, documents).
 3. `ChatClient`: OpenAI-compatible (primary) + Databricks Serving/Gateway option.
-4. Tools: SQL warehouse, UC volume R/W, Vector Search, optional Genie, allowlisted `web_fetch`.
+4. Tools: SQL warehouse, UC volume R/W, Vector Search, allowlisted `web_fetch`; **optional Genie** (Ask-first / install-bound — not default; see [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md)).
 5. Per-Bot memory; user-owned Bots; Space sharing for team Bots/skills.
 6. Routines via Lakeflow Job → App webhook (cron first).
 7. Bot-to-Bot message + Primary Bot router.

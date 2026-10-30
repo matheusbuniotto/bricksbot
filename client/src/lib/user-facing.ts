@@ -1,3 +1,4 @@
+import { artifactPinPreviewLine, parseArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { parseBotCreatedNotice } from '../../../shared/chat/bot-created-notice';
 import { parseHandoffNotice } from '../../../shared/chat/handoff-notice';
 import type { Message } from '../../../shared/chat/types';
@@ -33,6 +34,10 @@ export function lastUserFacingPreview(messages: Message[]): string {
           return `From ${handoff.senderName || handoff.targetName}`;
         }
         continue;
+      }
+      const pin = parseArtifactPinNotice(message.content);
+      if (pin) {
+        return artifactPinPreviewLine(pin);
       }
       if (looksLikeJsonBlob(message.content)) continue;
       const plain = message.content.replace(/\s+/g, ' ').trim();

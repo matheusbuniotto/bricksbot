@@ -13,9 +13,16 @@ Databricks Marketplace App aiming for near 1:1 Grok Bot product shape (Bot roste
 ## Locked later (2026-10-29)
 
 - **Agent loop**: **Thin Pi-compatible harness** (compaction, `CapabilityCatalog`, skills index + `activate_skill` / `read_skill_resource`, memory tools, durable approvals, requestId) — not embedding `@earendil-works/pi-durable` until a Lakebase adapter exists. See [durable-harness.md](durable-harness.md).
+- **Genie / Ontology (cost)**: Default remains cheap lakehouse tools (`sql_query`, catalog, volume, seeds). **Genie is opt-in / Ask-first**, not the default router — Genie Agent experiment before Genie One MCP. Ontology has **no partner API**; consume only via Genie when enabled. Canonical plan: [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md).
+
+## Agent improvement track (2026-10-29)
+
+- Behaviors / Grok UI: [agent-improvement-plan.md](agent-improvement-plan.md) (Track B skills shipped; Track F points at platform plan).
+- Platform (Genie, Ontology, `system.ai` MCP, Biblioteca): [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md).
 
 ## Still open
 
 - Who owns PartnerOps apply
 - Websocket / scaling approach for the App
 - Daytona vs E2B when Phase 5 computer starts
+- Genie kill switch / per-Bot Genie grant UX (see platform plan open questions)

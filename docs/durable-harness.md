@@ -9,7 +9,7 @@
 | Lakehouse storage | Survive App restart | Lakebase `bricksbot.*` (+ memory fallback) | Done (chats) |
 | Compaction | Summarize older turns; **never delete** transcript | `compactionsitions` + LLM summary injected ahead of keep-from | Done |
 | Per-bot memory | Lasting facts the bot keeps / “remember…” | `bot_memories` + `remember` / `forget` / `list_memories` | Done |
-| Skills / auto-improve | Save a successful method as reusable skill | `bot_skills` + `save_skill` + index in prompt + `activate_skill` / `read_skill_resource` | Done |
+| Skills / auto-improve | Save a successful method as reusable skill | `bot_skills` + `save_skill` + index in prompt + `activate_skill` / `read_skill_resource`; built-in seed pack via `shared/agents/seed-skills.ts` | Done |
 | Approvals that survive restart | Ask-first decisions + auto-allow lists | Persist pending + auto-approved tools | Done |
 | Exactly-once submit | Client retry must not double-run | `requestId` → idempotency table | Done |
 | Checkpointed turns | Resume mid-tool after crash | Soft: durable approvals + presence; full task graph later | Partial |
@@ -32,7 +32,7 @@ Prefer Pi / Agent Skills contracts over BricksBot-only names. Sources: [Pi Durab
 | `activate_skill` | Done | Loads Lakebase `bot_skills` body + resource list |
 | `read_skill_resource` | Done | `SKILL.md` = body; other paths miss until UC Volume packs |
 | `run_skill_script` | Out | No sandbox in MVP |
-| `tool_search` / deferred MCP tools | Later | Revisit when deferred tools arrive; use Pi semantics, not a custom `list_capabilities` |
+| `tool_search` / deferred MCP tools | Later | Revisit when deferred tools arrive; use Pi semantics, not a custom `list_capabilities`. Genie / `system.ai` MCP: **opt-in only** — see [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
 | `remember` / `forget` / `save_skill` | Done | Auto-approved |
 | `list_memories` | Done | Overflow keys outside the prompt window; not `pi-memory` npm |
 | CodingTools / browser tools | Out | Phase 5 |
@@ -59,6 +59,7 @@ Defaults: `contextWindow=128000`, `reserveTokens=16384`, `keepRecentMessages≈2
   - `read_skill_resource` — read `SKILL.md` (body) or miss clearly for other paths
 - Meta tools above are **default on every bot** (Primary and teammates) and auto-run without Ask-first approval. See `DEFAULT_META_TOOL_NAMES`.
 - System prompt carries a **Capabilities** section and a **Skills** index (name + description). Full skill markdown loads only via `activate_skill`.
+- Built-in seeds (`sql-explore`, `catalog-recon`, `weekly-table-health`) merge into the index for every bot; a same-named `bot_skills` row overrides the seed. See [agent-improvement-plan.md](agent-improvement-plan.md).
 - Windowed memory values still append via `formatBotContext` (memories only).
 
 ## Where to register new tools

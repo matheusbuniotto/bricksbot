@@ -176,6 +176,8 @@ describe('ChatService', () => {
     expect(primarySystem).toContain('Prefer concise SQL.');
     expect(primarySystem).not.toContain(longBody);
     expect(primarySystem).toContain('activate_skill');
+    expect(primarySystem).toContain('sql-explore');
+    expect(primarySystem).toContain('Memory is not a source of truth');
     expect(client.lastRequest?.tools?.map((t) => t.name)).toEqual(
       expect.arrayContaining(['handoff_to_bot', 'activate_skill', 'list_memories']),
     );
@@ -185,6 +187,7 @@ describe('ChatService', () => {
     const otherSystem = client.lastRequest?.messages[0]?.content ?? '';
     expect(otherSystem).not.toContain('warehouse');
     expect(otherSystem).not.toContain('SQL style');
+    expect(otherSystem).toContain('sql-explore');
     expect(client.lastRequest?.tools?.map((t) => t.name) ?? []).not.toContain('handoff_to_bot');
     expect(client.lastRequest?.tools?.map((t) => t.name) ?? []).toContain('activate_skill');
   });

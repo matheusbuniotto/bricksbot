@@ -28,10 +28,46 @@ describe('pi-skills-tools', () => {
     expect(hit.ok).toBe(true);
     expect(hit.instructions).toContain('Prefer concise SQL.');
     expect(hit.resources).toEqual([SKILL_BODY_PATH]);
+    expect(hit.source).toBe('bot');
 
     const miss = JSON.parse(await tool.execute({ name: 'Missing' }, ctx));
     expect(miss.ok).toBe(false);
     expect(miss.available).toContain('SQL style');
+    expect(miss.available).toContain('sql-explore');
+  });
+
+  test('activate_skill loads built-in seed skills without a bot_skills row', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const memory = new MemoryMemorySkillStore();
+    const tool = createActivateSkillTool(memory);
+    const hit = JSON.parse(await tool.execute({ name: 'sql-explore' }, { chatId: 'c1', bot }));
+    expect(hit.ok).toBe(true);
+    expect(hit.source).toBe('seed');
+    expect(hit.instructions).toContain('When to use');
+    expect(hit.instructions).toContain('What requires approval');
+  });
+
+  test('activate_skill loads pin-finding seed skill', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const memory = new MemoryMemorySkillStore();
+    const tool = createActivateSkillTool(memory);
+    const hit = JSON.parse(await tool.execute({ name: 'pin-finding' }, { chatId: 'c1', bot }));
+    expect(hit.ok).toBe(true);
+    expect(hit.source).toBe('seed');
+    expect(hit.instructions).toContain('pin_artifact');
+    expect(hit.instructions).toContain('remember');
+  });
+
+  test('bot save_skill overrides a seed with the same name', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const memory = new MemoryMemorySkillStore();
+    await memory.upsertSkill(bot.id, 'sql-explore', 'Bot override only.');
+    const tool = createActivateSkillTool(memory);
+    const hit = JSON.parse(await tool.execute({ name: 'sql-explore' }, { chatId: 'c1', bot }));
+    expect(hit).toMatchObject({ ok: true, source: 'bot', instructions: 'Bot override only.' });
   });
 
   test('read_skill_resource returns SKILL.md body and clear miss for other paths', async () => {

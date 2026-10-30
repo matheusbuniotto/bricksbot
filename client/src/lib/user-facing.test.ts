@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Message } from '../../../shared/chat/types';
+import { serializeArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { serializeHandoffNotice } from '../../../shared/chat/handoff-notice';
 import { lastUserFacingPreview, toolLabel, toolResultView } from './user-facing';
 
@@ -17,6 +18,21 @@ describe('user-facing', () => {
   test('toolLabel hides snake_case ids', () => {
     expect(toolLabel('handoff_to_bot')).toBe('Message another bot');
     expect(toolLabel('sql_query')).toBe('SQL query');
+  });
+
+  test('lastUserFacingPreview surfaces artifact pin summary', () => {
+    const notice = serializeArtifactPinNotice({
+      kind: 'artifact_pin',
+      title: 'Rows',
+      artifactKind: 'sql',
+      body: 'SELECT 1',
+      summary: 'Sample ok',
+      pinnedByBotId: 'b',
+      pinnedByName: 'Analyst',
+    });
+    expect(
+      lastUserFacingPreview([msg('user', 'hello'), msg('system', notice)]),
+    ).toBe('Pinned: Sample ok');
   });
 
   test('lastUserFacingPreview skips handoff JSON blobs', () => {

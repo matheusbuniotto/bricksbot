@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '../../../shared/agents/types.js';
-import type { BotSkill, MemorySkillStore } from '../../../shared/agents/memory/types.js';
+import type { MemorySkillStore } from '../../../shared/agents/memory/types.js';
+import { mergeEffectiveSkills, resolveEffectiveSkill } from '../../../shared/agents/effective-skills.js';
 import type { HandoffTurnContext } from '../handoff.js';
 
 type RegisteredTool = {
@@ -13,12 +14,6 @@ export const SKILL_BODY_PATH = 'SKILL.md';
 
 function readText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
-}
-
-function findSkill(skills: BotSkill[], name: string): BotSkill | undefined {
-  const needle = name.trim().toLowerCase();
-  if (!needle) return undefined;
-  return skills.find((skill) => skill.name.trim().toLowerCase() === needle);
 }
 
 function parseSkillResourceRef(args: Record<string, unknown>): { name: string; path: string } | null {
@@ -60,7 +55,7 @@ export function createActivateSkillTool(memory: MemorySkillStore): RegisteredToo
     definition: {
       name: 'activate_skill',
       description:
-        'Load a saved skill’s full instructions and bundled resource list for this bot. Use when a Skills index entry matches the user task.',
+        'Load a skill’s full instructions and resource list (built-in seed skills or bot-saved). Use when a Skills index entry matches the user task.',
       parameters: {
         type: 'object',
         properties: {
@@ -77,21 +72,27 @@ export function createActivateSkillTool(memory: MemorySkillStore): RegisteredToo
       if (!name) {
         return JSON.stringify({ ok: false, error: 'Skill name is required' });
       }
-      const skills = await memory.listSkills(ctx.bot!.id);
-      const skill = findSkill(skills, name);
+      const botId = ctx.bot!.id;
+      const botSkills = await memory.listSkills(botId);
+      const skill = resolveEffectiveSkill(botId, botSkills, name);
       if (!skill) {
+        const available = mergeEffectiveSkills(botId, botSkills).map((row) => row.name);
         return JSON.stringify({
           ok: false,
           error: `Skill not found: ${name}`,
-          available: skills.map((row) => row.name),
+          available,
         });
       }
       return JSON.stringify({
         ok: true,
         name: skill.name,
+        source: skill.source,
         instructions: skill.body,
         resources: [SKILL_BODY_PATH],
-        note: 'Markdown-only Lakebase skill. Call read_skill_resource with path SKILL.md for the body. Bundled Volume packs are not available yet.',
+        note:
+          skill.source === 'seed'
+            ? 'Built-in seed skill. Call read_skill_resource with path SKILL.md for the body. save_skill with the same name overrides this seed for this bot.'
+            : 'Markdown Lakebase skill. Call read_skill_resource with path SKILL.md for the body. Bundled Volume packs are not available yet.',
       });
     },
   };
@@ -127,13 +128,15 @@ export function createReadSkillResourceTool(memory: MemorySkillStore): Registere
           error: 'Provide name + path, or resource as skill-name/path',
         });
       }
-      const skills = await memory.listSkills(ctx.bot!.id);
-      const skill = findSkill(skills, ref.name);
+      const botId = ctx.bot!.id;
+      const botSkills = await memory.listSkills(botId);
+      const skill = resolveEffectiveSkill(botId, botSkills, ref.name);
       if (!skill) {
+        const available = mergeEffectiveSkills(botId, botSkills).map((row) => row.name);
         return JSON.stringify({
           ok: false,
           error: `Skill not found: ${ref.name}`,
-          available: skills.map((row) => row.name),
+          available,
         });
       }
       if (!isSkillBodyPath(ref.path)) {
@@ -147,6 +150,7 @@ export function createReadSkillResourceTool(memory: MemorySkillStore): Registere
       return JSON.stringify({
         ok: true,
         name: skill.name,
+        source: skill.source,
         path: SKILL_BODY_PATH,
         content: skill.body,
       });

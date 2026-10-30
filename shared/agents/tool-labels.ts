@@ -13,6 +13,7 @@ const TOOL_LABELS: Record<string, string> = {
   activate_skill: 'Activate skill',
   read_skill_resource: 'Read skill resource',
   list_memories: 'List memories',
+  pin_artifact: 'Pin finding',
 };
 
 export function toolLabel(name: string): string {
@@ -49,6 +50,8 @@ export function approvalTitle(toolName: string): string {
       return 'Allow this bot to read a skill resource?';
     case 'list_memories':
       return 'Allow this bot to list memories?';
+    case 'pin_artifact':
+      return 'Allow this bot to pin a finding on this chat?';
     default:
       return `Allow this bot to run “${toolLabel(toolName)}”?`;
   }

@@ -1,3 +1,4 @@
+import { parseArtifactPinNotice } from '../../shared/chat/artifact-pin-notice.js';
 import { parseBotCreatedNotice } from '../../shared/chat/bot-created-notice.js';
 import {
   handoffBriefUserLine,
@@ -11,6 +12,7 @@ import {
   buildCapabilityCatalog,
   formatCapabilityPrompt,
 } from '../../shared/agents/capability-catalog.js';
+import { mergeEffectiveSkills } from '../../shared/agents/effective-skills.js';
 import { isDefaultMetaTool } from '../../shared/agents/meta-tools.js';
 import { toolLabel } from '../../shared/agents/tool-labels.js';
 import type {
@@ -38,6 +40,7 @@ import { createMemorySkillTools } from '../agents/tools/memory-tools.js';
 import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
 import { createSqlQueryTool, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
 import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tools/volume-read.js';
+import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
@@ -105,7 +108,9 @@ function toLlmHistory(history: Message[]): LlmMessage[] {
     // Handoff / bot-created chips are UI-only; tool results already carry facts to the model.
     if (
       message.role === 'system' &&
-      (parseHandoffNotice(message.content) || parseBotCreatedNotice(message.content))
+      (parseHandoffNotice(message.content) ||
+        parseBotCreatedNotice(message.content) ||
+        parseArtifactPinNotice(message.content))
     ) {
       continue;
     }
@@ -160,6 +165,7 @@ export class ChatService {
     tools.push(createCreateBotTool(options.store, this.memory));
     tools.push(...createMemorySkillTools(this.memory));
     tools.push(...createPiSkillTools(this.memory));
+    tools.push(createPinArtifactTool(options.store));
     this.tools = tools;
   }
 
@@ -414,13 +420,15 @@ export class ChatService {
     }
 
     let memories: Awaited<ReturnType<MemorySkillStore['listMemories']>> = [];
-    let skills: Awaited<ReturnType<MemorySkillStore['listSkills']>> = [];
+    let botSkills: Awaited<ReturnType<MemorySkillStore['listSkills']>> = [];
     if (bot) {
-      [memories, skills] = await Promise.all([
+      [memories, botSkills] = await Promise.all([
         this.memory.listMemories(bot.id),
         this.memory.listSkills(bot.id),
       ]);
     }
+
+    const skills = bot ? mergeEffectiveSkills(bot.id, botSkills) : [];
 
     const catalog = buildCapabilityCatalog({
       toolNames,

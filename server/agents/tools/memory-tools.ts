@@ -64,14 +64,15 @@ export function createSaveSkillTool(memory: MemorySkillStore): RegisteredTool {
     definition: {
       name: 'save_skill',
       description:
-        'Capture a reusable workflow as a skill (auto-improvement). Include when to use it, steps, validation, output format, and approval boundaries.',
+        'Capture a reusable workflow as a skill (auto-improvement). Prefer after a successful multi-step run. Body must cover: (1) when to use, (2) inputs/access, (3) steps, (4) how to validate, (5) what to return, (6) what requires approval.',
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Skill title, e.g. Weekly account health' },
+          name: { type: 'string', description: 'Skill title, e.g. weekly-table-health or Weekly account health' },
           body: {
             type: 'string',
-            description: 'Markdown skill document: when / inputs / steps / validate / return / approvals',
+            description:
+              'Markdown skill: When to use; Required inputs and access; Sequence of work; How to validate; What to return; What requires approval',
           },
         },
         required: ['name', 'body'],
