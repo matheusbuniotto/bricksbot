@@ -1362,16 +1362,17 @@ textarea.field {
 .chat-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 0;
   max-width: min(420px, calc(100vw - 48px));
-  padding: 6px 10px 6px 8px;
+  padding: 6px 14px;
   border: 0;
   border-radius: 999px;
   background: var(--background);
   box-shadow: var(--shadow-soft);
   pointer-events: auto;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   transition:
     background 140ms ease,
     box-shadow 140ms ease,
@@ -1400,6 +1401,7 @@ textarea.field {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: center;
 }
 
 @media (max-width: 767px) {
@@ -1414,12 +1416,17 @@ textarea.field {
 
 .chat-pill-chevron {
   flex: none;
-  width: 14px;
+  box-sizing: content-box;
+  width: 0;
+  margin-left: 0;
   color: var(--muted-foreground);
   opacity: 0;
-  transform: translateX(-2px);
+  overflow: hidden;
+  transform: translateX(-4px);
   pointer-events: none;
   transition:
+    width 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    margin-left 180ms cubic-bezier(0.4, 0, 0.2, 1),
     transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
     opacity 140ms ease;
 }
@@ -1428,6 +1435,8 @@ textarea.field {
 .chat-pill:focus-visible .chat-pill-chevron,
 .chat-pill.is-open:hover .chat-pill-chevron,
 .chat-pill.is-open:focus-visible .chat-pill-chevron {
+  width: 14px;
+  margin-left: 6px;
   opacity: 1;
   transform: translateX(0);
 }
@@ -1538,6 +1547,18 @@ textarea.field {
   gap: 8px;
   max-width: 1150px;
   margin: 0 auto;
+}
+
+.transcript-time-sep {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 10px 0 6px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  user-select: none;
 }
 
 .message {

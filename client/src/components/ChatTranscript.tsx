@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { parseArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { parseBotCreatedNotice } from '../../../shared/chat/bot-created-notice';
 import {
@@ -12,6 +12,10 @@ import {
   type HandoffNotice,
 } from '../../../shared/chat/handoff-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
+import {
+  formatChatTimeSeparator,
+  shouldShowChatTimeSeparator,
+} from '../lib/chat-time';
 import { toolResultView } from '../lib/user-facing';
 import { ArtifactPinStatus } from './ArtifactPinStatus';
 import { BotCreatedStatus } from './BotCreatedStatus';
@@ -103,6 +107,7 @@ export function ChatTranscript({
     () =>
       collapseHandoffNotices(
         messages.filter((message) => {
+          if (message.role === 'system' && isRawSystemBlob(message.content)) return false;
           if (message.role !== 'tool') return true;
           const toolName = message.toolCallId
             ? (toolNameByCallId.get(message.toolCallId) ?? '')
@@ -137,46 +142,74 @@ export function ChatTranscript({
   return (
     <div className="transcript">
       <div className="transcript-column">
-        {visible.map((message) => {
+        {visible.map((message, index) => {
           const isUser = message.role === 'user';
           const isSystem = message.role === 'system';
           const isTool = message.role === 'tool';
+          const prev = index > 0 ? visible[index - 1] : undefined;
+          const timeLabel =
+            prev && shouldShowChatTimeSeparator(prev.createdAt, message.createdAt)
+              ? formatChatTimeSeparator(message.createdAt)
+              : null;
+          const timeSep = timeLabel ? (
+            <div className="transcript-time-sep" role="separator" aria-label={timeLabel}>
+              {timeLabel}
+            </div>
+          ) : null;
 
           if (isSystem) {
             const handoff = parseHandoffNotice(message.content);
             if (handoff) {
-              return <HandoffStatus key={message.id} notice={handoff} onOpen={setPeek} />;
+              return (
+                <Fragment key={message.id}>
+                  {timeSep}
+                  <HandoffStatus notice={handoff} onOpen={setPeek} />
+                </Fragment>
+              );
             }
             const created = parseBotCreatedNotice(message.content);
             if (created) {
               return (
-                <BotCreatedStatus key={message.id} notice={created} onOpenBot={onOpenBot} />
+                <Fragment key={message.id}>
+                  {timeSep}
+                  <BotCreatedStatus notice={created} onOpenBot={onOpenBot} />
+                </Fragment>
               );
             }
             const pinned = parseArtifactPinNotice(message.content);
             if (pinned) {
-              return <ArtifactPinStatus key={message.id} notice={pinned} />;
+              return (
+                <Fragment key={message.id}>
+                  {timeSep}
+                  <ArtifactPinStatus notice={pinned} />
+                </Fragment>
+              );
             }
             const choicePrompt = parseChoicePromptNotice(message.content);
             if (choicePrompt) {
               return (
-                <div key={message.id} className="message message-system message-enter">
-                  <ChoicePromptStatus
-                    notice={choicePrompt}
-                    selectedOption={choiceAnswers.get(choicePrompt.id)}
-                  />
-                </div>
+                <Fragment key={message.id}>
+                  {timeSep}
+                  <div className="message message-system message-enter">
+                    <ChoicePromptStatus
+                      notice={choicePrompt}
+                      selectedOption={choiceAnswers.get(choicePrompt.id)}
+                    />
+                  </div>
+                </Fragment>
               );
             }
             const choiceAnswer = parseChoiceAnswerNotice(message.content);
             if (choiceAnswer) {
               return (
-                <div key={message.id} className="message message-system message-enter">
-                  <ChoiceAnswerStatus notice={choiceAnswer} />
-                </div>
+                <Fragment key={message.id}>
+                  {timeSep}
+                  <div className="message message-system message-enter">
+                    <ChoiceAnswerStatus notice={choiceAnswer} />
+                  </div>
+                </Fragment>
               );
             }
-            if (isRawSystemBlob(message.content)) return null;
           }
 
           if (isTool) {
@@ -185,25 +218,28 @@ export function ChatTranscript({
               : '';
             const view = toolResultView(message.content, toolName);
             return (
-              <div key={message.id} className="message message-tool message-enter">
-                <details className="tool-accordion">
-                  <summary className="tool-summary">
-                    <span className="tool-summary-text">{view.summary}</span>
-                  </summary>
-                  {view.technical ? (
-                    <details className="tool-tech">
-                      <summary className="tool-tech-summary">Technical details</summary>
-                      <pre className="tool-output">
-                        <code>{view.detail}</code>
-                      </pre>
-                    </details>
-                  ) : (
-                    <div className="tool-output tool-output-plain">
-                      <ChatMarkdown content={view.detail} />
-                    </div>
-                  )}
-                </details>
-              </div>
+              <Fragment key={message.id}>
+                {timeSep}
+                <div className="message message-tool message-enter">
+                  <details className="tool-accordion">
+                    <summary className="tool-summary">
+                      <span className="tool-summary-text">{view.summary}</span>
+                    </summary>
+                    {view.technical ? (
+                      <details className="tool-tech">
+                        <summary className="tool-tech-summary">Technical details</summary>
+                        <pre className="tool-output">
+                          <code>{view.detail}</code>
+                        </pre>
+                      </details>
+                    ) : (
+                      <div className="tool-output tool-output-plain">
+                        <ChatMarkdown content={view.detail} />
+                      </div>
+                    )}
+                  </details>
+                </div>
+              </Fragment>
             );
           }
 
@@ -219,11 +255,14 @@ export function ChatTranscript({
               : 'message-body message-body-md';
 
           return (
-            <div key={message.id} className={className}>
-              <div className={bodyClass} style={isUser ? { background: accent } : undefined}>
-                {isUser ? message.content : <ChatMarkdown content={message.content} />}
+            <Fragment key={message.id}>
+              {timeSep}
+              <div className={className}>
+                <div className={bodyClass} style={isUser ? { background: accent } : undefined}>
+                  {isUser ? message.content : <ChatMarkdown content={message.content} />}
+                </div>
               </div>
-            </div>
+            </Fragment>
           );
         })}
         {thinking ? (
