@@ -6,7 +6,7 @@ import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/type
 import { ApprovalCards } from './components/ApprovalCards';
 import { ChoiceCards } from './components/ChoiceCards';
 import { BotDetailsSheet } from './components/BotDetailsSheet';
-import { BotFace, botColor, markBotFresh, registerBotLooks } from './components/BotFace';
+import { botColor, markBotFresh, registerBotLooks } from './components/BotFace';
 import { useMouseFollow } from './components/BotPicker';
 import { BotRoster } from './components/BotRoster';
 import { ChatComposer } from './components/ChatComposer';
@@ -534,13 +534,6 @@ export default function App() {
                 toggleDetails();
               }}
             >
-              <BotFace
-                color={accent}
-                size={26}
-                botId={selectedBot.id}
-                track
-                presence={selectedBot.presence}
-              />
               <span className="chat-pill-name">{selectedBot.name}</span>
               {detailsOpen ? (
                 <ChevronLeft className="chat-pill-chevron" size={14} strokeWidth={2} aria-hidden />
@@ -648,6 +641,7 @@ export default function App() {
           onStopSandbox={handleStopSandbox}
           onDeleteSandbox={handleDeleteSandbox}
           onClose={closeDetails}
+          onChangeLook={handleChangeLook}
         />
       ) : null}
     </div>

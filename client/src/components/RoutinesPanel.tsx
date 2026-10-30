@@ -167,10 +167,10 @@ export function RoutinesPanel({
   const editQuartzHint = unixCronToQuartzHint(cron.trim() || '0 9 * * *');
 
   return (
-    <div className="px-4 py-4 space-y-3">
+    <div className="bot-details-routines space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-medium">Routines</p>
+          <p className="bot-details-section-label bot-details-section-label-tight">Routines</p>
           <p className="text-xs text-muted-foreground">Scheduled jobs for this bot</p>
         </div>
         <button

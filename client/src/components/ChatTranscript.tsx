@@ -15,7 +15,6 @@ import type { Bot, Message } from '../../../shared/chat/types';
 import { toolResultView } from '../lib/user-facing';
 import { ArtifactPinStatus } from './ArtifactPinStatus';
 import { BotCreatedStatus } from './BotCreatedStatus';
-import { BotFace } from './BotFace';
 import { ChatMarkdown } from './ChatMarkdown';
 import { HandoffPeek } from './HandoffPeek';
 import { HandoffStatus } from './HandoffStatus';
@@ -68,7 +67,7 @@ export function ChatTranscript({
   messages,
   botName,
   accent,
-  botId,
+  botId: _botId,
   thinking,
   thinkingLabel = 'Thinking',
   bots = [],
@@ -130,7 +129,6 @@ export function ChatTranscript({
   if (messages.length === 0) {
     return (
       <div className="transcript transcript-empty">
-        {botName ? <BotFace color={accent} size={96} botId={botId} track /> : null}
         <p className="transcript-empty-name">{botName ?? 'No bot selected'}</p>
       </div>
     );
