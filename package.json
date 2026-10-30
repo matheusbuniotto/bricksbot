@@ -25,7 +25,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "Unlicensed",
+  "license": "Apache-2.0",
   "description": "BricksBot greenfield AppKit shell (Grok-like roster later; no computer)",
   "dependencies": {
     "@databricks/appkit": "0.76.1",

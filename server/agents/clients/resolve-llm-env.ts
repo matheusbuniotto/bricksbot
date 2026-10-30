@@ -1,6 +1,6 @@
 type Env = Record<string, string | undefined>;
 
-/** Same OpenRouter defaults as clawhouse `CLAWHOUSE_MODELS` dev target. */
+/** OpenRouter defaults for the OpenAI-compatible ChatClient. */
 export const DEFAULT_LLM_BASE_URL = 'https://openrouter.ai/api/v1';
 export const DEFAULT_LLM_MODEL = 'openai/gpt-6-luna';
 
@@ -13,7 +13,7 @@ function truthy(value: string | undefined): value is string {
 
 /**
  * Normalize LLM env for deploy + local dev.
- * Workspace apps inject `OPENROUTER_API_KEY` from scope `claw` (clawhouse parity);
+ * Workspace apps inject `OPENROUTER_API_KEY` from scope `claw`;
  * BricksBot's ChatClient still reads OpenAI-compatible `LLM_*` vars.
  */
 export function resolveLlmEnv(env: Env = process.env): Env {

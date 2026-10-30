@@ -40,10 +40,10 @@ Ordered for a stranger who clones the repo.
 
 ### 1. License + repo hygiene
 
-- [ ] Choose and add `LICENSE` (today `package.json` says `Unlicensed`)
-- [ ] `CONTRIBUTING.md` (dev loop, tests, no-secret rule, DAB profile notes)
-- [ ] Scrub personal/clawhouse-only assumptions from **default** docs path
-- [ ] Public-safe `.env.example` (no implied claw scopes as required)
+- [x] Choose and add `LICENSE` (Apache-2.0; `package.json` matches)
+- [x] `CONTRIBUTING.md` (dev loop, tests, no-secret rule, DAB profile notes)
+- [ ] Scrub personal/clawhouse-only assumptions from **default** docs path (code strings, `.env.example`, README secrets prose done; `databricks.yml` dev branch, `resources/lakebase.postgres.yml.stub`, and README Lakebase section move with step 2)
+- [x] Public-safe `.env.example` (placeholders, no personal endpoint)
 
 ### 2. Self-contained install story
 

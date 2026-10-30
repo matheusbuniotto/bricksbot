@@ -94,13 +94,13 @@ npm test
 
 ### LLM secrets (workspace deploy)
 
-Dev target reuses the **same OpenRouter secret as clawhouse**:
+The `dev` target reads the OpenRouter key from a workspace secret:
 
 | Secret scope | Secret key            | Env var               |
 | ------------ | --------------------- | --------------------- |
 | `claw`       | `openrouter-api-key`  | `OPENROUTER_API_KEY`  |
 
-`app.yaml` sets `LLM_BASE_URL` / `LLM_MODEL` to the clawhouse OpenRouter defaults; the server maps `OPENROUTER_API_KEY` → the internal OpenAI-compatible client.
+`app.yaml` sets `LLM_BASE_URL` / `LLM_MODEL` to OpenRouter defaults; the server maps `OPENROUTER_API_KEY` → the internal OpenAI-compatible client.
 
 Optional BricksBot-only scope **`bricksbot`**:
 
@@ -109,7 +109,6 @@ Optional BricksBot-only scope **`bricksbot`**:
 | `web-fetch-allowlist` | `WEB_FETCH_ALLOWLIST` |
 
 ```bash
-# Usually already set for clawhouse:
 databricks secrets put-secret claw openrouter-api-key --string-value 'YOUR_KEY' -p dev
 databricks bundle deploy -p dev && databricks bundle run app -p dev
 ```
@@ -217,3 +216,7 @@ Isolated Linux exec for bots. Spec: [docs/specs/2026-10-30-phase5-sandbox-execut
 ## What is intentionally out
 
 No desktop/browser “computer” UI, no `volume_write` / Vector Search yet, no Genie by default (opt-in later), no PartnerOps Marketplace Apps listing required for OSS share. `sql_query` is read-only and needs `DATABRICKS_WAREHOUSE_ID` plus `DATABRICKS_HOST` and `DATABRICKS_TOKEN`. `volume_read` is available when UC Volumes are reachable.
+
+## License and contributing
+
+Apache-2.0, see [LICENSE](LICENSE). Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -10,7 +10,7 @@ variables:
   lakebase_database:
     description: Lakebase database resource name for BricksBot durable chat
   provider_secret_scope:
-    description: Secret scope holding the OpenRouter API key (shared with clawhouse)
+    description: Secret scope holding the OpenRouter API key
     default: claw
   provider_secret_key:
     description: Secret key holding the OpenRouter API key

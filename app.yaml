@@ -4,7 +4,7 @@ env:
   - name: LAKEBASE_ENDPOINT
     valueFrom: postgres
 
-  # OpenAI-compatible LLM — shared with clawhouse (scope `claw`, key `openrouter-api-key`)
+  # OpenAI-compatible LLM (scope `claw`, key `openrouter-api-key`)
   - name: OPENROUTER_API_KEY
     valueFrom: openrouter-api-key
   - name: LLM_BASE_URL
