@@ -58,6 +58,7 @@ export function ChatTranscript({
   accent,
   botId,
   thinking,
+  thinkingLabel = 'Thinking',
   bots = [],
   onOpenBot,
 }: {
@@ -66,6 +67,8 @@ export function ChatTranscript({
   accent: string;
   botId?: string;
   thinking?: boolean;
+  /** Accessible + visible status while the bot is thinking/working. */
+  thinkingLabel?: string;
   bots?: Bot[];
   onOpenBot?: (botId: string) => void;
 }) {
@@ -106,7 +109,7 @@ export function ChatTranscript({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [visible.length, thinking]);
+  }, [visible.length, thinking, thinkingLabel]);
 
   if (messages.length === 0) {
     return (
@@ -211,10 +214,13 @@ export function ChatTranscript({
         })}
         {thinking ? (
           <div className="message message-enter" aria-live="polite">
-            <div className="message-body typing-dots" aria-label="Thinking">
-              <span />
-              <span />
-              <span />
+            <div className="message-body typing-status">
+              <div className="typing-dots" aria-label={thinkingLabel}>
+                <span />
+                <span />
+                <span />
+              </div>
+              <span className="typing-status-label">{thinkingLabel}…</span>
             </div>
           </div>
         ) : null}

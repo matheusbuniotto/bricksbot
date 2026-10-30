@@ -1,6 +1,6 @@
 # BricksBot
 
-Greenfield Databricks App (AppKit, TypeScript, React) for a Grok Bot–style roster and transcript. This tree is not a Rakazo fork. Optional Phase 5 sandbox execution is **off by default** (`SANDBOX_BACKEND=off`).
+Greenfield Databricks App (AppKit, TypeScript, React) for a Grok Bot–style roster and transcript. This tree is not a Rakazo fork. Phase 5 sandbox execution defaults to **`SANDBOX_BACKEND=databricks`** in `app.yaml` (falls back to `system.ai.python_exec` when Sandboxes preview is unavailable); set `off` to disable.
 
 Product locks: [docs/project-context.md](docs/project-context.md). Research plan: [docs/databricks-grokbot-marketplace-plan.md](docs/databricks-grokbot-marketplace-plan.md). **What’s left for open-source community share:** [docs/oss-community-release.md](docs/oss-community-release.md) · next actions: [docs/roadmap-next.md](docs/roadmap-next.md).
 
@@ -198,13 +198,13 @@ Without `LAKEBASE_ENDPOINT` / `PGHOST`, the server falls back to an in-memory st
 - `ask_choice` Ask-first picker → transcript “Sua resposta”
 - Routine trust: human cron copy, webhook secret banner, **Test** run
 
-## Phase 5 sandbox (optional, off by default)
+## Phase 5 sandbox
 
-Isolated Linux exec for bots. Spec: [docs/specs/2026-10-30-phase5-sandbox-execution.md](docs/specs/2026-10-30-phase5-sandbox-execution.md).
+Isolated Linux exec for bots. Spec: [docs/specs/2026-10-30-phase5-sandbox-execution.md](docs/specs/2026-10-30-phase5-sandbox-execution.md). Deployed `app.yaml` sets `SANDBOX_BACKEND=databricks`.
 
 | Var | Meaning |
 | --- | --- |
-| `SANDBOX_BACKEND` | `off` (default) \| `databricks` \| `python_exec` \| `e2b` |
+| `SANDBOX_BACKEND` | `databricks` (deploy default) \| `python_exec` \| `e2b` \| `off` |
 | `SANDBOX_IDLE_MINUTES` | Idle reaper (default `15`) |
 | `SANDBOX_EXEC_TIMEOUT_SEC` | Per-command timeout (default `120`) |
 | `SANDBOX_MAX_SESSION_MINUTES` | Hard max session age (default `120`) |
