@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-29  
 **Status:** implemented (2026-10-29)  
-**Roadmap:** closed — see [roadmap-next.md](../roadmap-next.md)
+**Roadmap:** closed, see [roadmap-next.md](../roadmap-next.md)
 
 ## Goal
 

@@ -1,4 +1,4 @@
-# BricksBot — Databricks platform integration plan
+# BricksBot, Databricks platform integration plan
 
 **Status:** plan / go slow (locked cost posture 2026-10-29).  
 **Audience:** product + harness.  
@@ -6,23 +6,23 @@
 
 ## Locked posture (cost & UX)
 
-- **Default path stays cheap lakehouse tools:** `sql_query`, `lakehouse_catalog`, `volume_read`, seed skills, memory/meta tools. Do **not** route “most” turns through Genie.
-- **Genie is opt-in and escalatory**, not the default brain. Costs (warehouse + Genie compound AI) and latency make “Genie for everything” a bad install experience.
+- **Default path stays cheap lakehouse tools:** `sql_query`, `lakehouse_catalog`, `volume_read`, seed skills, memory/meta tools. Do **not** route "most" turns through Genie.
+- **Genie is opt-in and escalatory**, not the default brain. Costs (warehouse + Genie compound AI) and latency make "Genie for everything" a bad install experience.
 - **Ontology has no partner API.** Consume only by calling Genie when the user (or a clearly labeled specialist Bot) chooses that path. Never invent `ontology_query`.
 - **Ship Biblioteca / artifacts and MCP plumbing slowly** after the cheap path feels good; Genie can deep-link later.
 
-BricksBot = Grok-shaped multi-bot harness. Genie family = optional governed analytics specialist — not the always-on router.
+BricksBot = Grok-shaped multi-bot harness. Genie family = optional governed analytics specialist, not the always-on router.
 
 ## Why go slow
 
 | Risk | Mitigation |
 | --- | --- |
 | Genie / warehouse bill surprises on every chat | Genie tools **unregistered** until App resource + Gateway grants exist; Ask-first; never auto-allow Genie by default |
-| Agents over-call Genie for trivial schema peeks | Capability prompt: prefer `sql_query` / catalog for known objects; Genie only for business meaning / KPI / “what does X mean?” **after** cheap tools fail or user asks |
+| Agents over-call Genie for trivial schema peeks | Capability prompt: prefer `sql_query` / catalog for known objects; Genie only for business meaning / KPI / "what does X mean?" **after** cheap tools fail or user asks |
 | Confusing dual UIs (BricksBot chat + GenieChat) | Prefer **tool-call Genie** from a Bot first; embed `GenieChat` pane only if install explicitly enables it |
 | Ontology confusion | Document: Ontology comes free *inside* Genie answers; BricksBot does not browse the graph |
 
-## Architecture (consume, don’t reimplement)
+## Architecture (consume, don't reimplement)
 
 ```text
 User → BricksBot Bot (Primary / specialist)
@@ -38,9 +38,9 @@ User → BricksBot Bot (Primary / specialist)
 | --- | --- |
 | Ontology = UC semantics (metric views, domains, Pages) + inferred snippets; OntoRank; UC-gated | Public Preview |
 | **No direct Ontology API for partners** ([partner agent integrations](https://databrickslabs.github.io/partner-architecture/isv-partners/product-categories/ai/agent-integrations)) | Integration path = Genie only |
-| Enrich write surfaces: Metric Views, Domains, Pages, Business Glossary | Far future optional “propose metric view” tools — not MVP |
+| Enrich write surfaces: Metric Views, Domains, Pages, Business Glossary | Far future optional "propose metric view" tools, not MVP |
 
-When Genie tools are registered, prompt guidance is **escalation**, not “always Genie first”:
+When Genie tools are registered, prompt guidance is **escalation**, not "always Genie first":
 
 1. Prefer cheap tools for exploration and known SQL.  
 2. Escalate to Genie when the user asks for business definitions/KPIs, or cheap tools are insufficient.  
@@ -52,7 +52,7 @@ When Genie tools are registered, prompt guidance is **escalation**, not “alway
 | --- | --- | --- |
 | **Genie Agent** App resource + Conversation API / Agent MCP | One curated domain; predictable cost envelope | Install bind `genie-space`; AppKit plugin already in `appkit.plugins.json` |
 | **Genie One MCP** `system.ai.genie_one_mcp` | Workspace-wide NL + Ontology | Higher blast radius / cost; Gateway + OBO; **later** than a single Agent |
-| AppKit `GenieChat` embed | Explicit “Genie pane” install option | Not default chrome |
+| AppKit `GenieChat` embed | Explicit "Genie pane" install option | Not default chrome |
 
 **Bot mapping (optional, admin-configured):** specialist Bot → one Genie Agent. Primary does **not** auto-call Genie One on every message.
 
@@ -70,9 +70,9 @@ URL: `https://<host>/ai-gateway/mcp-services/<fqn>?o=<workspace_id>` · scope `a
 
 Harness phases (when we start coding):
 
-1. **F-a** — Optional Genie Agent tool (Ask-first, never Always-allow by default) + citations in transcript.  
-2. **F-b** — Thin MCP client for explicitly enabled `system.ai.*` servers.  
-3. **F-c** — `tool_search` / deferred tools when the surface is large ([durable-harness.md](durable-harness.md)).
+1. **F-a**, Optional Genie Agent tool (Ask-first, never Always-allow by default) + citations in transcript.  
+2. **F-b**, Thin MCP client for explicitly enabled `system.ai.*` servers.  
+3. **F-c**, `tool_search` / deferred tools when the surface is large ([durable-harness.md](durable-harness.md)).
 
 Prefer Unity Gateway over legacy `/api/2.0/mcp/*` when both exist.
 
@@ -80,9 +80,9 @@ Prefer Unity Gateway over legacy `/api/2.0/mcp/*` when both exist.
 
 | Surface | BricksBot landing |
 | --- | --- |
-| Genie One Documents ([docs](https://docs.databricks.com/aws/en/genie-one/documents)) | Deep-link only; don’t fork the editor |
+| Genie One Documents ([docs](https://docs.databricks.com/aws/en/genie-one/documents)) | Deep-link only; don't fork the editor |
 | MCP Apps View (Genie charts in MCP hosts) | Skip until we know AppKit can host MCP Apps |
-| **Biblioteca** (Grok-like Bot artifacts) | Own store: Lakebase + UC Volume pins — **can ship without Genie** |
+| **Biblioteca** (Grok-like Bot artifacts) | Own store: Lakebase + UC Volume pins, **can ship without Genie** |
 
 MVP Biblioteca without Genie: SQL result pin, Volume markdown brief, later Genie conversation link.
 
@@ -97,12 +97,12 @@ F4  Broader system.ai registry / external connectors
 F5  Ontology enrich helpers (metric view drafts) — last
 ```
 
-**Do not** reorder to “Genie One first for the platform wedge” — that fights the cost lock.
+**Do not** reorder to "Genie One first for the platform wedge", that fights the cost lock.
 
 ## Open questions
 
 1. Per-workspace Genie budget / kill switch in install wizard?  
-2. Per-Bot “may call Genie” flag vs Space-level grant?  
+2. Per-Bot "may call Genie" flag vs Space-level grant?  
 3. Show estimated Genie usage in transcript after each call?  
 4. Does App-authored SQL history meaningfully enrich Ontology for that workspace?
 

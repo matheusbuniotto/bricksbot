@@ -1,6 +1,6 @@
-# Spec: Phase 5 — Sandbox Execution Module (agents' VM)
+# Spec: Phase 5: Sandbox Execution Module (agents' VM)
 
-**Status:** Implemented (Phases 5.0–5.6); D1, D2 and the no-Daytona decision accepted 2026-10-30. Flagged off by default (`SANDBOX_BACKEND=off` in code and `app.yaml`) so MVP/OSS community share stays untouched unless explicitly enabled. Also supports `python_exec` backend / Databricks→python_exec fallback with truthful session labeling.
+**Status:** Implemented (Phases 5.0 to 5.6); D1, D2 and the no-Daytona decision accepted 2026-10-30. Flagged off by default (`SANDBOX_BACKEND=off` in code and `app.yaml`) so MVP/OSS community share stays untouched unless explicitly enabled. Also supports `python_exec` backend / Databricks→python_exec fallback with truthful session labeling.
 **Origin:** Matheus's Sandbox Execution Module TDD (Python), adapted to BricksBot (TypeScript, Lakebase, AppKit).
 **Supersedes:** the "Daytona default, E2B Desktop alt" lock in [project-context.md](../project-context.md) for the *execution* sandbox. A desktop/"computer" UI is still out of scope.
 
@@ -98,7 +98,7 @@ Register in the `ChatService` constructor so `buildCapabilityCatalog` lists them
 ### 5.4 Data (Lakebase schema `bricksbot`)
 
 - `sandbox_sessions(id, chat_id, bot_id, user_id, backend, external_id, status, created_at, last_used_at, stopped_at, metadata jsonb)`
-- `sandbox_events(id, session_id, type, payload jsonb, created_at)` — command previews truncated (for example 2 KB), full output only if written to a Volume.
+- `sandbox_events(id, session_id, type, payload jsonb, created_at)`, command previews truncated (for example 2 KB), full output only if written to a Volume.
 
 Add the DDL to the existing schema module and a memory-store equivalent.
 
@@ -113,7 +113,7 @@ Add the DDL to the existing schema module and a memory-store equivalent.
 | `SANDBOX_MAX_ACTIVE_PER_USER` | default 3 |
 | `SANDBOX_ARTIFACT_VOLUME_PATH` | optional default UC Volume root for artifacts |
 | `E2B_API_KEY` / `E2B_DOMAIN` | secrets (scope `bricksbot`), e2b only |
-| `SANDBOX_EGRESS_ALLOWLIST` | reserved; **not enforced in-app** — use workspace Serverless Egress Control / E2B account policy |
+| `SANDBOX_EGRESS_ALLOWLIST` | reserved; **not enforced in-app**, use workspace Serverless Egress Control / E2B account policy |
 
 ### 5.6 Security
 

@@ -48,9 +48,9 @@ export function buildSetupStatus(
     servingHint:
       'To use Databricks Model Serving later, bind a serving-endpoint resource and set LLM_PROVIDER=databricks (see app.yaml comments).',
     putSecretExamples: [
-      `# Same key as clawhouse — scope \`${scope}\`, secret \`${secretKey}\``,
+      `# Scope \`${scope}\`, secret \`${secretKey}\``,
       `databricks secrets put-secret ${scope} ${secretKey} --string-value 'YOUR_KEY' -p dev`,
-      `# Optional local override: LLM_BASE_URL + LLM_MODEL in .env (defaults match clawhouse OpenRouter)`,
+      `# Optional local override: LLM_BASE_URL + LLM_MODEL in .env (defaults to OpenRouter)`,
     ],
     appPublicUrl,
     routineWebhookSecretPutExample: [

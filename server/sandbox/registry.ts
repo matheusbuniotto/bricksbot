@@ -247,5 +247,17 @@ export function createSandboxRegistryFromEnv(
     );
   }
 
+  // After the early return above, backend is never "off"; warn if credentials are missing.
+  try {
+    registry.getBackend();
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[bricksbot] SANDBOX_BACKEND=${config.backend} but backend is not usable: ${reason}. ` +
+        'On Databricks Apps, DATABRICKS_HOST + CLIENT_ID/SECRET are injected automatically. ' +
+        'Locally set DATABRICKS_HOST and DATABRICKS_TOKEN (or CLIENT_ID/SECRET).',
+    );
+  }
+
   return { config, registry };
 }

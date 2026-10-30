@@ -1,9 +1,9 @@
-# Local Cursor handoff — BricksBot
+# Local Cursor handoff, BricksBot
 
 **For:** Matheus working in local Cursor (machine + workspace)  
 **From:** cloud research agents (BB-1 plan, BB-2 skills research)  
 **Date:** 2026-10-28 (America/Sao_Paulo)  
-**Updated:** 2026-10-30 — Phase 0–4 product core + trust UI shipped; next = OSS community share ([oss-community-release.md](oss-community-release.md)).  
+**Updated:** 2026-10-30, Phase 0 to 4 product core + trust UI shipped; next = OSS community share ([oss-community-release.md](oss-community-release.md)).  
 **Original goal:** bootstrap local toolchain + greenfield App skeleton; do **not** re-research product strategy.
 
 ---
@@ -70,8 +70,8 @@ Preferences (already set): greenfield + Grok UI clone; OpenAI-compatible default
 - [ ] Skip managed MCP until you need live SQL/Genie from the IDE
 
 ### 3. Repo bootstrap (greenfield)
-- [ ] New private git repo (empty) — **not** a clone of Rakazo as the product tree
-- [ ] Scaffold via AppKit path (follow `databricks-apps` skill / [app-templates](https://github.com/databricks/app-templates) as **reference**)
+- [ ] New private git repo (empty), **not** a clone of Rakazo as the product tree
+- [ ] Create via AppKit path (follow `databricks-apps` skill / [app-templates](https://github.com/databricks/app-templates) as **reference**)
 - [ ] Add Declarative Automation Bundle with an `apps` resource ([tutorial](https://docs.databricks.com/aws/en/dev-tools/bundles/apps-tutorial))
 - [ ] Minimal `app.yaml` + README with: `databricks bundle validate|deploy|run`
 - [ ] Stub Lakebase as App resource (schema for bots/chats can land next session)
@@ -84,10 +84,10 @@ Suggested first commit message: `chore: scaffold BricksBot AppKit + DAB skeleton
 
 | Phase | Focus | Local now? |
 | --- | --- | --- |
-| **0** | Partner apply + App skeleton | **Yes — this handoff** |
+| **0** | Partner apply + App skeleton | **Yes, this handoff** |
 | **1** | Grok-like UI shell + Lakebase + one-Bot durable chat | Next local session |
 | **2** | Dual ChatClient + SQL/UC tools + approvals | After 1 |
-| **3–4** | Multi-Bot, Spaces, Jobs routines, install wizard | Later |
+| **3 to 4** | Multi-Bot, Spaces, Jobs routines, install wizard | Later |
 | **5** | Computer (Daytona) | Explicitly out |
 
 MVP **out**: graphical computer, mobile/desktop clients, X @bot, full connector catalog.
@@ -98,9 +98,9 @@ MVP **out**: graphical computer, mobile/desktop clients, X @bot, full connector 
 
 Official packs cover platform; write thin Project skills under the repo (e.g. `.cursor/skills/` or Project `docs/skills/`):
 
-1. **`bricksbot-llm-paths`** — OpenAI-compatible env/secrets vs Databricks Serving flag  
-2. **`bricksbot-lakebase-schema`** — bots, chats, memories, spaces, sharing  
-3. **`bricksbot-marketplace-install`** — egress allowlist, secrets, UC grants, App resources  
+1. **`bricksbot-llm-paths`**, OpenAI-compatible env/secrets vs Databricks Serving flag  
+2. **`bricksbot-lakebase-schema`**, bots, chats, memories, spaces, sharing  
+3. **`bricksbot-marketplace-install`**, egress allowlist, secrets, UC grants, App resources  
 
 Do not reinvent `databricks-apps` / `databricks-dabs` / `databricks-lakebase`.
 
@@ -112,7 +112,7 @@ Do not reinvent `databricks-apps` / `databricks-dabs` / `databricks-lakebase`.
 - License for public GitHub (see oss-community-release)  
 - Websocket / horizontal scaling  
 - Phase 5 Daytona vs E2B (lean Daytona when the time comes)  
-- PartnerOps Apps listing — optional after OSS v0
+- PartnerOps Apps listing, optional after OSS v0
 
 ---
 

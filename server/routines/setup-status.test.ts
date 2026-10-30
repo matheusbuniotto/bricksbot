@@ -19,7 +19,7 @@ describe('buildSetupStatus', () => {
     const status = buildSetupStatus(
       {
         OPENROUTER_API_KEY: 'sk-test',
-        LAKEBASE_ENDPOINT: 'projects/clawhouse/branches/bricksbot/endpoints/primary',
+        LAKEBASE_ENDPOINT: 'projects/my-project/branches/bricksbot/endpoints/primary',
       },
       'openai',
     );

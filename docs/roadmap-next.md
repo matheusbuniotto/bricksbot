@@ -1,11 +1,11 @@
-# BricksBot — Next must-do roadmap
+# BricksBot: Next must-do roadmap
 
 **Updated:** 2026-10-30  
 **Shipped (2026-10-29 → 30):** seed skills, `pin_artifact`, Bot details sheet, presence `waiting`/`blocked`, choice cards (`ask_choice`), routine trust polish. Genie stays opt-in only.
 
-**Distribution north star:** [oss-community-release.md](oss-community-release.md) — GitHub + DAB, not PartnerOps-first.
+**Distribution north star:** [oss-community-release.md](oss-community-release.md), GitHub + DAB, not PartnerOps-first.
 
-## Must-do now (ordered) — OSS community share
+## Must-do now (ordered): OSS community share
 
 Product UX batch is **done**. Next blockers are packaging and a stranger-safe install.
 
@@ -19,17 +19,17 @@ Own Lakebase / BYO path; egress + secrets checklist; Job stub usable with App UR
 
 ### 3. README rewrite as community homepage
 
-What / not / local / deploy / smoke path. Fix stale “no UC volume tools.” OSS map P0 §3–4.
+What / not / local / deploy / smoke path. Fix stale "no UC volume tools." OSS map P0 §3 to 4.
 
 ### 4. Smoke greenlight
 
 `npm test` + build + stub local chat + one documented workspace deploy with LLM secret or Serving.
 
-## In flight (P1 product — implement now)
+## In flight (P1 product: implement now)
 
 | Priority | Item | Notes |
 | --- | --- | --- |
-| 1 | **Lakeflow Job → routine webhook** | Spec: [specs/2026-10-30-lakeflow-routine-job.md](specs/2026-10-30-lakeflow-routine-job.md) — bundle vars + Job resource + ping script; finishes Phase 4 schedule path |
+| 1 | **Lakeflow Job → routine webhook** | Spec: [specs/2026-10-30-lakeflow-routine-job.md](specs/2026-10-30-lakeflow-routine-job.md), bundle vars + Job resource + ping script; finishes Phase 4 schedule path |
 
 ## After announce (P1 product)
 
@@ -45,13 +45,13 @@ What / not / local / deploy / smoke path. Fix stale “no UC volume tools.” OS
 
 | Item | When |
 | --- | --- |
-| Genie Agent / Genie One MCP | After cheap path + OSS share feel solid — [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
+| Genie Agent / Genie One MCP | After cheap path + OSS share feel solid, [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
 | `system.ai.*` broad MCP | After first opt-in Genie experiment |
-| Desktop / Playwright “computer” UI | Still deferred; **sandbox exec is shipped behind `SANDBOX_BACKEND=off`** — [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md) |
+| Desktop / Playwright "computer" UI | Still deferred; **sandbox exec is shipped behind `SANDBOX_BACKEND=off`**, [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md) |
 | PartnerOps / Marketplace Apps listing | Optional parallel; OSS GitHub is the primary share path |
 | Vector Search | Nice; after `volume_write` / audit if needed |
 
-## Closed specs (do not reopen as “next”)
+## Closed specs (do not reopen as "next")
 
 - [specs/2026-10-29-pin-artifact.md](specs/2026-10-29-pin-artifact.md)
 - [specs/2026-10-29-bot-details-sheet.md](specs/2026-10-29-bot-details-sheet.md)
@@ -63,7 +63,7 @@ What / not / local / deploy / smoke path. Fix stale “no UC volume tools.” OS
 
 - [specs/2026-10-30-lakeflow-routine-job.md](specs/2026-10-30-lakeflow-routine-job.md)
 
-**Closed (Phase 5 sandbox exec — flagged off by default):**
+**Closed (Phase 5 sandbox exec, flagged off by default):**
 
 - [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md)
 

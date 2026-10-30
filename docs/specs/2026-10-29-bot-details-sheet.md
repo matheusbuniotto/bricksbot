@@ -7,9 +7,9 @@
 ## Goal
 
 1. **Layout:** Right/detail pane on selected bot with tabs **Details** | **Library** | **Computer**.
-2. **Details:** Routines only (list / pause / Test / Add). No install wizard. Memory and skills stay chat-driven (Grok parity — no dense forms).
-3. **Library:** Read-only list of `artifact_pin` system messages from the current chat transcript. Empty copy: “Pages, files, and apps this Bot makes”.
-4. **Computer:** “Computer is asleep” + Phase 5 note (no computer runtime in MVP).
+2. **Details:** Routines only (list / pause / Test / Add). No install wizard. Memory and skills stay chat-driven (Grok parity, no dense forms).
+3. **Library:** Read-only list of `artifact_pin` system messages from the current chat transcript. Empty copy: "Pages, files, and apps this Bot makes".
+4. **Computer:** "Computer is asleep" + Phase 5 note (no computer runtime in MVP).
 
 Out of scope: Genie, MCP, full Library editing, computer sandbox, mobile detail pane (v1), remounting MemoryPanel / InstallWizard in the sheet.
 

@@ -3,7 +3,7 @@ import { DEFAULT_LLM_BASE_URL, DEFAULT_LLM_MODEL, resolveLlmEnv } from './resolv
 import { createChatClientFromEnv } from './create-chat-client.js';
 
 describe('resolveLlmEnv', () => {
-  test('maps OPENROUTER_API_KEY into LLM_API_KEY with clawhouse defaults', () => {
+  test('maps OPENROUTER_API_KEY into LLM_API_KEY with OpenRouter defaults', () => {
     const resolved = resolveLlmEnv({ OPENROUTER_API_KEY: 'sk-or-test' });
     expect(resolved.LLM_API_KEY).toBe('sk-or-test');
     expect(resolved.LLM_BASE_URL).toBe(DEFAULT_LLM_BASE_URL);
