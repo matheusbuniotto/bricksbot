@@ -140,6 +140,7 @@ function VegaChart({ spec }: { spec: VegaSpec }) {
           actions: { export: true, source: false, compiled: false, editor: false },
           renderer: 'svg',
           theme: dark ? 'dark' : undefined,
+          tooltip: { theme: dark ? 'dark' : 'light' },
         }),
       )
       .then((result) => {

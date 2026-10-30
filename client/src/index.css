@@ -2317,3 +2317,23 @@ html[data-theme='dark'] .code-block .hljs-number,
 html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
 .artifact-mermaid { margin-top: 6px; max-width: 100%; overflow-x: auto; display: flex; justify-content: center; color: var(--foreground); }
 .artifact-caption { font-size: 11px; color: var(--muted-foreground); text-align: center; }
+
+#vg-tooltip-element,
+#vg-tooltip-element.vg-tooltip {
+  background: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  box-shadow: var(--shadow-soft) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 12px !important;
+  padding: 6px 10px !important;
+}
+#vg-tooltip-element table tr td.key {
+  color: var(--muted-foreground) !important;
+  padding-right: 8px !important;
+}
+#vg-tooltip-element table tr td.value {
+  color: var(--popover-foreground) !important;
+  font-weight: 500;
+}
