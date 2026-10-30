@@ -19,8 +19,10 @@ describe('user-facing', () => {
     expect(rosterPreviewForPresence('waiting', 'SQL query')).toBe('Aguardando: SQL query');
     expect(rosterPreviewForPresence('waiting', '')).toBe('Aguardando:');
     expect(rosterPreviewForPresence('thinking', 'hello')).toBe('Thinking…');
+    expect(rosterPreviewForPresence('working', 'hello')).toBe('Running…');
     expect(presenceTooltip('waiting')).toBe('Aguardando aprovação');
     expect(presenceTooltip('blocked')).toBe('Precisa de você');
+    expect(presenceTooltip('working')).toBe('Executando…');
   });
 
   test('toolLabel hides snake_case ids', () => {

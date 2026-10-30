@@ -11,6 +11,7 @@ import { useMouseFollow } from './components/BotPicker';
 import { BotRoster } from './components/BotRoster';
 import { ChatComposer } from './components/ChatComposer';
 import { ChatTranscript } from './components/ChatTranscript';
+import { RunningToolStatus } from './components/RunningToolStatus';
 import {
   archiveBot,
   createBot,
@@ -66,6 +67,10 @@ export default function App() {
   const [pendingChoices, setPendingChoices] = useState<PendingChoice[]>([]);
   const [autoApprovedTools, setAutoApprovedTools] = useState<string[]>([]);
   const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
+  const [runningTool, setRunningTool] = useState<{
+    label: string;
+    startedAt: string;
+  } | null>(null);
   const [choiceBusyId, setChoiceBusyId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
@@ -325,8 +330,26 @@ export default function App() {
     id: string,
     decision: ApprovalDecision
   ) {
+    const approval = pendingApprovals.find((item) => item.id === id) ?? null;
+    const accepted = decision === 'once' || decision === 'all_the_time';
     setApprovalBusyId(id);
     setError(null);
+
+    // Optimistic UX: leave the approval card immediately and show “running”
+    // while the long tool request is still in flight.
+    if (accepted && approval) {
+      setPendingApprovals((prev) => prev.filter((item) => item.id !== id));
+      setRunningTool({
+        label: toolLabel(approval.toolCall.name),
+        startedAt: new Date().toISOString(),
+      });
+      if (selectedBotId) {
+        setBots((prev) =>
+          prev.map((bot) => (bot.id === selectedBotId ? { ...bot, presence: 'working' } : bot)),
+        );
+      }
+    }
+
     try {
       const result = await decideApproval(id, decision);
       setPendingApprovals(result.pendingApprovals);
@@ -338,8 +361,15 @@ export default function App() {
       const { nextBots } = await refreshRoster();
       hydratePreviews(nextBots);
     } catch (err) {
+      // Restore the approval card if the decide call failed after optimistic remove.
+      if (accepted && approval) {
+        setPendingApprovals((prev) =>
+          prev.some((item) => item.id === approval.id) ? prev : [approval, ...prev],
+        );
+      }
       setError(err instanceof Error ? err.message : 'Approval failed');
     } finally {
+      setRunningTool(null);
       setApprovalBusyId(null);
     }
   }
@@ -550,7 +580,16 @@ export default function App() {
           <>
             <ChatTranscript
               thinking={
-                selectedBot?.presence === 'thinking' || selectedBot?.presence === 'working'
+                Boolean(runningTool) ||
+                selectedBot?.presence === 'thinking' ||
+                selectedBot?.presence === 'working'
+              }
+              thinkingLabel={
+                runningTool
+                  ? `Running ${runningTool.label}`
+                  : selectedBot?.presence === 'working'
+                    ? 'Working'
+                    : 'Thinking'
               }
               messages={visibleMessages}
               botName={selectedBot?.name ?? null}
@@ -560,6 +599,9 @@ export default function App() {
               onOpenBot={(botId) => void handleSelectBot(botId)}
             />
             <ApprovalCards approvals={pendingApprovals} busyId={approvalBusyId} onDecide={handleDecide} />
+            {runningTool ? (
+              <RunningToolStatus label={runningTool.label} startedAt={runningTool.startedAt} />
+            ) : null}
             {/* CHOICE_CARDS — pending ask_choice prompts (below approvals, above composer) */}
             <ChoiceCards
               chatId={chat?.id ?? null}
@@ -569,8 +611,19 @@ export default function App() {
             />
             <div className="composer-wrap">
               <ChatComposer
-                disabled={!chat || pendingApprovals.length > 0 || pendingChoices.length > 0}
-                placeholder={selectedBot ? `Message ${selectedBot.name}` : 'Message'}
+                disabled={
+                  !chat ||
+                  pendingApprovals.length > 0 ||
+                  pendingChoices.length > 0 ||
+                  Boolean(runningTool)
+                }
+                placeholder={
+                  runningTool
+                    ? `Running ${runningTool.label}…`
+                    : selectedBot
+                      ? `Message ${selectedBot.name}`
+                      : 'Message'
+                }
                 accent={accent}
                 onSend={handleSend}
               />

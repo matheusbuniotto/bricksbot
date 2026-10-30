@@ -2158,7 +2158,8 @@ textarea.field {
   .transcript,
   .composer-wrap,
   .approvals,
-  .choices {
+  .choices,
+  .running-tool {
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -2183,6 +2184,18 @@ textarea.field {
   }
 }
 
+.typing-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.typing-status-label {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
 .typing-dots {
   display: inline-flex;
   gap: 4px;
@@ -2200,4 +2213,81 @@ textarea.field {
 @keyframes typing-bounce {
   0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
   30% { opacity: 1; transform: translateY(-3px); }
+}
+
+.running-tool {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 1150px;
+  width: 100%;
+  margin: 0 auto 8px;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--muted) 55%, var(--background));
+  box-shadow: var(--shadow-soft);
+}
+
+.running-tool-pulse {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: oklch(0.62 0.14 145);
+  box-shadow: 0 0 0 0 color-mix(in oklab, oklch(0.62 0.14 145) 55%, transparent);
+  animation: running-tool-pulse 1.4s ease-out infinite;
+}
+
+.running-tool-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.running-tool-accepted {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: oklch(0.52 0.12 145);
+}
+
+.running-tool-label {
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.running-tool-elapsed {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+@keyframes running-tool-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, oklch(0.62 0.14 145) 45%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (max-width: 767px) {
+  .running-tool {
+    margin-left: 16px;
+    margin-right: 16px;
+    width: auto;
+  }
 }

@@ -29,9 +29,9 @@ env:
   # - name: DATABRICKS_SERVING_ENDPOINT_NAME
   #   valueFrom: serving-endpoint
 
-  # Phase 5 Sandbox (off by default — Public Beta; set databricks | python_exec | e2b to enable):
+  # Phase 5 Sandbox — Databricks Sandboxes (Public Beta); falls back to system.ai.python_exec if preview is off:
   - name: SANDBOX_BACKEND
-    value: "off"
+    value: "databricks"
   # - name: SANDBOX_IDLE_MINUTES
   #   value: "15"
   # - name: SANDBOX_EXEC_TIMEOUT_SEC

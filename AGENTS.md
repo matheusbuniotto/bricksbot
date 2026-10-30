@@ -1,6 +1,6 @@
 # BricksBot — Agent guide
 
-Greenfield **Databricks App** (AppKit + TypeScript/React): Grok Bot–style Spaces, bot roster, durable chat, lakehouse tools, approvals, routines. **Not** a Rakazo fork. Phase 5 sandbox is **implemented behind `SANDBOX_BACKEND` (default `off`)** — see [`docs/specs/2026-10-30-phase5-sandbox-execution.md`](docs/specs/2026-10-30-phase5-sandbox-execution.md).
+Greenfield **Databricks App** (AppKit + TypeScript/React): Grok Bot–style Spaces, bot roster, durable chat, lakehouse tools, approvals, routines. **Not** a Rakazo fork. Phase 5 sandbox defaults to **`SANDBOX_BACKEND=databricks`** in `app.yaml` (falls back to `python_exec` if Sandboxes preview is off; set `off` to disable) — see [`docs/specs/2026-10-30-phase5-sandbox-execution.md`](docs/specs/2026-10-30-phase5-sandbox-execution.md).
 
 Canonical product locks: [`docs/project-context.md`](docs/project-context.md). Full plan: [`docs/databricks-grokbot-marketplace-plan.md`](docs/databricks-grokbot-marketplace-plan.md). OSS community share: [`docs/oss-community-release.md`](docs/oss-community-release.md).
 

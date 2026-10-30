@@ -19,8 +19,9 @@ export function presenceTooltip(presence: Presence): string {
     case 'blocked':
       return 'Precisa de você';
     case 'thinking':
-    case 'working':
       return 'Pensando…';
+    case 'working':
+      return 'Executando…';
     case 'away':
       return 'Ausente';
     case 'offline':
@@ -33,7 +34,8 @@ export function presenceTooltip(presence: Presence): string {
 /** Roster one-liner including live presence copy and optional Aguardando prefix. */
 export function rosterPreviewForPresence(presence: Presence, messagePreview: string): string {
   const base = messagePreview.replace(/\s+/g, ' ').trim();
-  if (presence === 'thinking' || presence === 'working') return 'Thinking…';
+  if (presence === 'thinking') return 'Thinking…';
+  if (presence === 'working') return 'Running…';
   if (presence === 'waiting') return base ? `Aguardando: ${base}` : 'Aguardando:';
   if (presence === 'blocked') return base ? `Precisa de você: ${base}` : 'Precisa de você';
   return base;
