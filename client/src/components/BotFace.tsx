@@ -1,76 +1,54 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useMemo } from 'react';
+import {
+  type BotConfig,
+  DEFAULT_BOT,
+  COLORS,
+  SHAPES,
+  renderBot,
+  decodeBot,
+  encodeBot,
+} from './bricksbot-avatar';
 
-/**
- * Bot looks: a body shape + color, persisted in the bot's 2-char `avatarLabel`
- * (shape letter + color letter, both lowercase). Legacy labels fall back to a
- * deterministic look derived from the bot id.
- */
+export {
+  type BotConfig,
+  DEFAULT_BOT,
+  SHAPES,
+  COLORS,
+  COLOR_NAMES,
+  HAT_NAMES,
+  GLASSES_NAMES,
+  encodeBot,
+  decodeBot,
+  renderBot,
+  attachMouseFollow,
+} from './bricksbot-avatar';
 
-type ShapeSpec =
-  | { kind: 'lobed'; id: string; letter: string; lobes: number; amp: number; rotDeg: number }
-  | { kind: 'superellipse'; id: string; letter: string; power: number };
+export type BotLook = BotConfig;
+export const encodeLook = encodeBot;
 
-const lobed = (id: string, letter: string, lobes: number, amp: number, rotDeg: number): ShapeSpec => ({
-  kind: 'lobed',
-  id,
-  letter,
-  lobes,
-  amp,
-  rotDeg,
-});
+/** Legacy blob looks used lowercase shape letter (a–l) + color letter (a–k). */
+const LEGACY_SHAPE = 'abcdefghijkl';
+const LEGACY_COLOR = 'abcdefghijk';
 
-export const BOT_SHAPES: readonly ShapeSpec[] = [
-  lobed('round', 'a', 0, 0, 0),
-  lobed('blob', 'b', 5, 0.11, -90),
-  { kind: 'superellipse', id: 'squircle', letter: 'c', power: 3.2 },
-  lobed('sparkle', 'd', 4, 0.2, -45),
-  lobed('cloud', 'e', 6, 0.07, -90),
-  lobed('clover', 'f', 4, 0.1, 0),
-  lobed('flower', 'g', 8, 0.07, 0),
-  lobed('star', 'h', 6, 0.15, -90),
-  { kind: 'superellipse', id: 'gem', letter: 'i', power: 1.6 },
-  lobed('pebble', 'j', 3, 0.1, -90),
-  lobed('fuzz', 'k', 11, 0.05, -90),
-  lobed('wobble', 'l', 7, 0.09, -90),
-];
-
-interface BotColor {
-  readonly id: string;
-  readonly value: string;
-  readonly label: string;
-}
-
-export const BOT_COLORS: readonly BotColor[] = [
-  { id: 'a', value: 'oklch(0.25 0.01 260)', label: 'Black' },
-  { id: 'b', value: 'oklch(0.48 0.09 55)', label: 'Brown' },
-  { id: 'c', value: 'oklch(0.62 0.23 25)', label: 'Red' },
-  { id: 'd', value: 'oklch(0.67 0.2 45)', label: 'Orange' },
-  { id: 'e', value: 'oklch(0.76 0.17 75)', label: 'Amber' },
-  { id: 'f', value: 'oklch(0.66 0.19 150)', label: 'Green' },
-  { id: 'g', value: 'oklch(0.69 0.12 180)', label: 'Teal' },
-  { id: 'h', value: 'oklch(0.6 0.22 255)', label: 'Blue' },
-  { id: 'i', value: 'oklch(0.58 0.23 295)', label: 'Purple' },
-  { id: 'j', value: 'oklch(0.64 0.24 355)', label: 'Pink' },
-  { id: 'k', value: 'oklch(0.6 0 0)', label: 'Gray' },
-];
-
-export interface BotLook {
-  shape: number;
-  color: number;
-}
-
-export function encodeLook({ shape, color }: BotLook): string {
-  const shapeLetter = BOT_SHAPES[shape]?.letter ?? BOT_SHAPES[0].letter;
-  const colorId = BOT_COLORS[color]?.id ?? BOT_COLORS[0].id;
-  return `${shapeLetter}${colorId}`;
-}
-
-export function decodeLook(label: string | undefined): BotLook | null {
-  if (label?.length !== 2) return null;
-  const shape = BOT_SHAPES.findIndex((spec) => spec.letter === label[0]);
-  const color = BOT_COLORS.findIndex((c) => c.id === label[1]);
-  return shape >= 0 && color >= 0 ? { shape, color } : null;
-}
+export const decodeLook = (s: string | undefined): BotLook | null => {
+  if (!s) return null;
+  if (s.includes('.')) {
+    const parts = s.split('.');
+    if (parts.length === 4 && parts.every((p) => p !== '' && !Number.isNaN(Number(p)))) {
+      return decodeBot(s);
+    }
+    return null;
+  }
+  // Migrate prior 2-char avatarLabel → brick config (hat/glasses none).
+  if (s.length === 2) {
+    const shape = LEGACY_SHAPE.indexOf(s[0]!);
+    const color = LEGACY_COLOR.indexOf(s[1]!);
+    if (shape >= 0 && shape < SHAPES.length && color >= 0 && color < COLORS.length) {
+      return { shape, color, hat: 0, glasses: 0 };
+    }
+  }
+  return null;
+};
 
 function hashId(id: string): number {
   let hash = 0;
@@ -92,47 +70,22 @@ export function registerBotLooks(bots: { id: string; avatarLabel: string; isPrim
 export function botLook(id: string, isPrimary: boolean): BotLook {
   const stored = decodeLook(labels.get(id));
   if (stored) return stored;
-  if (isPrimary || primaryIds.has(id)) return { shape: 0, color: 7 };
+  if (isPrimary || primaryIds.has(id)) return { ...DEFAULT_BOT };
   const hash = hashId(id);
-  // Skip black/gray defaults so auto-assigned bots always look lively.
+  // Lively colors (skip 0 black and 10 gray for auto-assigned bots)
   const lively = [2, 3, 4, 5, 6, 7, 8, 9];
-  return { shape: hash % BOT_SHAPES.length, color: lively[(hash >>> 4) % lively.length] };
+  return {
+    shape: hash % 15,
+    color: lively[(hash >>> 4) % lively.length],
+    hat: 0,
+    glasses: 0,
+  };
 }
 
 export function botColor(id: string, isPrimary: boolean): string {
-  return BOT_COLORS[botLook(id, isPrimary).color].value;
+  const look = botLook(id, isPrimary);
+  return COLORS[look.color]?.[0] ?? COLORS[7][0];
 }
-
-function shapePoint(spec: ShapeSpec, t: number): readonly [number, number] {
-  switch (spec.kind) {
-    case 'superellipse': {
-      const c = Math.cos(t);
-      const s = Math.sin(t);
-      const exp = 2 / spec.power;
-      return [50 + 46 * Math.sign(c) * Math.abs(c) ** exp, 50 + 46 * Math.sign(s) * Math.abs(s) ** exp];
-    }
-    case 'lobed': {
-      const wave = (Math.cos(spec.lobes * t + (spec.rotDeg * Math.PI) / 180) + 1) / 2;
-      const r = 46 * (1 - spec.amp + spec.amp * 2 * wave);
-      return [50 + r * Math.cos(t), 50 + r * Math.sin(t)];
-    }
-    default: {
-      const _exhaustive: never = spec;
-      return _exhaustive;
-    }
-  }
-}
-
-function shapePath(spec: ShapeSpec): string {
-  const steps = 240;
-  const commands = Array.from({ length: steps }, (_, i) => {
-    const [x, y] = shapePoint(spec, (i / steps) * Math.PI * 2);
-    return `${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`;
-  });
-  return `${commands.join('')}Z`;
-}
-
-const PATHS = BOT_SHAPES.map(shapePath);
 
 const freshIds = new Set<string>();
 
@@ -142,99 +95,54 @@ export function markBotFresh(id: string) {
 }
 
 export function BotFace({
-  color,
   size,
   botId,
   shape,
+  color,
+  config,
   thinking = false,
   entering = false,
   track = false,
 }: {
-  color: string;
+  color?: string;
   size: number;
   /** Resolves the persisted shape for this bot. */
   botId?: string;
-  /** Explicit shape index (used by the creator preview); wins over botId. */
+  /** Explicit shape index; wins over botId. */
   shape?: number;
+  /** Explicit BotConfig; wins over botId and shape. */
+  config?: BotConfig;
   thinking?: boolean;
   /** Plays the one-shot entrance animation (creator preview). */
   entering?: boolean;
-  /** Eyes/body follow the pointer (use for the focused bot only). */
+  /** Eyes/body follow the pointer. */
   track?: boolean;
 }) {
-  const [fresh] = useState(() => (botId ? freshIds.delete(botId) : false));
-  const ref = useRef<SVGSVGElement>(null);
-  useEffect(() => {
-    const svg = ref.current;
-    if (!track || !svg || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const clamp = (v: number) => Math.max(-1, Math.min(1, v));
-    let tx = 0;
-    let ty = 0;
-    let x = 0;
-    let y = 0;
-    let frame = 0;
-    const tick = () => {
-      // Critically-damped-ish follow: fast catch-up, no jitter.
-      x += (tx - x) * 0.24;
-      y += (ty - y) * 0.24;
-      if (Math.abs(tx - x) < 0.002 && Math.abs(ty - y) < 0.002) {
-        x = tx;
-        y = ty;
-        frame = 0;
-      } else {
-        frame = requestAnimationFrame(tick);
-      }
-      svg.style.setProperty('--lx', x.toFixed(3));
-      svg.style.setProperty('--ly', y.toFixed(3));
-    };
-    const aim = (nx: number, ny: number) => {
-      tx = nx;
-      ty = ny;
-      if (!frame) frame = requestAnimationFrame(tick);
-    };
-    const onMove = (e: PointerEvent) => {
-      const r = svg.getBoundingClientRect();
-      const dx = e.clientX - (r.left + r.width / 2);
-      const dy = e.clientY - (r.top + r.height / 2);
-      const range = Math.max(r.width, 32) * 6;
-      if (Math.hypot(dx, dy) > range) {
-        if (tx !== 0 || ty !== 0) aim(0, 0);
-        return;
-      }
-      const reach = Math.max(r.width, 32) * 1.2;
-      aim(clamp(dx / reach), clamp(dy / reach));
-    };
-    const onLeaveWindow = () => aim(0, 0);
-    window.addEventListener('pointermove', onMove, { passive: true });
-    document.documentElement.addEventListener('pointerleave', onLeaveWindow);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      document.documentElement.removeEventListener('pointerleave', onLeaveWindow);
-      cancelAnimationFrame(frame);
-    };
-  }, [track]);
-  const index = shape ?? (botId ? botLook(botId, false).shape : 0);
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const playEnter = entering || (botId != null && freshIds.delete(botId));
+
+  const resolvedConfig = useMemo<BotConfig>(() => {
+    if (config) return config;
+    const base = { ...(botId ? botLook(botId, false) : DEFAULT_BOT) };
+    if (shape !== undefined) base.shape = shape;
+    return base;
+  }, [config, botId, shape]);
+
+  const svgHtml = useMemo(
+    () => renderBot(resolvedConfig, size),
+    [resolvedConfig.shape, resolvedConfig.color, resolvedConfig.hat, resolvedConfig.glasses, size],
+  );
+
+  // color/track kept for call-site compatibility (global mouse-follow + config-driven color).
+  void color;
+  void track;
+
   return (
-    <svg
-      ref={ref}
-      className={`bot-face${thinking ? ' is-thinking' : ''}${entering || fresh ? ' is-entering' : ''}`}
-      width={size}
-      height={size}
-      viewBox="0 0 100 100"
-      aria-hidden="true"
-      shapeRendering="geometricPrecision"
-    >
-      <g className="bot-face-body">
-        <g className="bot-look-body">
-          <path d={PATHS[index] ?? PATHS[0]} fill={color} />
-          <g className="bot-look-eyes">
-            <g className="bot-face-eyes">
-              <line className="bot-eye" x1="40.5" y1="40" x2="40.5" y2="56" />
-              <line className="bot-eye" x1="59.5" y1="40" x2="59.5" y2="56" />
-            </g>
-          </g>
-        </g>
-      </g>
-    </svg>
+    <span
+      ref={containerRef}
+      className={`bot-face-wrapper${thinking ? ' is-thinking' : ''}${playEnter ? ' is-entering' : ''}`}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: size, height: size }}
+      dangerouslySetInnerHTML={{ __html: svgHtml }}
+    />
   );
 }

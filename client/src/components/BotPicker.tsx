@@ -1,0 +1,114 @@
+import { useEffect, useMemo, type ReactNode } from 'react';
+import {
+  type BotConfig,
+  SHAPES,
+  COLORS,
+  HAT_NAMES,
+  GLASSES_NAMES,
+  renderBot,
+  hatChip,
+  glassesChip,
+  attachMouseFollow,
+} from './bricksbot-avatar';
+
+const Html = ({ html }: { html: string }) => <span className="bot-svg-wrap" dangerouslySetInnerHTML={{ __html: html }} />;
+
+export function BotAvatar({ config, size = 48 }: { config: BotConfig; size?: number }) {
+  const html = useMemo(
+    () => renderBot(config, size),
+    [config.shape, config.color, config.hat, config.glasses, size]
+  );
+  return <Html html={html} />;
+}
+
+/** Call once near the app root. */
+export function useMouseFollow() {
+  useEffect(() => attachMouseFollow(), []);
+}
+
+export function BotPicker({
+  value,
+  onChange,
+  children,
+}: {
+  value: BotConfig;
+  onChange: (v: BotConfig) => void;
+  /** Rendered between the live preview and the shape grid (e.g. name input). */
+  children?: ReactNode;
+}) {
+  const set = (p: Partial<BotConfig>) => onChange({ ...value, ...p });
+  return (
+    <div className="bot-picker-container">
+      <div className="bot-picker-preview">
+        <BotAvatar config={value} size={120} />
+      </div>
+
+      {children}
+
+      <div role="radiogroup" aria-label="Forma" className="grid5">
+        {SHAPES.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            role="radio"
+            aria-checked={value.shape === i}
+            aria-label={`Forma ${i + 1}`}
+            onClick={() => set({ shape: i })}
+          >
+            <BotAvatar config={{ ...value, shape: i }} size={46} />
+          </button>
+        ))}
+      </div>
+
+      <div role="radiogroup" aria-label="Cor" className="dots">
+        {COLORS.map(([face], i) => (
+          <button
+            key={i}
+            type="button"
+            role="radio"
+            aria-checked={value.color === i}
+            aria-label={`Cor ${i + 1}`}
+            style={{ background: face }}
+            onClick={() => set({ color: i })}
+          />
+        ))}
+      </div>
+
+      <div className="bot-picker-row">
+        <span className="bot-picker-label">Chapéu</span>
+        <div role="radiogroup" aria-label="Chapéu" className="chips">
+          {HAT_NAMES.map((name, i) => (
+            <button
+              key={i}
+              type="button"
+              role="radio"
+              aria-checked={value.hat === i}
+              aria-label={name}
+              onClick={() => set({ hat: i })}
+            >
+              {i ? <Html html={hatChip(i, value.color)} /> : <span>Nenhum</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bot-picker-row">
+        <span className="bot-picker-label">Óculos</span>
+        <div role="radiogroup" aria-label="Óculos" className="chips">
+          {GLASSES_NAMES.map((name, i) => (
+            <button
+              key={i}
+              type="button"
+              role="radio"
+              aria-checked={value.glasses === i}
+              aria-label={name}
+              onClick={() => set({ glasses: i })}
+            >
+              {i ? <Html html={glassesChip(i, value.color)} /> : <span>Nenhum</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

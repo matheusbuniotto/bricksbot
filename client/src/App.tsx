@@ -3,6 +3,7 @@ import type { Bot, Chat, Message, Space } from '../../shared/chat/types';
 import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/types';
 import { ApprovalCards } from './components/ApprovalCards';
 import { BotFace, botColor, markBotFresh, registerBotLooks } from './components/BotFace';
+import { useMouseFollow } from './components/BotPicker';
 import { BotRoster } from './components/BotRoster';
 import { ChatComposer } from './components/ChatComposer';
 import { ChatTranscript } from './components/ChatTranscript';
@@ -25,6 +26,7 @@ import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
 import { lastUserFacingPreview, toolLabel } from './lib/user-facing';
 
 export default function App() {
+  useMouseFollow();
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
   registerBotLooks(bots);

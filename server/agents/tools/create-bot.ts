@@ -34,7 +34,8 @@ export const createBotToolDefinition: ToolDefinition = {
       },
       avatar_label: {
         type: 'string',
-        description: 'Optional look encoding; omit for a name-derived look',
+        description:
+          'Optional brick avatar encoding as shape.color.hat.glasses (e.g. "1.7.0.0"); omit for a name-derived look',
       },
     },
     required: ['name'],

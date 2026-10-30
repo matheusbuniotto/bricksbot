@@ -16,14 +16,14 @@ const decideSchema = z.object({
 const createBotSchema = z.object({
   name: z.string().trim().min(1).max(64),
   spaceId: z.string().uuid().nullable().optional(),
-  avatarLabel: z.string().trim().min(1).max(2).optional(),
+  avatarLabel: z.string().trim().min(1).max(32).optional(),
 });
 
 const updateBotSchema = z
   .object({
     name: z.string().trim().min(1).max(64).optional(),
     spaceId: z.string().uuid().nullable().optional(),
-    avatarLabel: z.string().trim().min(1).max(2).optional(),
+    avatarLabel: z.string().trim().min(1).max(32).optional(),
   })
   .refine((value) => value.name !== undefined || value.spaceId !== undefined || value.avatarLabel !== undefined, {
     message: 'At least one field is required',
