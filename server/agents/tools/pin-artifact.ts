@@ -1,14 +1,21 @@
-import { serializeArtifactPinNotice, type ArtifactPinKind } from '../../../shared/chat/artifact-pin-notice.js';
+import {
+  ARTIFACT_BODY_LIMITS,
+  ARTIFACT_PIN_KINDS,
+  serializeArtifactPinNotice,
+  type ArtifactPinKind,
+} from '../../../shared/chat/artifact-pin-notice.js';
+import { validateMermaidSource } from '../../../shared/chat/mermaid-source.js';
+import { validateVegaLiteSpec } from '../../../shared/chat/vega-spec.js';
 import type { ChatStore } from '../../../shared/chat/types.js';
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { HandoffTurnContext } from '../handoff.js';
 
 export const PIN_ARTIFACT_TOOL_NAME = 'pin_artifact';
 
-/** Keep pins short; large payloads belong on a Volume path. */
-export const MAX_PIN_BODY_CHARS = 8_000;
+/** Default pin cap; table/chart/mermaid have their own in ARTIFACT_BODY_LIMITS. */
+export const MAX_PIN_BODY_CHARS = ARTIFACT_BODY_LIMITS.note;
 
-const ARTIFACT_KINDS: ArtifactPinKind[] = ['note', 'sql', 'volume_path', 'link'];
+const ARTIFACT_KINDS: readonly ArtifactPinKind[] = ARTIFACT_PIN_KINDS;
 
 export const pinArtifactToolDefinition: ToolDefinition = {
   name: PIN_ARTIFACT_TOOL_NAME,
@@ -23,8 +30,9 @@ export const pinArtifactToolDefinition: ToolDefinition = {
       title: { type: 'string', description: 'Short label for the finding' },
       kind: {
         type: 'string',
-        enum: ARTIFACT_KINDS,
-        description: 'note | sql | volume_path | link',
+        enum: [...ARTIFACT_KINDS],
+        description:
+          'note | sql | volume_path | link | table ({columns,rows} JSON) | chart (Vega-Lite v5 JSON, inline data.values only; prefer pin_chart for SQL results) | mermaid (diagram source: flowchart, sequenceDiagram, stateDiagram, classDiagram, erDiagram)',
       },
       body: {
         type: 'string',
@@ -72,11 +80,27 @@ export function planPinArtifact(args: Record<string, unknown>, bot: HandoffTurnC
   if (!body) {
     return { ok: false, error: 'pin_artifact requires body' };
   }
-  if (body.length > MAX_PIN_BODY_CHARS) {
+  const limit = ARTIFACT_BODY_LIMITS[kind];
+  if (body.length > limit) {
     return {
       ok: false,
-      error: `pin_artifact body is too long (${body.length} chars; max ${MAX_PIN_BODY_CHARS}). Put large content on a Volume and pin kind volume_path.`,
+      error: `pin_artifact body is too long (${body.length} chars; max ${limit}). Put large content on a Volume and pin kind volume_path.`,
     };
+  }
+  if (kind === 'mermaid') {
+    const checked = validateMermaidSource(body);
+    if (!checked.ok) return { ok: false, error: `pin_artifact ${checked.error}` };
+  }
+  if (kind === 'chart' && body.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(body) as Record<string, unknown>;
+      if ('mark' in parsed || 'layer' in parsed) {
+        const checked = validateVegaLiteSpec(parsed, { allowData: true });
+        if (!checked.ok) return { ok: false, error: `pin_artifact ${checked.error}` };
+      }
+    } catch {
+      return { ok: false, error: 'pin_artifact chart body must be valid JSON' };
+    }
   }
 
   const summary = readText(args.summary) || undefined;

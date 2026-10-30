@@ -14,6 +14,7 @@ const TOOL_LABELS: Record<string, string> = {
   read_skill_resource: 'Read skill resource',
   list_memories: 'List memories',
   pin_artifact: 'Pin finding',
+  pin_chart: 'Pin chart',
   ask_choice: 'Ask for your choice',
   schedule_routine: 'Schedule a routine',
   list_routines: 'List routines',
@@ -64,6 +65,8 @@ export function approvalTitle(toolName: string): string {
       return 'Allow this bot to list memories?';
     case 'pin_artifact':
       return 'Allow this bot to pin a finding on this chat?';
+    case 'pin_chart':
+      return 'Allow this bot to pin a chart from a query result on this chat?';
     case 'ask_choice':
       return 'Allow this bot to ask you to choose an option?';
     case 'schedule_routine':

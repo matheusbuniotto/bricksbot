@@ -1,6 +1,27 @@
 /** Structured artifact pin notice stored in system message content. */
 
-export type ArtifactPinKind = 'note' | 'sql' | 'volume_path' | 'link';
+export const ARTIFACT_PIN_KINDS = [
+  'note',
+  'sql',
+  'volume_path',
+  'link',
+  'table',
+  'chart',
+  'mermaid',
+] as const;
+
+export type ArtifactPinKind = (typeof ARTIFACT_PIN_KINDS)[number];
+
+/** Max body chars per pin kind. Charts and tables carry data; everything else stays short. */
+export const ARTIFACT_BODY_LIMITS: Record<ArtifactPinKind, number> = {
+  note: 8_000,
+  sql: 8_000,
+  volume_path: 8_000,
+  link: 8_000,
+  table: 64_000,
+  chart: 64_000,
+  mermaid: 16_000,
+};
 
 export interface ArtifactPinNotice {
   kind: 'artifact_pin';
@@ -23,14 +44,7 @@ export function parseArtifactPinNotice(content: string): ArtifactPinNotice | nul
     const parsed = JSON.parse(trimmed) as Partial<ArtifactPinNotice>;
     if (parsed.kind !== 'artifact_pin' || !parsed.title) return null;
     const artifactKind = parsed.artifactKind;
-    if (
-      artifactKind !== 'note' &&
-      artifactKind !== 'sql' &&
-      artifactKind !== 'volume_path' &&
-      artifactKind !== 'link'
-    ) {
-      return null;
-    }
+    if (!artifactKind || !ARTIFACT_PIN_KINDS.includes(artifactKind)) return null;
     const body = typeof parsed.body === 'string' ? parsed.body : '';
     return {
       kind: 'artifact_pin',

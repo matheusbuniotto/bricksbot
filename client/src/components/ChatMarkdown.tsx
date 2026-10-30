@@ -1,6 +1,8 @@
 import type { Components } from 'react-markdown';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { CodeBlock } from './CodeBlock';
+import { MermaidDiagram } from './MermaidDiagram';
 
 const components: Components = {
   a({ href, children }) {
@@ -20,6 +22,17 @@ const components: Components = {
         <table>{children}</table>
       </div>
     );
+  },
+  pre({ children }) {
+    return <>{children}</>;
+  },
+  code({ className, children }) {
+    const text = String(children ?? '');
+    const lang = /language-(\S+)/.exec(className ?? '')?.[1];
+    if (!lang && !text.includes('\n')) return <code className={className}>{children}</code>;
+    const code = text.replace(/\n$/, '');
+    if (lang === 'mermaid') return <MermaidDiagram source={code} />;
+    return <CodeBlock code={code} language={lang} />;
   },
 };
 

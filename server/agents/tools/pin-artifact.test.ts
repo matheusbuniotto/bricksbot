@@ -75,3 +75,27 @@ describe('pin_artifact', () => {
     expect(PIN_ARTIFACT_TOOL_NAME).toBe('pin_artifact');
   });
 });
+
+  test('validates mermaid and chart bodies and enforces per-kind limits', () => {
+    const bot = {
+      id: 'b1',
+      name: 'Primary',
+      avatarLabel: 'P',
+      presence: 'online' as const,
+      spaceId: 's1',
+      isPrimary: true,
+      ownerId: 'u1',
+      sortOrder: 0,
+      archivedAt: null,
+      createdAt: '2026-10-30T00:00:00Z',
+    };
+    expect(planPinArtifact({ title: 'Flow', kind: 'mermaid', body: 'flowchart LR\n  A-->B' }, bot).ok).toBe(true);
+    expect(planPinArtifact({ title: 'Bad', kind: 'mermaid', body: 'pie title x\n  "a": 1' }, bot).ok).toBe(false);
+    expect(
+      planPinArtifact(
+        { title: 'Big table', kind: 'table', body: JSON.stringify({ columns: ['a'], rows: [['x'.repeat(10_000)]] }) },
+        bot,
+      ).ok,
+    ).toBe(true);
+    expect(planPinArtifact({ title: 'Big note', kind: 'note', body: 'x'.repeat(9_000) }, bot).ok).toBe(false);
+  });

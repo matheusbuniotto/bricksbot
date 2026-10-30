@@ -49,6 +49,7 @@ import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
 import { createSqlQueryTool, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
 import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tools/volume-read.js';
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
+import { createPinChartTool } from '../agents/tools/pin-chart.js';
 import { ASK_CHOICE_TOOL_NAME, createAskChoiceTool, planAskChoice } from '../agents/tools/ask-choice.js';
 import {
   createRoutineTools,
@@ -206,6 +207,7 @@ export class ChatService {
     tools.push(...createMemorySkillTools(this.memory));
     tools.push(...createPiSkillTools(this.memory));
     tools.push(createPinArtifactTool(options.store));
+    tools.push(createPinChartTool(options.store));
     tools.push(createAskChoiceTool());
     tools.push(
       ...createRoutineTools(options.routines ?? new MemoryRoutineStore(), options.store),

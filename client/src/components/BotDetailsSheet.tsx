@@ -20,6 +20,9 @@ const KIND_LABELS: Record<ArtifactPinNotice['artifactKind'], string> = {
   sql: 'SQL',
   volume_path: 'Volume',
   link: 'Link',
+  table: 'Table',
+  chart: 'Chart',
+  mermaid: 'Diagram',
 };
 
 function formatPinTime(iso: string | undefined): string | null {

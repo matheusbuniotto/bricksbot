@@ -122,12 +122,40 @@ After a successful lakehouse explore when the user (or you) should keep a **shar
 - Never pin secrets; never skip approval by stuffing large content into \`body\` — use a Volume path instead.
 `;
 
+const DATAVIZ = `# dataviz
+
+## When to use
+The user wants a trend, comparison, distribution, ranking, or process/schema diagram, or a small result reads better as a table or chart than as prose.
+
+## Required inputs and access
+- A successful \`sql_query\` already aggregated to at most a few hundred rows (charts cap at 1000 rows and never use truncated results)
+- Tool access to \`pin_chart\` (charts from SQL) and \`pin_artifact\` (kind \`table\` or \`mermaid\`); both are Ask-first
+
+## Sequence of work
+1. Aggregate in SQL first (GROUP BY, date truncation, LIMIT); alias columns with plain names.
+2. Pick the form: \`table\` for lookup; \`line\` for time; \`bar\` for category comparison; \`point\` for relationships; \`rect\` for two-dimensional density; \`mermaid\` for process, lineage, or ER diagrams.
+3. For charts call \`pin_chart\` with title, \`source_tool_call_id\` (the sql_query call id) and a Vega-Lite v5 spec with only mark and encoding. Field names must match the query columns. Never include data or url. Set tooltip true, add axis titles, and give months or ranks an explicit sort.
+4. For tables or diagrams call \`pin_artifact\` with kind \`table\` ({columns, rows}) or \`mermaid\` (flowchart, sequenceDiagram, stateDiagram, classDiagram, erDiagram only).
+5. State the takeaway in one sentence.
+
+## How to validate
+- Row count is small; field names match the SQL aliases; no secrets or raw PII columns.
+- If pin_chart reports truncation or too many rows, tighten the query and run it again.
+
+## What to return
+- The one-sentence takeaway and a pointer to the pin in the transcript. Do not paste the spec.
+
+## What requires approval
+- Every \`pin_chart\` and \`pin_artifact\` call until the user allows the tool for this chat.
+`;
+
 /** Stable pack — add new seeds carefully; name changes orphan overrides. */
 export const SEED_SKILLS: readonly SeedSkill[] = [
   { name: 'sql-explore', body: SQL_EXPLORE.trim() + '\n' },
   { name: 'catalog-recon', body: CATALOG_RECON.trim() + '\n' },
   { name: 'weekly-table-health', body: WEEKLY_TABLE_HEALTH.trim() + '\n' },
   { name: 'pin-finding', body: PIN_FINDING.trim() + '\n' },
+  { name: 'dataviz', body: DATAVIZ.trim() + '\n' },
 ] as const;
 
 export function seedSkillByName(name: string): SeedSkill | undefined {

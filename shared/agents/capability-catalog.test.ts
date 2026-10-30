@@ -63,13 +63,18 @@ describe('capability-catalog', () => {
     expect(prompt.length).toBeLessThan(2_500);
   });
 
-  test('capability prompt mentions pin_artifact when registered', () => {
+  test('capability prompt mentions pin_artifact and pin_chart when registered', () => {
     const catalog = buildCapabilityCatalog({
-      toolNames: ['pin_artifact', 'remember', 'sql_query'],
-      skills: [{ name: 'pin-finding', body: '## When to use\nPin findings.' }],
+      toolNames: ['pin_artifact', 'pin_chart', 'remember', 'sql_query'],
+      skills: [
+        { name: 'pin-finding', body: '## When to use\nPin findings.' },
+        { name: 'dataviz', body: '## When to use\nChart SQL results.' },
+      ],
     });
     const prompt = formatCapabilityPrompt(catalog);
     expect(prompt).toContain('pin_artifact');
+    expect(prompt).toContain('pin_chart');
+    expect(prompt).toContain('dataviz');
     expect(prompt).toContain('remember for lasting rules');
     expect(prompt).toContain('pin-finding');
     expect(prompt).toContain('no secrets');

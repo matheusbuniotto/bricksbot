@@ -36,6 +36,18 @@ function isCreateBotToolEcho(content: string): boolean {
   }
 }
 
+function isPinToolEcho(content: string, toolName: string): boolean {
+  if (toolName !== 'pin_artifact' && toolName !== 'pin_chart') return false;
+  const trimmed = content.trim();
+  if (!trimmed.startsWith('{')) return false;
+  try {
+    const parsed = JSON.parse(trimmed) as { ok?: boolean; messageId?: string };
+    return parsed.ok === true && typeof parsed.messageId === 'string';
+  } catch {
+    return false;
+  }
+}
+
 function isRawSystemBlob(content: string): boolean {
   if (
     parseHandoffNotice(content) ||
@@ -93,9 +105,13 @@ export function ChatTranscript({
       collapseHandoffNotices(
         messages.filter((message) => {
           if (message.role !== 'tool') return true;
+          const toolName = message.toolCallId
+            ? (toolNameByCallId.get(message.toolCallId) ?? '')
+            : '';
           if (
             isHandoffToolEcho(message.content) ||
             isCreateBotToolEcho(message.content) ||
+            isPinToolEcho(message.content, toolName) ||
             parseHandoffNotice(message.content)
           ) {
             return false;
@@ -104,7 +120,7 @@ export function ChatTranscript({
         }),
         (message) => message.role === 'system',
       ),
-    [messages],
+    [messages, toolNameByCallId],
   );
 
   useEffect(() => {
