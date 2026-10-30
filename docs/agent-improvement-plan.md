@@ -1,4 +1,4 @@
-# BricksBot — Agent improvement & Grok parity plan
+# BricksBot, agent improvement and Grok parity plan
 
 **Status:** living plan (updated 2026-10-30).  
 **Sources:** marketplace plan, live Grok Bot Mac UI, `docs/durable-harness.md`, codebase.
@@ -21,8 +21,8 @@ Improve **agent behavior** (tools, skills, prompts, trust loops) toward Grok Bot
 
 | Pattern | Note for BricksBot |
 | --- | --- |
-| Choice / action cards in transcript | **Shipped** — `ask_choice` + “Sua resposta” |
-| Bot details sheet | **Shipped** — Details / Library / Computer |
+| Choice / action cards in transcript | **Shipped**, `ask_choice` + "Sua resposta" |
+| Bot details sheet | **Shipped**, Details / Library / Computer |
 | Routines live on Bot details | **Shipped** |
 | Biblioteca empty copy | **Shipped** (pins read-only) |
 | `Rascunho:` / waiting roster preview | **Shipped** as `Aguardando:` when `waiting` |
@@ -45,27 +45,27 @@ F — Databricks platform See databricks-platform-integration-plan.md (Genie opt
 6 — Connectors/voice    Prefer system.ai.* external MCPs when ready
 ```
 
-## Track B — Agent quality
+## Track B, agent quality
 
-### B1–B2 — Done
+### B1-B2, Done
 
 Seed skills, capability prompt habits (`sql_query` / catalog prefer, `save_skill` contract, operational `create_bot`), soft limits documented.
 
-### B3 — Remaining (not blocking OSS announce)
+### B3, Remaining (not blocking OSS announce)
 
 1. ~~Choice / action cards~~ **done**
 2. ~~Presence `waiting` / `blocked`~~ **done**
 3. ~~Bot details sheet~~ **done**
 4. ~~Wire Routines into details~~ **done** (Memory stays chat-driven; no orphan MemoryPanel mount)
-5. **Auto Review lite** — second model pass on risky tools
-6. **Space-scoped skill publish** — later team copy of skills
-7. **Deny semantics** — no auto-retry until a new user message
+5. **Auto Review lite**, second model pass on risky tools
+6. **Space-scoped skill publish**, later team copy of skills
+7. **Deny semantics**, no auto-retry until a new user message
 
 ### Explicitly out of Track B
 
 Computer / teach-by-demo / shell / browser, voice, Connect apps catalog, X @bot, Playwright-in-App as security boundary.
 
-## Track F — Databricks platform (pointer)
+## Track F, Databricks platform (pointer)
 
 → **[databricks-platform-integration-plan.md](databricks-platform-integration-plan.md)**
 

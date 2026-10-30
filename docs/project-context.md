@@ -1,23 +1,23 @@
-# BricksBot — Project context
+# BricksBot: Project context
 
 Databricks App aiming for near 1:1 Grok Bot product shape (Bot roster, durable agents, lakehouse tools, routines). Canonical research plan: [databricks-grokbot-marketplace-plan.md](databricks-grokbot-marketplace-plan.md). **Community share path:** [oss-community-release.md](oss-community-release.md).
 
 ## Locked decisions (2026-10-28)
 
-- **Computer**: Defer full persistent desktop / Playwright-in-App. **Updated 2026-10-30:** Phase 5 **execution sandbox is implemented** behind `SANDBOX_BACKEND` (default `off`): **Databricks Sandbox first**, then `python_exec` / E2B; **no Daytona**. Spec: [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md).
-- **Codebase**: Slim greenfield Databricks App with a strongly cloned Grok Bot UI — not Rakazo-based.
-- **Models**: OpenAI-compatible primary (OpenRouter-like); Databricks Model Serving as an option.
-- **Tenancy**: User-owned Bots; Spaces/folders; team sharing. Egress allowlists for LLM, connectors, and future sandbox.
+- **Computer.** Defer full persistent desktop / Playwright-in-App. **Updated 2026-10-30:** Phase 5 **execution sandbox is implemented** behind `SANDBOX_BACKEND` (default `off`): **Databricks Sandbox first**, then `python_exec` / E2B; **no Daytona**. Spec: [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md).
+- **Codebase.** Slim greenfield Databricks App with a strongly cloned Grok Bot UI, not Rakazo-based.
+- **Models.** OpenAI-compatible primary (OpenRouter-like); Databricks Model Serving as an option.
+- **Tenancy.** User-owned Bots; Spaces/folders; team sharing. Egress allowlists for LLM, connectors, and future sandbox.
 
 ## Locked later (2026-10-29)
 
-- **Agent loop**: **Thin Pi-compatible harness** (compaction, `CapabilityCatalog`, skills index + `activate_skill` / `read_skill_resource`, memory tools, durable approvals, requestId) — not embedding `@earendil-works/pi-durable` until a Lakebase adapter exists. See [durable-harness.md](durable-harness.md).
-- **Genie / Ontology (cost)**: Default remains cheap lakehouse tools (`sql_query`, catalog, volume, seeds). **Genie is opt-in / Ask-first**, not the default router — Genie Agent experiment before Genie One MCP. Ontology has **no partner API**; consume only via Genie when enabled. Canonical plan: [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md).
+- **Agent loop.** **Thin Pi-compatible harness** (compaction, `CapabilityCatalog`, skills index + `activate_skill` / `read_skill_resource`, memory tools, durable approvals, requestId), not embedding `@earendil-works/pi-durable` until a Lakebase adapter exists. See [durable-harness.md](durable-harness.md).
+- **Genie / Ontology (cost).** Default remains cheap lakehouse tools (`sql_query`, catalog, volume, seeds). **Genie is opt-in / Ask-first**, not the default router, Genie Agent experiment before Genie One MCP. Ontology has **no partner API**; consume only via Genie when enabled. Canonical plan: [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md).
 
-## Locked (2026-10-30) — distribution
+## Locked (2026-10-30): distribution
 
-- **Primary share path**: **Open-source GitHub + workspace DAB deploy** for the Databricks community.
-- **Marketplace Apps / PartnerOps**: Optional later; do **not** block OSS announce on public Apps listing or closed-source packaging.
+- **Primary share path.** **Open-source GitHub + workspace DAB deploy** for the Databricks community.
+- **Marketplace Apps / PartnerOps.** Optional later; do **not** block OSS announce on public Apps listing or closed-source packaging.
 - **Dev convenience** (clawhouse Lakebase/secret reuse) must not be the **only** documented install path.
 
 ## Shipped product core (through 2026-10-30)
@@ -26,8 +26,8 @@ Roster + presence (`waiting` / `blocked`), durable chat, dual ChatClient, lakeho
 
 ## Agent / platform tracks
 
-- Behaviors / Grok UI: [agent-improvement-plan.md](agent-improvement-plan.md) — Track B UI batch done; remaining = deny semantics, Auto Review lite, space skill publish.
-- Platform (Genie, Ontology, `system.ai` MCP): [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) — still go slow.
+- Behaviors / Grok UI: [agent-improvement-plan.md](agent-improvement-plan.md), Track B UI batch done; remaining = deny semantics, Auto Review lite, space skill publish.
+- Platform (Genie, Ontology, `system.ai` MCP): [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md), still go slow.
 - **Next must-do:** [roadmap-next.md](roadmap-next.md) → OSS hygiene first ([oss-community-release.md](oss-community-release.md)).
 
 ## Still open

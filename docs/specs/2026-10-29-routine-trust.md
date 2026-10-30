@@ -2,7 +2,7 @@
 
 **Status:** Implemented (2026-10-29)  
 **Status:** implemented (2026-10-29)  
-**Roadmap:** closed — Phase 4 finish; see [roadmap-next.md](../roadmap-next.md)  
+**Roadmap:** closed, Phase 4 finish; see [roadmap-next.md](../roadmap-next.md)  
 **Scope:** UI + shared helpers + Job stub docs. No Genie, no auto-deploy Jobs.
 
 ## Problem
@@ -51,5 +51,5 @@ Unknown shapes fall back to the raw cron string.
 
 ## Verification
 
-- `npm test` — includes `server/routines/trust-display.test.ts`
+- `npm test`, includes `server/routines/trust-display.test.ts`
 - Manual: create routine → copy banner → **Test** run → toggle enabled → webhook with saved secret (see `routes.test.ts`)

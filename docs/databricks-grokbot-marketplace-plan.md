@@ -1,4 +1,4 @@
-# Databricks Apps Marketplace plan: Grok Bot–parity agent
+# Databricks Apps Marketplace plan: Grok Bot parity agent
 
 **Audience:** product / architecture decision for BricksBot (Databricks Marketplace app that mirrors Grok Bot as closely as practical).  
 **Method:** online research only (Firecrawl); no local repo inspection.  
@@ -10,9 +10,9 @@
 
 | Topic | Decision |
 | --- | --- |
-| **Codebase** | **Greenfield slim App** with a **high-fidelity Grok Bot–cloned UI** (roster, presence, transcript chrome). Steal patterns from Rakazo/Pi Durable; do **not** fork Rakazo as the Marketplace binary. |
+| **Codebase** | **Greenfield slim App** with a **high-fidelity Grok Bot-cloned UI** (roster, presence, transcript chrome). Steal patterns from Rakazo/Pi Durable; do **not** fork Rakazo as the Marketplace binary. |
 | **Models** | **OpenAI-compatible** provider first (OpenRouter-like base URL + API key via Secret). **Databricks-native** Model Serving / Unity Gateway as a first-class install option. xAI is just another OpenAI-compatible endpoint if desired. |
-| **Computer** | **Defer full cloud desktop.** MVP = lakehouse + web tools only. Phase 5 plugs a `SandboxProvider` (**updated 2026-10-30:** Databricks Sandbox first, then E2B; no Daytona — [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md)). |
+| **Computer** | **Defer full cloud desktop.** MVP = lakehouse + web tools only. Phase 5 plugs a `SandboxProvider` (**updated 2026-10-30:** Databricks Sandbox first, then E2B; no Daytona, [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md)). |
 | **Marketplace** | **Plan call:** apply Data Partner Program now; ship **workspace-installable App** immediately; list on **public Marketplace Apps** when PartnerOps confirms App listing artifact. Do not block MVP on public listing. Private exchange is fine as interim distribution. |
 | **Tenancy** | **User-level** ownership of Bots + **team sharing**. Organize with in-app **Spaces / folders** (project/team boundaries) inside one App install per Databricks workspace. Map Databricks groups → Space membership where possible. |
 
@@ -40,7 +40,7 @@ Everything else (models, context windows, sandboxes) stays under the UI until th
 
 - **Bot roster** in the sidebar (scan by avatar; pin / section / hide) instead of a long chat history ([design](https://x.ai/news/designing-grok-bot); [bots](https://docs.x.ai/grok-bot/bots)).
 - **Presence:** avatar motion encodes idle / thinking / working / waiting / blocked / done; hover shows current action ([design](https://x.ai/news/designing-grok-bot)).
-- **Their computer:** status → side preview → full-screen takeover; wallpaper reinforces “coworker’s desk,” not your remote desktop ([design](https://x.ai/news/designing-grok-bot); [computer](https://docs.x.ai/grok-bot/computer-and-apps)).
+- **Their computer:** status → side preview → full-screen takeover; wallpaper reinforces "coworker's desk," not your remote desktop ([design](https://x.ai/news/designing-grok-bot); [computer](https://docs.x.ai/grok-bot/computer-and-apps)).
 - **Heterogeneous transcript:** prose, inline widgets (e.g. email drafts), system events (routine created), tool progress ([design](https://x.ai/news/designing-grok-bot); [chat](https://docs.x.ai/grok-bot/chat-and-collaboration)).
 - **Approvals by default** for outbound mail/Slack drafts; Secure Forms / Vault for secrets the model never sees ([chat](https://docs.x.ai/grok-bot/chat-and-collaboration); [computer](https://docs.x.ai/grok-bot/computer-and-apps)).
 - Practical limits (~50 Bots/account, ~6/group) to keep delegation manageable ([design](https://x.ai/news/designing-grok-bot)).
@@ -67,7 +67,7 @@ Work continues on the **cloud computer** when the laptop is closed ([overview](h
 5. Human takeover for SSO / CAPTCHA / passkeys; then continue ([computer](https://docs.x.ai/grok-bot/computer-and-apps)).
 6. Result lands as artifact + memory update; optional Skill / Routine capture ([skills & routines](https://docs.x.ai/grok-bot/skills-routines-and-automations)).
 
-**Context boundaries:** tools & skills are account-wide; memory & routines are per-Bot; all Bots share one account computer (files, cookies, CLI creds)—isolation is **between users**, not between Bots ([overview](https://docs.x.ai/grok-bot/overview); [computer](https://docs.x.ai/grok-bot/computer-and-apps); [design](https://x.ai/news/designing-grok-bot)).
+**Context boundaries:** tools & skills are account-wide; memory & routines are per-Bot; all Bots share one account computer (files, cookies, CLI creds), isolation is **between users**, not between Bots ([overview](https://docs.x.ai/grok-bot/overview); [computer](https://docs.x.ai/grok-bot/computer-and-apps); [design](https://x.ai/news/designing-grok-bot)).
 
 **Security shape (Cursor cloud):** app → Cursor servers (team policy) → per-member microVM computer + model providers (ZDR when Privacy Mode) + connector tools without tokens + Auto Review ([security](https://docs.x.ai/grok-bot/security)).
 
@@ -80,9 +80,9 @@ Goal: same *product semantics* inside a customer workspace via **Databricks Apps
 | Grok Bot concept | Databricks landing | Notes / unknowns |
 | --- | --- | --- |
 | Desktop/mobile client | **Databricks App** web UI (`https://<app>-<workspace-id>.<region>.databricksapps.com`) | Native Electron/iOS not Marketplace-native; optional thin clients later. Apps: Python/Node (Streamlit/Dash/Gradio/React/Express) ([Apps](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/)). |
-| Cursor control plane | App process + **Lakebase** (managed Postgres) for sessions/transcripts/bot registry | Apps **lose in-memory & local FS on restart**—must externalize state ([key concepts](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/key-concepts)). Lakebase is an official App resource ([resources](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/resources)). |
-| Bot identity + memory | Lakebase tables (+ optional UC tables/Volumes for exports) | Mirror “memory per Bot, capabilities per account/workspace.” |
-| Shared cloud computer | **Deferred (locked).** MVP: no desktop. Later: pluggable `SandboxProvider` via Secret + egress (Daytona / E2B Desktop preferred). UC Volumes as durable “home” files without GUI. | No free forever Grok-class computer inside Apps; see §2.1. |
+| Cursor control plane | App process + **Lakebase** (managed Postgres) for sessions/transcripts/bot registry | Apps **lose in-memory & local FS on restart**, must externalize state ([key concepts](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/key-concepts)). Lakebase is an official App resource ([resources](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/resources)). |
+| Bot identity + memory | Lakebase tables (+ optional UC tables/Volumes for exports) | Mirror "memory per Bot, capabilities per account/workspace." |
+| Shared cloud computer | **Deferred (locked).** MVP: no desktop. Later: pluggable `SandboxProvider` via Secret + egress (Daytona / E2B Desktop preferred). UC Volumes as durable "home" files without GUI. | No free forever Grok-class computer inside Apps; see §2.1. |
 | Connected apps (Gmail/Slack…) | UC **Connections** resource + OAuth connectors where available; else MCP/OpenAPI via secrets | Tokens should stay server-side like Grok ([security](https://docs.x.ai/grok-bot/security)). |
 | Model inference | **OpenAI-compatible** client (base URL + key Secret, OpenRouter-like) **or** Model Serving / **Unity Gateway** resource | Default path: BYO OpenAI-compatible. Databricks-native as install option ([resources](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/resources)). |
 | Long-term / RAG memory | **AI Search (Vector Search) index** resource | For recall beyond transcript summaries ([resources](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/resources)). |
@@ -94,7 +94,7 @@ Goal: same *product semantics* inside a customer workspace via **Databricks Apps
 | Secrets / Vault | Databricks **Secret** scopes as App resources (`valueFrom` in `app.yaml`) | Scope-level perms; one scope per app ([secrets](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/secrets)). |
 | Network policy | Workspace **NCC** + **network policies** (Enterprise) / SEG for Marketplace apps | Declare egress up front ([networking](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/networking); [Marketplace blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)). |
 | SQL / lakehouse tools | **SQL warehouse** + UC tables/volumes/functions as resources | Differentiator vs consumer Grok Bot: agents that are *data-native*. |
-| Genie / Agent Bricks | Optional Genie Agent resource | NL analytics inside the app ([Marketplace blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)). **Cost lock (2026-10-29):** Genie opt-in, not default — [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md). |
+| Genie / Agent Bricks | Optional Genie Agent resource | NL analytics inside the app ([Marketplace blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)). **Cost lock (2026-10-29):** Genie opt-in, not default, [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md). |
 | Billing compute | App instance size Medium/Large/XLarge (0.5 / 1 / 3 DBU/hr) + warehouse/serving usage | ([compute size](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/compute-size)). |
 
 ### Recommended reference architecture (MVP+)
@@ -116,21 +116,21 @@ Goal: same *product semantics* inside a customer workspace via **Databricks Apps
 
 `app.yaml` drives command + `env`/`valueFrom` bindings ([app runtime](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/app-runtime)); resources configured at install/deploy ([resources](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/resources)).
 
-### 2.1 Computer strategy — what’s easier / free?
+### 2.1 Computer strategy, what's easier / free?
 
 **Verdict: defer full computer.** Nothing free gives Grok-like persistent desktop + takeover inside Databricks Apps. Cheapest credible path is **tool-only MVP now**, then a **BYO sandbox key** later.
 
-| Option | Cost to start | Effort on Databricks Apps | Fits Grok “computer”? | Recommendation |
+| Option | Cost to start | Effort on Databricks Apps | Fits Grok "computer"? | Recommendation |
 | --- | --- | --- | --- | --- |
-| **No computer** — SQL/UC/Vector/`web_fetch` only | $0 beyond App DBUs | Lowest | No desktop; still useful lakehouse agent | **MVP default (locked)** |
-| **In-app Playwright / browser-use** | $0 (App CPU) | Medium; Chromium in App env is **unknown**/fragile; weak isolation (shares App process) | Browse-only, no real desktop/takeover | Optional thin “browser tool” only if Apps system image allows Chromium; not a security boundary |
+| **No computer**, SQL/UC/Vector/`web_fetch` only | $0 beyond App DBUs | Lowest | No desktop; still useful lakehouse agent | **MVP default (locked)** |
+| **In-app Playwright / browser-use** | $0 (App CPU) | Medium; Chromium in App env is **unknown**/fragile; weak isolation (shares App process) | Browse-only, no real desktop/takeover | Optional thin "browser tool" only if Apps system image allows Chromium; not a security boundary |
 | **Daytona** hosted | Free compute credits (~$200 cited in 2026 comparisons); then ~$0.05/vCPU-h + $0.016/GiB-h ([Daytona pricing](https://www.daytona.io/pricing); [comparison](https://pinggy.io/blog/best_cloud_computers_for_ai_agents/)) | Medium: Secret + egress + SDK; Computer Use available | Closest paid path with good free runway | ~~Preferred Phase 5 default~~ **Superseded 2026-10-30: no Daytona for now** ([specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md)) |
 | **E2B** (+ Desktop) | Hobby: **$100 one-time** credit, 20 concurrent, 1 h sessions; Pro $150/mo ([E2B pricing](https://e2b.dev/pricing)) | Medium; strongest agent-ecosystem SDKs; pause keeps memory | Yes (E2B Desktop) | Strong alt; use if team prefers E2B Desktop UX |
 | **OpenComputer** | ~$10 free credit; Apache-2.0 self-host possible ([pinggy roundup](https://pinggy.io/blog/best_cloud_computers_for_ai_agents/)) | Hosted: easy SDK; self-host: **hard** (needs KVM workers outside Apps) | Partial (8 h hard ceiling on hosted v2) | Prototype only; self-host not Marketplace-friendly |
-| **Self-host Docker / OpenComputer / E2B runtime on customer VMs** | Infra cost only | High ops; Apps call out via egress | Yes if customer runs it | Enterprise “BYOC computer” later—not MVP |
-| **Boat / Modal / machine0 / Vercel Sandbox** | Paid / various free scraps | Similar integration cost | Varies | Keep behind same `SandboxProvider` interface; don’t pick now |
+| **Self-host Docker / OpenComputer / E2B runtime on customer VMs** | Infra cost only | High ops; Apps call out via egress | Yes if customer runs it | Enterprise "BYOC computer" later, not MVP |
+| **Boat / Modal / machine0 / Vercel Sandbox** | Paid / various free scraps | Similar integration cost | Varies | Keep behind same `SandboxProvider` interface; don't pick now |
 
-**Why not “free Docker inside the App”?** Databricks Apps run as managed serverless containers ([key concepts](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/key-concepts)). Public docs do **not** expose nested Docker/KVM for untrusted agent desktops. Treating the App itself as the computer collapses isolation (one App SP / one process for all users)—unacceptable for Marketplace.
+**Why not "free Docker inside the App"?** Databricks Apps run as managed serverless containers ([key concepts](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/key-concepts)). Public docs do **not** expose nested Docker/KVM for untrusted agent desktops. Treating the App itself as the computer collapses isolation (one App SP / one process for all users), unacceptable for Marketplace.
 
 **Phase 5 interface (design now, implement later):** `SandboxProvider` with provision / exec / files / observe / destroy (Rakazo [computer-runtime](https://github.com/elie222/rakazo/blob/main/docs/computer-runtime.md) shape). Consumer pastes provider API key into a Secret; egress allowlists provider domains at install.
 
@@ -160,10 +160,10 @@ Legend: **P** = practical parity on Databricks Apps · **P\*** = parity with cav
 | Network allowlist | NCC / network policies | **P\*** | Enterprise tier for policies |
 | Vault / Secure Form | Secrets + UI masked fields | **P\*** | No 1Password ecosystem out of box |
 | Desktop/mobile native apps | Web-first | **N** | Post-MVP |
-| Zero Data Retention contracts | Customer Model Serving / Gateway | **P\*** | xAI BYO is customer’s contract |
+| Zero Data Retention contracts | Customer Model Serving / Gateway | **P\*** | xAI BYO is customer's contract |
 | Primary Bot / Chief of Staff routing | Product logic | **P** | |
 | Inline draft widgets | App UI components | **P** | |
-| Lakehouse-native tools (SQL, UC, Genie) | Native resources | **P** | **Beyond** Grok—strategic wedge |
+| Lakehouse-native tools (SQL, UC, Genie) | Native resources | **P** | **Beyond** Grok, strategic wedge |
 
 ---
 
@@ -177,7 +177,7 @@ Harness = **storage + parallel conversations + tools + execution env**. Portable
 | --- | --- | --- |
 | Storage backends | Memory / SQLite / JSONL; small interface | **Lakebase** as source of truth (not App local disk) |
 | Checkpointed tasks | Every model/tool/compaction step survives crash | Task rows + `resume()` on App boot / Job retry |
-| `requestId` exactly-once | Client retries don’t double-submit | Idempotent submit keys in Lakebase |
+| `requestId` exactly-once | Client retries don't double-submit | Idempotent submit keys in Lakebase |
 | Conversation fork | Thread from transcript point | Fork metadata; share history by reference |
 | Extensions | Prompt sections + tools + hooks + custom tasks | Registry in code; selection persisted by name |
 | Tool `replay: safe \| none` | Crash recovery policy | Persist intent before execute; refuse replay for deploys/writes |
@@ -187,7 +187,7 @@ Harness = **storage + parallel conversations + tools + execution env**. Portable
 | Documents | App state co-committed with transcript | Lakebase docs (todos, plans) in same txn |
 | Multiplayer watch | Many clients stream one conversation | App websockets / SSE over committed state |
 
-**Implementation choice:** embed `@earendil-works/pi-durable` (or a thin compatible harness) inside the App/worker, with a **Postgres/Lakebase storage adapter**. Unknown: whether Pi Durable’s published adapters already include Postgres—plan for a small custom storage backend conforming to their interface ([Pi Durable](https://earendil.com/posts/pi-durable/)).
+**Implementation choice:** embed `@earendil-works/pi-durable` (or a thin compatible harness) inside the App/worker, with a **Postgres/Lakebase storage adapter**. Unknown: whether Pi Durable's published adapters already include Postgres, plan for a small custom storage backend conforming to their interface ([Pi Durable](https://earendil.com/posts/pi-durable/)).
 
 ### Rakazo ([README](https://github.com/elie222/rakazo); [VISION](https://github.com/elie222/rakazo/blob/main/VISION.md); [computer-runtime](https://github.com/elie222/rakazo/blob/main/docs/computer-runtime.md))
 
@@ -214,13 +214,13 @@ Stack: TypeScript, React/Vite, Hono/oRPC, PostgreSQL/Prisma, Better Auth, Graphi
 - **Spaces** as auth boundaries; skills/MCP at account with availability ([VISION](https://github.com/elie222/rakazo/blob/main/VISION.md)).
 - Worker for routines + RLS-style tenancy (Rakazo uses Postgres RLS).
 
-**On Databricks:** App = `web+api`; **Jobs or long-lived App process** = worker; Lakebase = db; UC Volumes / object storage = AgentHomeStore; SandboxProvider behind egress Secrets. Shipping full Rakazo as the Marketplace container is possible in principle (closed-source packaging per [blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)) but heavy vs a slim Pi Durable–based App—decision for Matheus (§7).
+**On Databricks:** App = `web+api`; **Jobs or long-lived App process** = worker; Lakebase = db; UC Volumes / object storage = AgentHomeStore; SandboxProvider behind egress Secrets. Shipping full Rakazo as the Marketplace container is possible in principle (closed-source packaging per [blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)) but heavy vs a slim Pi Durable-based App, decision for Matheus (§7).
 
 ---
 
 ## 5. Marketplace packaging
 
-### What “Apps on Marketplace” means today
+### What "Apps on Marketplace" means today
 
 From the [Public Preview announcement](https://www.databricks.com/blog/announcing-apps-databricks-marketplace):
 
@@ -231,14 +231,14 @@ From the [Public Preview announcement](https://www.databricks.com/blog/announcin
 5. Egress declared and governed (SEG / network policy).
 6. Native stack hooks: UC, SQL Warehouse, Lakebase, Model Serving, Genie, Agent Bricks.
 
-Roadmap called out there (not all GA—treat as intent): bundled assets (jobs/notebooks), provider analytics, monetization.
+Roadmap called out there (not all GA, treat as intent): bundled assets (jobs/notebooks), provider analytics, monetization.
 
 **Provider path (plan call):**
 
 1. Apply to the [Data Partner Program](https://docs.databricks.com/aws/en/marketplace/become-provider) (`Databricks Data Provider`) immediately so Provider console unlocks.
-2. Ship MVP as a **normal Databricks App** installable in a workspace (Git/workspace deploy)—this is the real product artifact regardless of Marketplace.
+2. Ship MVP as a **normal Databricks App** installable in a workspace (Git/workspace deploy), this is the real product artifact regardless of Marketplace.
 3. For distribution before public Apps listing is fully documented: use **private exchange** and/or share the deployable App package with design partners.
-4. Escalate to `partnerops@databricks.com` for the **Apps-on-Marketplace listing artifact** (closed-source container + resource bindings per [blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)). Classic [create listing](https://docs.databricks.com/aws/en/marketplace/create-listing) docs still emphasize OpenSharing **data** shares—do not assume that flow alone publishes an App.
+4. Escalate to `partnerops@databricks.com` for the **Apps-on-Marketplace listing artifact** (closed-source container + resource bindings per [blog](https://www.databricks.com/blog/announcing-apps-databricks-marketplace)). Classic [create listing](https://docs.databricks.com/aws/en/marketplace/create-listing) docs still emphasize OpenSharing **data** shares, do not assume that flow alone publishes an App.
 
 Do **not** block product build on step 4.
 
@@ -276,7 +276,7 @@ Install wizard: pick provider → either bind Serving endpoint **or** enter base
 - **App SP:** Lakebase connect, Job run, Serving query, Volume R/W, Secret read, warehouse use as needed for *shared* ops (logging, compaction jobs).
 - **User OAuth:** UC table/volume access for user-scoped lakehouse tools (row filters/masks apply) ([auth](https://docs.databricks.com/gcp/en/dev-tools/databricks-apps/auth)).
 - **Do not** put PATs in code; use injected `DATABRICKS_CLIENT_ID`/`SECRET` ([auth](https://docs.databricks.com/gcp/en/dev-tools/databricks-apps/auth)).
-- Forwarded user tokens are **workspace-scoped**—multi-workspace warehouses need SP M2M or deploy app where the warehouse lives ([auth](https://docs.databricks.com/gcp/en/dev-tools/databricks-apps/auth)).
+- Forwarded user tokens are **workspace-scoped**, multi-workspace warehouses need SP M2M or deploy app where the warehouse lives ([auth](https://docs.databricks.com/gcp/en/dev-tools/databricks-apps/auth)).
 
 ### Tenancy & sharing (locked)
 
@@ -289,35 +289,35 @@ One **Databricks App install per workspace**. Inside the App:
 | **Team sharing** | Invite by Databricks group or user → Space membership (`viewer` / `member` / `admin`) |
 | **Workspace** | Hard outer boundary: separate Lakebase + App SP; no cross-workspace Bot DB in MVP |
 
-Capabilities (OpenAI-compatible keys, sandbox keys) default to **account/user or Space**, not duplicated per Bot—same Grok rule: capabilities shared, context per Bot ([design](https://x.ai/news/designing-grok-bot)).
+Capabilities (OpenAI-compatible keys, sandbox keys) default to **account/user or Space**, not duplicated per Bot, same Grok rule: capabilities shared, context per Bot ([design](https://x.ai/news/designing-grok-bot)).
 
 ### Egress allowlists (document for admins)
 
 Publish an install checklist of domains the App may need under [network policies](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/networking) / SEG:
 
 - Always: `*.databricksapps.com`, PyPI/npm build hosts as required by Databricks ([networking](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/networking))
-- If OpenAI-compatible: customer’s `LLM_BASE_URL` host (e.g. `openrouter.ai`, `api.x.ai`, …)
+- If OpenAI-compatible: customer's `LLM_BASE_URL` host (e.g. `openrouter.ai`, `api.x.ai`, …)
 - If connectors: per-provider OAuth/API hosts
 - If Phase 5 sandbox: Databricks Sandbox uses workspace-internal `/api/2.0/sandboxes`; E2B Cloud requires `api.e2b.dev` / `*.e2b.dev` (or custom `E2B_DOMAIN`)
 
 ### Multi-workspace considerations
 
 - One App instance **per workspace** (URL embeds `workspace-id`).
-- Shared metastore: UC objects can span; **App identity and Lakebase do not**—separate Bot databases per workspace in MVP.
+- Shared metastore: UC objects can span; **App identity and Lakebase do not**, separate Bot databases per workspace in MVP.
 - CI/CD: Git-backed deploy + Declarative Automation Bundles for staging→prod ([deploy](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/deploy)).
 
 ---
 
 ## 6. MVP vs full 1:1 scope, build order
 
-### MVP (Marketplace-credible “Grok Bot for the Lakehouse”)
+### MVP (Marketplace-credible "Grok Bot for the Lakehouse")
 
 Slim App + **cloned Grok UI**, durable and data-native, **no cloud desktop**:
 
 1. High-fidelity UI: Bot roster, avatars/presence, chat transcript, approval cards, Spaces/folders sidebar.
 2. Durable harness on Lakebase (Pi Durable patterns: tasks, checkpoints, compaction, documents).
 3. `ChatClient`: OpenAI-compatible (primary) + Databricks Serving/Gateway option.
-4. Tools: SQL warehouse, UC volume R/W, Vector Search, allowlisted `web_fetch`; **optional Genie** (Ask-first / install-bound — not default; see [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md)).
+4. Tools: SQL warehouse, UC volume R/W, Vector Search, allowlisted `web_fetch`; **optional Genie** (Ask-first / install-bound, not default; see [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md)).
 5. Per-Bot memory; user-owned Bots; Space sharing for team Bots/skills.
 6. Routines via Lakeflow Job → App webhook (cron first).
 7. Bot-to-Bot message + Primary Bot router.
@@ -357,18 +357,18 @@ Resolved items are in **§0**. Updates through 2026-10-30:
 
 | Item | Status |
 | --- | --- |
-| Pi Durable vs thin internal harness | **Resolved:** thin Pi-compatible harness — [durable-harness.md](durable-harness.md) |
-| Genie default vs opt-in | **Resolved:** opt-in / cost-locked — [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
-| Primary distribution | **Resolved for now:** OSS GitHub + DAB first — [oss-community-release.md](oss-community-release.md); PartnerOps Apps listing optional later |
+| Pi Durable vs thin internal harness | **Resolved:** thin Pi-compatible harness, [durable-harness.md](durable-harness.md) |
+| Genie default vs opt-in | **Resolved:** opt-in / cost-locked, [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
+| Primary distribution | **Resolved for now:** OSS GitHub + DAB first, [oss-community-release.md](oss-community-release.md); PartnerOps Apps listing optional later |
 
 Still open:
 
-1. **Horizontal scaling / websockets** — single App instance first vs sticky multi-instance for streaming ([horizontal scaling](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/horizontal-scaling))?
+1. **Horizontal scaling / websockets**, single App instance first vs sticky multi-instance for streaming ([horizontal scaling](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/horizontal-scaling))?
 2. **License** for public GitHub (Apache-2.0 vs MIT, etc.)
-3. **Phase 5 provider pick** — lock Daytona vs E2B when computer epic starts (recommend Daytona free credits → E2B if Desktop UX wins)?
-4. **Success metric** — UX clone fidelity vs lakehouse capability matrix %?
-5. **Chromium-in-App** — verify whether Databricks Apps system image allows a bounded Playwright tool without a sandbox (optional; not a security boundary).
-6. **Whether to pursue PartnerOps** after OSS v0 — optional; not a product blocker.
+3. **Phase 5 provider pick**, lock Daytona vs E2B when computer epic starts (recommend Daytona free credits → E2B if Desktop UX wins)?
+4. **Success metric**, UX clone fidelity vs lakehouse capability matrix %?
+5. **Chromium-in-App**, verify whether Databricks Apps system image allows a bounded Playwright tool without a sandbox (optional; not a security boundary).
+6. **Whether to pursue PartnerOps** after OSS v0, optional; not a product blocker.
 
 **MVP build status** (vs §6): UI + durable chat + dual ChatClient + read lakehouse tools + memory/skills + handoff + routines webhook + trust UI **done**; `volume_write` / Vector / Job automation / audit / Genie / Space-share UI **partial or later**. Live checklist: [oss-community-release.md](oss-community-release.md), [roadmap-next.md](roadmap-next.md).
 

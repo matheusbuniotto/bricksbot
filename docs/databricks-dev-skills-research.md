@@ -12,7 +12,7 @@
 | Tool | What it is | Primary links |
 | --- | --- | --- |
 | **Databricks CLI** | Auth profiles, `apps`, `bundle`, `aitools`, workspace sync. Need **v1.0.0+** for `aitools`; Apps+DAB tutorials cite **≥0.250.0**. | [CLI docs](https://docs.databricks.com/aws/en/dev-tools/cli/) · [aitools ref](https://docs.databricks.com/aws/en/dev-tools/cli/reference/aitools-commands) |
-| **Declarative Automation Bundles (DABs)** | IaC for Apps, Jobs, Lakebase, serving, UC resources. `bundle deploy` / `bundle run`. Formerly “Asset Bundles.” | [Bundles](https://docs.databricks.com/aws/en/dev-tools/bundles/) · [Apps in a bundle](https://docs.databricks.com/aws/en/dev-tools/bundles/apps-tutorial) |
+| **Declarative Automation Bundles (DABs)** | IaC for Apps, Jobs, Lakebase, serving, UC resources. `bundle deploy` / `bundle run`. Formerly "Asset Bundles." | [Bundles](https://docs.databricks.com/aws/en/dev-tools/bundles/) · [Apps in a bundle](https://docs.databricks.com/aws/en/dev-tools/bundles/apps-tutorial) |
 | **Databricks Apps** | Serverless workspace apps (Python or Node). `app.yaml`, resources, OAuth, Lakebase, Serving, SQL. AppKit (TS+React) is the recommended greenfield path. | [Apps](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/) · [app-templates](https://github.com/databricks/app-templates) · [apps cookbook / GHA](https://github.com/databricks-solutions/databricks-apps-cookbook) |
 | **SDK Python** | Workspace APIs: Apps, Jobs, Serving, UC, secrets, SQL. | [SDK Python](https://docs.databricks.com/aws/en/dev-tools/sdk-python) · [ReadTheDocs](https://databricks-sdk-py.readthedocs.io/) |
 | **SDK JS/TS** | Same surface for Node/AppKit backends. | [SDK JavaScript](https://docs.databricks.com/aws/en/dev-tools/sdk-javascript) |
@@ -65,26 +65,26 @@ bash <(curl -sL https://raw.githubusercontent.com/databricks-solutions/ai-dev-ki
 
 | Rank | Skill / pack | Why for MVP |
 | --- | ---: | --- |
-| **1** | **`databricks-core`** | Auth, profiles, CLI — parent of everything. |
+| **1** | **`databricks-core`** | Auth, profiles, CLI, parent of everything. |
 | **2** | **`databricks-apps`** (+ **`databricks-app-design`**) | AppKit TS+React greenfield; UX patterns for chat/data surfaces. |
 | **3** | **`databricks-dabs`** | Repeatable App (+ later Lakebase/Jobs) deploy. |
 | **4** | **`databricks-lakebase`** | Bot/chat/memory persistence layer. |
 | **5** | **`databricks-model-serving`** | Second model path (Serving / Gateway). |
 | **6** | **`databricks-python-sdk`** (and/or JS SDK docs) | Workspace API calls from App/backend. |
-| **7** | **Cursor Databricks plugin** | `/databricks-setup`, `/databricks-doctor`, routing rule — even if skills also installed via CLI. |
+| **7** | **Cursor Databricks plugin** | `/databricks-setup`, `/databricks-doctor`, routing rule, even if skills also installed via CLI. |
 | **8** | **Managed MCP** `system.ai.dbsql` / Genie One | Only when agents need live workspace SQL from the IDE. |
 | **9** | **`databricks-jobs`**, **`databricks-unity-gateway`**, **MLflow skills** | Phase 2+: routines, governed models, eval. |
 | **Defer** | AI Dev Kit **standalone MCP** (40+ tools) | Prefer managed MCP; keep as fallback if you need custom tool surface. |
 | **Defer** | **`databricks-apps-python`**, Connect, pipelines, vector search | Not default greenfield; use if you deliberately pick Streamlit/Dash or RAG indexes. |
 | **Avoid** | Old **AI Dev Kit bundled skills** / retired `databricks-ai-dev-kit` plugin | Deprecated; conflicts with official names (`databricks-bundles` → `databricks-dabs`, etc.). |
 
-**App templates worth cloning patterns from:** [databricks/app-templates](https://github.com/databricks/app-templates) (AppKit serving, agent kits, Lakebase kit) — not as product fork, as deploy/auth/resource examples.
+**App templates worth cloning patterns from:** [databricks/app-templates](https://github.com/databricks/app-templates) (AppKit serving, agent kits, Lakebase kit), not as product fork, as deploy/auth/resource examples.
 
 ---
 
 ## 4. Links cheat sheet (skills / MCP / marketplaces)
 
-### Official skills & plugins
+### Official skills and plugins
 - Docs: https://docs.databricks.com/aws/en/agent-skills/
 - Repo: https://github.com/databricks/databricks-agent-skills
 - Cursor marketplace: https://cursor.com/marketplace/databricks (`/add-plugin databricks`)
@@ -114,28 +114,28 @@ bash <(curl -sL https://raw.githubusercontent.com/databricks-solutions/ai-dev-ki
 
 ---
 
-## 5. Gaps — custom Project skills / workflows to write
+## 5. Gaps, custom Project skills / workflows to write
 
 Official packs cover **platform** well; they do **not** cover BricksBot product shape. Worth authoring Project skills (or Cursor rules) for:
 
 | Gap | Custom skill / workflow |
 | --- | --- |
 | **OpenAI-compatible + Serving dual path** | Skill: env/secrets for OpenRouter-like base URL vs Databricks Serving; feature flag; no xAI hard-code. |
-| **Grok Bot–like App UX** | Skill: roster/presence/transcript chrome constraints; AppKit component mapping; “no computer in MVP.” |
+| **Grok Bot-like App UX** | Skill: roster/presence/transcript chrome constraints; AppKit component mapping; "no computer in MVP." |
 | **Lakebase schema for Bots/Spaces** | Skill: tables for bots, chats, memories, spaces, sharing; migration via DAB/Alembic. |
 | **Marketplace / PartnerOps install** | Checklist skill: egress allowlists, required secrets, UC grants, App resources (Lakebase, Serving, SQL). |
 | **Agent harness choice** | Skill: Pi Durable vs thin loop decision; tool interface contracts without Daytona/E2B yet. |
 | **Deploy recipe** | Project workflow: `bundle validate` → deploy → smoke URL; profile naming `dev`/`prod`. |
 | **Tenancy mapping** | Skill: Databricks groups → Space membership; user-owned bots. |
 
-Do **not** reinvent `databricks-apps` / `databricks-dabs` / `databricks-lakebase` — compose them.
+Do **not** reinvent `databricks-apps` / `databricks-dabs` / `databricks-lakebase`, compose them.
 
 ---
 
 ## Top 5 recommendations for Matheus
 
-1. **Install official AI Tools today** — `databricks aitools install` (CLI ≥1.0) **or** Cursor `/add-plugin databricks`; uninstall any old AI Dev Kit skill copies first.  
+1. **Install official AI Tools today**, `databricks aitools install` (CLI ≥1.0) **or** Cursor `/add-plugin databricks`; uninstall any old AI Dev Kit skill copies first.  
 2. **Prioritize five skills:** `databricks-core` → `databricks-apps` (+ `app-design`) → `databricks-dabs` → `databricks-lakebase` → `databricks-model-serving`.  
-3. **Greenfield on AppKit (TS+React)** with DAB deploy; use [app-templates](https://github.com/databricks/app-templates) as reference only — not a product fork.  
+3. **Greenfield on AppKit (TS+React)** with DAB deploy; use [app-templates](https://github.com/databricks/app-templates) as reference only, not a product fork.  
 4. **Treat AI Dev Kit as onboarding + optional Builder/MCP**, not the skill source of truth ([ai-dev-kit](https://github.com/databricks-solutions/ai-dev-kit) explicitly hands skills to engineering-owned AI Tools).  
-5. **Write 2–3 BricksBot Project skills next** (dual LLM path, Lakebase bot schema, Marketplace install/egress) — biggest leverage gap vs official packs; defer Connect, Jobs, and managed MCP until needed.
+5. **Write 2 to 3 BricksBot Project skills next** (dual LLM path, Lakebase bot schema, Marketplace install/egress), biggest use gap vs official packs; defer Connect, Jobs, and managed MCP until needed.
