@@ -141,7 +141,7 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
 
   if (catalog.tools.some((tool) => tool.name === 'pin_chart')) {
     blocks[0] +=
-      ' To chart query results call pin_chart with the sql_query tool call id and a Vega-Lite encoding; do not retype rows into pin_artifact.';
+      ' Interactive charts, tables, and diagrams render directly in the chat UI: for SQL results call pin_chart with the sql_query tool call id and a Vega-Lite encoding; for Python/simulation results or computed distributions call pin_artifact with kind "chart" and a Vega-Lite v5 JSON spec containing inline data.values (or kind "table" / "mermaid"). Never say you cannot attach images or fall back to ASCII/text bar charts.';
   }
 
   if (catalog.tools.some((tool) => tool.name === 'ask_choice')) {

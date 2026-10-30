@@ -11,7 +11,6 @@ import { useMouseFollow } from './components/BotPicker';
 import { BotRoster } from './components/BotRoster';
 import { ChatComposer } from './components/ChatComposer';
 import { ChatTranscript } from './components/ChatTranscript';
-import { RunningToolStatus } from './components/RunningToolStatus';
 import {
   archiveBot,
   createBot,
@@ -599,9 +598,6 @@ export default function App() {
               onOpenBot={(botId) => void handleSelectBot(botId)}
             />
             <ApprovalCards approvals={pendingApprovals} busyId={approvalBusyId} onDecide={handleDecide} />
-            {runningTool ? (
-              <RunningToolStatus label={runningTool.label} startedAt={runningTool.startedAt} />
-            ) : null}
             {/* CHOICE_CARDS — pending ask_choice prompts (below approvals, above composer) */}
             <ChoiceCards
               chatId={chat?.id ?? null}

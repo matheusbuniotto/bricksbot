@@ -20,9 +20,9 @@ const ARTIFACT_KINDS: readonly ArtifactPinKind[] = ARTIFACT_PIN_KINDS;
 export const pinArtifactToolDefinition: ToolDefinition = {
   name: PIN_ARTIFACT_TOOL_NAME,
   description:
-    'Pin a short lakehouse finding onto this chat as a durable artifact (title + kind + body or path/URL). ' +
-    'Use after a successful explore when the user should see a shareable result in the transcript. ' +
-    'Prefer remember for lasting rules; pin for findings. Never pin secrets. Large content: store on a Volume and pin the path.',
+    'Pin a finding, interactive Vega-Lite chart, table, or Mermaid diagram onto this chat as a rendered artifact (title + kind + body). ' +
+    'Use kind="chart" with a Vega-Lite v5 JSON spec (inline data.values) to render charts from python_exec or calculations; use pin_chart when charting an earlier sql_query. ' +
+    'Never draw ASCII charts or claim you cannot attach images. Never pin secrets.',
   parameters: {
     type: 'object',
     additionalProperties: false,

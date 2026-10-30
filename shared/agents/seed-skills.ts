@@ -125,25 +125,26 @@ After a successful lakehouse explore when the user (or you) should keep a **shar
 const DATAVIZ = `# dataviz
 
 ## When to use
-The user wants a trend, comparison, distribution, ranking, or process/schema diagram, or a small result reads better as a table or chart than as prose.
+The user wants a trend, comparison, distribution, histogram, ranking, or process/schema diagram, or a result reads better as an interactive chart or table than as prose.
 
 ## Required inputs and access
-- A successful \`sql_query\` already aggregated to at most a few hundred rows (charts cap at 1000 rows and never use truncated results)
-- Tool access to \`pin_chart\` (charts from SQL) and \`pin_artifact\` (kind \`table\` or \`mermaid\`); both are Ask-first
+- Either a successful \`sql_query\` aggregated to at most a few hundred rows, OR summary bins/series computed in \`python_exec\`.
+- Tool access to \`pin_chart\` (charts from SQL) and \`pin_artifact\` (kind \`chart\`, \`table\`, or \`mermaid\`); both are Ask-first.
 
 ## Sequence of work
-1. Aggregate in SQL first (GROUP BY, date truncation, LIMIT); alias columns with plain names.
-2. Pick the form: \`table\` for lookup; \`line\` for time; \`bar\` for category comparison; \`point\` for relationships; \`rect\` for two-dimensional density; \`mermaid\` for process, lineage, or ER diagrams.
-3. For charts call \`pin_chart\` with title, \`source_tool_call_id\` (the sql_query call id) and a Vega-Lite v5 spec with only mark and encoding. Field names must match the query columns. Never include data or url. Set tooltip true, add axis titles, and give months or ranks an explicit sort.
-4. For tables or diagrams call \`pin_artifact\` with kind \`table\` ({columns, rows}) or \`mermaid\` (flowchart, sequenceDiagram, stateDiagram, classDiagram, erDiagram only).
-5. State the takeaway in one sentence.
+1. Aggregate first: in SQL (GROUP BY, date truncation, LIMIT) or in Python (bin histograms/bootstrap distributions into 15-50 summary rows and print JSON).
+2. Pick the form: \`table\` for lookup; \`line\` for time; \`bar\` for category comparison or histograms; \`point\` for relationships; \`rect\` for two-dimensional density; \`mermaid\` for process, lineage, or ER diagrams.
+3. If the rows came from \`sql_query\`, call \`pin_chart\` with title, \`source_tool_call_id\`, and a Vega-Lite v5 spec with only mark and encoding (no data or url).
+4. If the rows came from \`python_exec\` or in-turn calculations, call \`pin_artifact\` with kind \`chart\` and body set to a Vega-Lite v5 JSON string including inline \`data: { values: [...] }\`, \`mark\`, and \`encoding\` (plus optional \`layer\` with a \`rule\` mark for observed means or confidence intervals). Never say you cannot attach images or fall back to ASCII/Unicode bar charts.
+5. For tables or diagrams call \`pin_artifact\` with kind \`table\` ({columns, rows}) or \`mermaid\` (flowchart, sequenceDiagram, stateDiagram, classDiagram, erDiagram only).
+6. State the takeaway in one sentence.
 
 ## How to validate
-- Row count is small; field names match the SQL aliases; no secrets or raw PII columns.
+- Row count is small; field names match the data keys; no secrets or raw PII columns.
 - If pin_chart reports truncation or too many rows, tighten the query and run it again.
 
 ## What to return
-- The one-sentence takeaway and a pointer to the pin in the transcript. Do not paste the spec.
+- The one-sentence takeaway and a pointer to the pin in the transcript. Do not paste the spec or draw text bars.
 
 ## What requires approval
 - Every \`pin_chart\` and \`pin_artifact\` call until the user allows the tool for this chat.
