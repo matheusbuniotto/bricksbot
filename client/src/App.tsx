@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { PendingChoice } from '../../shared/chat/choice-notice';
 import type { Bot, Chat, Message, Space } from '../../shared/chat/types';
 import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/types';
@@ -38,13 +38,19 @@ import {
   updateRoutine,
 } from './lib/routines-api';
 import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
-import {
-  lastUserFacingPreview,
-  presenceTooltip,
-  rosterPreviewForPresence,
-  toolLabel,
-} from './lib/user-facing';
+import { lastUserFacingPreview, toolLabel } from './lib/user-facing';
 import type { Routine } from '../../shared/routines/types';
+
+const DETAILS_WIDTH_KEY = 'bricksbot.detailsWidth';
+const DETAILS_WIDTH_DEFAULT = 360;
+const DETAILS_WIDTH_MIN = 280;
+const DETAILS_WIDTH_MAX = 720;
+
+function readDetailsWidth(): number {
+  const raw = Number(localStorage.getItem(DETAILS_WIDTH_KEY));
+  if (!Number.isFinite(raw)) return DETAILS_WIDTH_DEFAULT;
+  return Math.min(DETAILS_WIDTH_MAX, Math.max(DETAILS_WIDTH_MIN, raw));
+}
 
 export default function App() {
   useMouseFollow();
@@ -73,6 +79,7 @@ export default function App() {
   const [detailsOpen, setDetailsOpen] = useState<boolean>(
     () => localStorage.getItem('bricksbot.detailsOpen') === '1',
   );
+  const [detailsWidth, setDetailsWidth] = useState<number>(() => readDetailsWidth());
   const toggleDetails = useCallback(() => {
     setDetailsOpen((open) => {
       localStorage.setItem('bricksbot.detailsOpen', open ? '0' : '1');
@@ -82,6 +89,11 @@ export default function App() {
   const closeDetails = useCallback(() => {
     setDetailsOpen(false);
     localStorage.setItem('bricksbot.detailsOpen', '0');
+  }, []);
+  const handleDetailsWidthChange = useCallback((width: number) => {
+    const next = Math.min(DETAILS_WIDTH_MAX, Math.max(DETAILS_WIDTH_MIN, Math.round(width)));
+    setDetailsWidth(next);
+    localStorage.setItem(DETAILS_WIDTH_KEY, String(next));
   }, []);
 
   function handleThemeChange(next: Theme) {
@@ -500,16 +512,12 @@ export default function App() {
                 track
                 presence={selectedBot.presence}
               />
-              <span className="chat-pill-copy">
-                <span className="chat-pill-name">{selectedBot.name}</span>
-                <span className="chat-pill-preview" aria-hidden="true">
-                  {rosterPreviewForPresence(
-                    selectedBot.presence,
-                    previews[selectedBot.id] ?? '',
-                  ) || presenceTooltip(selectedBot.presence)}
-                </span>
-              </span>
-              <ChevronRight className="chat-pill-chevron" size={14} strokeWidth={2} aria-hidden />
+              <span className="chat-pill-name">{selectedBot.name}</span>
+              {detailsOpen ? (
+                <ChevronLeft className="chat-pill-chevron" size={14} strokeWidth={2} aria-hidden />
+              ) : (
+                <ChevronRight className="chat-pill-chevron" size={14} strokeWidth={2} aria-hidden />
+              )}
             </button>
 
             {autoApprovedTools.length > 0 ? (
@@ -580,6 +588,10 @@ export default function App() {
           lastWebhookSecret={lastWebhookSecret}
           sandboxStatus={sandboxStatus}
           sandboxBusy={sandboxBusy}
+          width={detailsWidth}
+          minWidth={DETAILS_WIDTH_MIN}
+          maxWidth={DETAILS_WIDTH_MAX}
+          onWidthChange={handleDetailsWidthChange}
           onCreateRoutine={handleCreateRoutine}
           onUpdateRoutine={handleUpdateRoutine}
           onRunRoutine={handleRunRoutine}

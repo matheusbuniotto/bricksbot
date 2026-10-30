@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { X } from 'lucide-react';
 import type { ArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
@@ -50,6 +50,10 @@ export function BotDetailsSheet({
   lastWebhookSecret,
   sandboxStatus,
   sandboxBusy,
+  width,
+  minWidth,
+  maxWidth,
+  onWidthChange,
   onCreateRoutine,
   onUpdateRoutine,
   onRunRoutine,
@@ -65,6 +69,10 @@ export function BotDetailsSheet({
   lastWebhookSecret: string | null;
   sandboxStatus?: SandboxUiStatus | null;
   sandboxBusy?: boolean;
+  width: number;
+  minWidth: number;
+  maxWidth: number;
+  onWidthChange: (width: number) => void;
   onCreateRoutine: (input: {
     botId: string;
     name: string;
@@ -82,13 +90,81 @@ export function BotDetailsSheet({
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<BotDetailsTab>('details');
+  const [resizing, setResizing] = useState(false);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const files = listArtifactPinsFromMessages(messages);
+
+  const onResizePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      dragRef.current = { startX: event.clientX, startWidth: width };
+      setResizing(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    [width],
+  );
+
+  const onResizePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      // Pane is on the right: drag left → wider.
+      const next = drag.startWidth + (drag.startX - event.clientX);
+      onWidthChange(Math.min(maxWidth, Math.max(minWidth, next)));
+    },
+    [maxWidth, minWidth, onWidthChange],
+  );
+
+  const onResizePointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    setResizing(false);
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* already released */
+    }
+  }, []);
 
   return (
     <aside
-      className="bot-details-pane hidden md:flex w-[min(360px,32vw)] flex-none min-h-0 flex-col border-l border-border bg-background"
+      className={
+        resizing
+          ? 'bot-details-pane is-resizing hidden md:flex flex-none min-h-0 flex-col border-l border-border bg-background'
+          : 'bot-details-pane hidden md:flex flex-none min-h-0 flex-col border-l border-border bg-background'
+      }
+      style={{ width }}
       aria-label={`Details for ${bot.name}`}
     >
+      <div
+        className="bot-details-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize details"
+        aria-valuemin={minWidth}
+        aria-valuemax={maxWidth}
+        aria-valuenow={Math.round(width)}
+        tabIndex={0}
+        onPointerDown={onResizePointerDown}
+        onPointerMove={onResizePointerMove}
+        onPointerUp={onResizePointerUp}
+        onPointerCancel={onResizePointerUp}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            onWidthChange(width + 16);
+          } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            onWidthChange(width - 16);
+          } else if (event.key === 'Home') {
+            event.preventDefault();
+            onWidthChange(maxWidth);
+          } else if (event.key === 'End') {
+            event.preventDefault();
+            onWidthChange(minWidth);
+          }
+        }}
+      />
       <header className="shrink-0 border-b border-border/80 px-4 py-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-baseline gap-2 min-w-0">

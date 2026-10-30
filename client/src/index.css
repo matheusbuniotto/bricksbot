@@ -231,6 +231,47 @@ select {
   scrollbar-gutter: stable;
 }
 
+.bot-details-pane {
+  position: relative;
+}
+
+.bot-details-pane.is-resizing {
+  user-select: none;
+}
+
+.bot-details-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 7px;
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.bot-details-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.bot-details-resizer:hover::after,
+.bot-details-resizer:focus-visible::after,
+.bot-details-pane.is-resizing .bot-details-resizer::after {
+  background: color-mix(in oklab, var(--foreground) 28%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.bot-details-resizer:focus-visible {
+  outline: none;
+}
+
 .bot-details-scroll {
   scrollbar-gutter: stable;
 }
@@ -988,45 +1029,14 @@ textarea.field {
   outline-offset: 2px;
 }
 
-.chat-pill-copy {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 0;
-  line-height: 1.15;
-}
-
 .chat-pill-name {
+  min-width: 0;
   font-size: 13.5px;
   font-weight: 550;
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.chat-pill-preview {
-  max-width: 280px;
-  max-height: 0;
-  margin-top: 0;
-  font-size: 11px;
-  color: var(--muted-foreground);
-  opacity: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  transition:
-    max-height 180ms ease,
-    opacity 140ms ease,
-    margin-top 180ms ease;
-}
-
-.chat-pill:hover .chat-pill-preview,
-.chat-pill:focus-visible .chat-pill-preview,
-.chat-pill.is-open .chat-pill-preview {
-  max-height: 1.4em;
-  margin-top: 1px;
-  opacity: 1;
 }
 
 @media (max-width: 767px) {
@@ -1052,14 +1062,11 @@ textarea.field {
 }
 
 .chat-pill:hover .chat-pill-chevron,
-.chat-pill:focus-visible .chat-pill-chevron {
-  opacity: 1;
-  transform: translateX(0);
-}
-
+.chat-pill:focus-visible .chat-pill-chevron,
 .chat-pill.is-open:hover .chat-pill-chevron,
 .chat-pill.is-open:focus-visible .chat-pill-chevron {
-  transform: rotate(90deg);
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .auto-approvals-bar {
