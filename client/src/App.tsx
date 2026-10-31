@@ -112,6 +112,18 @@ export default function App() {
     ? routines.filter((routine) => routine.botId === selectedBotId)
     : [];
 
+  const syncPreviewsFromBots = useCallback((botsList: Bot[]) => {
+    setPreviews((prev) => {
+      const next = { ...prev };
+      for (const bot of botsList) {
+        if (bot.lastPreview !== undefined) {
+          next[bot.id] = bot.lastPreview;
+        }
+      }
+      return next;
+    });
+  }, []);
+
   const refreshRoster = useCallback(async () => {
     const [nextBots, nextArchived] = await Promise.all([
       fetchBots(undefined, 'active'),
@@ -119,8 +131,9 @@ export default function App() {
     ]);
     setBots(nextBots);
     setArchivedBots(nextArchived);
+    syncPreviewsFromBots([...nextBots, ...nextArchived]);
     return { nextBots, nextArchived };
-  }, []);
+  }, [syncPreviewsFromBots]);
 
   const refreshRoutines = useCallback(async () => {
     const next = await fetchRoutines();
@@ -139,21 +152,6 @@ export default function App() {
     setPreviews((prev) => ({ ...prev, [botId]: lastUserFacingPreview(data.messages) }));
   }, []);
 
-  const hydratePreviews = useCallback((nextBots: Bot[]) => {
-    void Promise.all(
-      nextBots.map(async (bot) => {
-        try {
-          const data = await fetchBotChat(bot.id);
-          return [bot.id, lastUserFacingPreview(data.messages)] as const;
-        } catch {
-          return [bot.id, ''] as const;
-        }
-      })
-    ).then((entries) => {
-      setPreviews((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
-    });
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -169,10 +167,10 @@ export default function App() {
         setBots(nextBots);
         setArchivedBots(nextArchived);
         setRoutines(nextRoutines);
+        syncPreviewsFromBots([...nextBots, ...nextArchived]);
         const nextSelected = nextBots.find((bot) => bot.isPrimary)?.id ?? nextBots[0]?.id ?? null;
         setSelectedBotId(nextSelected);
         if (nextSelected) await loadChat(nextSelected);
-        hydratePreviews([...nextBots, ...nextArchived]);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load');
       } finally {
@@ -182,7 +180,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [hydratePreviews, loadChat]);
+  }, [loadChat, syncPreviewsFromBots]);
 
   async function handleSelectBot(botId: string) {
     setSelectedBotId(botId);
@@ -360,8 +358,7 @@ export default function App() {
         setAutoApprovedTools(result.autoApprovedTools);
       }
       if (selectedBotId) await loadChat(selectedBotId);
-      const { nextBots } = await refreshRoster();
-      hydratePreviews(nextBots);
+      await refreshRoster();
     } catch (err) {
       // Restore the approval card if the decide call failed after optimistic remove.
       if (accepted && approval) {
@@ -388,8 +385,7 @@ export default function App() {
         setAutoApprovedTools(result.autoApprovedTools);
       }
       if (selectedBotId) await loadChat(selectedBotId);
-      const { nextBots } = await refreshRoster();
-      hydratePreviews(nextBots);
+      await refreshRoster();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Choice failed');
     } finally {
