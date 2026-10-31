@@ -1,10 +1,8 @@
-import { artifactPinPreviewLine, parseArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
-import { parseBotCreatedNotice } from '../../../shared/chat/bot-created-notice';
-import { parseHandoffNotice } from '../../../shared/chat/handoff-notice';
-import type { Message, Presence } from '../../../shared/chat/types';
+import type { Presence } from '../../../shared/chat/types';
 import { toolLabel } from '../../../shared/agents/tool-labels';
 
 export { approvalTitle, toolLabel } from '../../../shared/agents/tool-labels';
+export { lastUserFacingPreview, messagePreviewLine } from '../../../shared/chat/preview';
 
 function looksLikeJsonBlob(content: string): boolean {
   const trimmed = content.trim();
@@ -39,46 +37,6 @@ export function rosterPreviewForPresence(presence: Presence, messagePreview: str
   if (presence === 'waiting') return base ? `Aguardando: ${base}` : 'Aguardando:';
   if (presence === 'blocked') return base ? `Precisa de você: ${base}` : 'Precisa de você';
   return base;
-}
-
-/** One-line roster / list preview. Skips tool noise and raw system JSON. */
-export function lastUserFacingPreview(messages: Message[]): string {
-  for (const message of [...messages].reverse()) {
-    if (message.role === 'tool') continue;
-
-    if (message.role === 'system') {
-      const created = parseBotCreatedNotice(message.content);
-      if (created) {
-        return `Created ${created.name}`;
-      }
-      const handoff = parseHandoffNotice(message.content);
-      if (handoff) {
-        if (handoff.direction === 'thread' && handoff.messageCount && handoff.messageCount > 0) {
-          const n = handoff.messageCount;
-          return `${n} message${n === 1 ? '' : 's'} with ${handoff.targetName}`;
-        }
-        if (handoff.replyPreview?.trim()) return handoff.replyPreview.trim();
-        if (handoff.brief?.trim()) return handoff.brief.trim();
-        if (handoff.direction === 'sent') return `Sent to ${handoff.targetName}`;
-        if (handoff.direction === 'received') {
-          return `From ${handoff.senderName || handoff.targetName}`;
-        }
-        continue;
-      }
-      const pin = parseArtifactPinNotice(message.content);
-      if (pin) {
-        return artifactPinPreviewLine(pin);
-      }
-      if (looksLikeJsonBlob(message.content)) continue;
-      const plain = message.content.replace(/\s+/g, ' ').trim();
-      if (plain) return plain;
-      continue;
-    }
-
-    const plain = message.content.replace(/\s+/g, ' ').trim();
-    if (plain) return plain;
-  }
-  return '';
 }
 
 export interface ToolResultView {

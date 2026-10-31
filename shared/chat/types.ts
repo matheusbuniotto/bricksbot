@@ -41,6 +41,7 @@ export interface Bot {
   /** Soft-hide from roster (Grok “Hide from sidebar”); null when active. */
   archivedAt: string | null;
   createdAt: string;
+  lastPreview?: string;
 }
 
 export interface Chat {
