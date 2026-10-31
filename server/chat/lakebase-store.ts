@@ -21,7 +21,7 @@ import { buildBotVisibilitySqlClause } from './access-policy.js';
 import { CHAT_SCHEMA_STATEMENTS } from './schema.js';
 
 const BOT_COLUMNS =
-  'id, name, avatar_label, presence, space_id, is_primary, owner_id, sort_order, archived_at, created_at, last_message_preview';
+  'id, name, avatar_label, presence, space_id, is_primary, is_shared, description, source_bot_id, owner_id, sort_order, archived_at, created_at, last_message_preview';
 
 export type LakebaseQuery = (
   sql: string,
@@ -62,6 +62,9 @@ function mapBot(row: Record<string, unknown>): Bot {
     presence: asString(row.presence) as Presence,
     spaceId: row.space_id ? asString(row.space_id) : null,
     isPrimary: asBool(row.is_primary),
+    isShared: asBool(row.is_shared),
+    description: row.description ? asString(row.description) : '',
+    sourceBotId: row.source_bot_id ? asString(row.source_bot_id) : null,
     ownerId: asString(row.owner_id) || 'workspace-user',
     sortOrder: Number(row.sort_order ?? 0),
     archivedAt: row.archived_at ? asString(row.archived_at) : null,
@@ -74,9 +77,11 @@ function mapChat(row: Record<string, unknown>): Chat {
   return {
     id: asString(row.id),
     botId: asString(row.bot_id),
+    userId: row.user_id ? asString(row.user_id) : 'workspace-user',
     title: asString(row.title),
     createdAt: asString(row.created_at),
     updatedAt: asString(row.updated_at),
+    lastPreview: row.last_message_preview ? asString(row.last_message_preview) : '',
   };
 }
 
@@ -123,7 +128,9 @@ export class LakebaseChatStore implements ChatStore {
   private bootstrapInFlight = new Map<string, Promise<{ space: Space; primary: Bot }>>();
   private botsCache = new Map<string, Bot>();
   private chatByBotCache = new Map<string, Chat>();
+  private chatByIdCache = new Map<string, Chat>();
   private chatToBotCache = new Map<string, string>();
+  private userPreviewsByBotUser = new Map<string, string>();
 
   constructor(private readonly query: LakebaseQuery) {}
 
@@ -302,7 +309,42 @@ export class LakebaseChatStore implements ChatStore {
     for (const bot of bots) {
       this.botsCache.set(bot.id, bot);
     }
+    if (options?.ownerId) {
+      const ownerId = options.ownerId;
+      const hasUncachedShared = bots.some(
+        (bot) => bot.ownerId !== ownerId && !this.userPreviewsByBotUser.has(`${bot.id}:${ownerId}`),
+      );
+      if (hasUncachedShared) {
+        const chatsResult = await this.query(
+          `SELECT bot_id, last_message_preview FROM bricksbot.chats WHERE user_id = $1`,
+          [ownerId],
+        );
+        for (const row of chatsResult.rows) {
+          const botId = asString(row.bot_id);
+          const preview = row.last_message_preview ? asString(row.last_message_preview) : '';
+          this.userPreviewsByBotUser.set(`${botId}:${ownerId}`, preview);
+        }
+        for (const bot of bots) {
+          if (bot.ownerId !== ownerId && !this.userPreviewsByBotUser.has(`${bot.id}:${ownerId}`)) {
+            this.userPreviewsByBotUser.set(`${bot.id}:${ownerId}`, '');
+          }
+        }
+      }
+      return bots.map((bot) => ({
+        ...bot,
+        lastPreview:
+          this.userPreviewsByBotUser.get(`${bot.id}:${ownerId}`) ??
+          (bot.ownerId === ownerId ? (bot.lastPreview ?? '') : ''),
+      }));
+    }
     return bots;
+  }
+
+  async listMarketplaceBots(): Promise<Bot[]> {
+    const result = await this.query(
+      `SELECT ${BOT_COLUMNS} FROM bricksbot.bots WHERE is_shared = TRUE AND is_primary = FALSE AND archived_at IS NULL ORDER BY created_at DESC`,
+    );
+    return result.rows.map((row) => ({ ...mapBot(row), lastPreview: '' }));
   }
 
   private async nextSortOrder(spaceId: string | null, ownerId: string): Promise<number> {
@@ -326,20 +368,27 @@ export class LakebaseChatStore implements ChatStore {
       if (!space) throw new Error('Space not found');
     }
     const id = randomUUID();
-    const sortOrder = input.isPrimary
+    const isPrimary = Boolean(input.isPrimary);
+    const isShared = Boolean(!isPrimary && input.isShared);
+    const description = input.description?.trim() ?? '';
+    const sourceBotId = input.sourceBotId ?? null;
+    const sortOrder = isPrimary
       ? -1
       : await this.nextSortOrder(input.spaceId ?? null, input.ownerId);
     const inserted = await this.query(
       `INSERT INTO bricksbot.bots
-         (id, name, avatar_label, presence, space_id, is_primary, owner_id, sort_order, archived_at)
-       VALUES ($1, $2, $3, 'online', $4, $5, $6, $7, NULL)
+         (id, name, avatar_label, presence, space_id, is_primary, is_shared, description, source_bot_id, owner_id, sort_order, archived_at)
+       VALUES ($1, $2, $3, 'online', $4, $5, $6, $7, $8, $9, $10, NULL)
        RETURNING ${BOT_COLUMNS}`,
       [
         id,
         name,
         input.avatarLabel?.trim() || avatarFromName(name),
         input.spaceId ?? null,
-        Boolean(input.isPrimary),
+        isPrimary,
+        isShared,
+        description,
+        sourceBotId,
         input.ownerId,
         sortOrder,
       ],
@@ -352,6 +401,9 @@ export class LakebaseChatStore implements ChatStore {
   async updateBot(botId: string, input: UpdateBotInput): Promise<Bot> {
     const bot = await this.getBot(botId);
     if (!bot) throw new Error('Bot not found');
+    if (input.isShared !== undefined && bot.isPrimary && input.isShared) {
+      throw new Error('Cannot share the Primary bot');
+    }
     if (input.spaceId !== undefined && input.spaceId !== null) {
       const space = await this.getSpace(input.spaceId);
       if (!space) throw new Error('Space not found');
@@ -371,12 +423,15 @@ export class LakebaseChatStore implements ChatStore {
       spaceId = input.spaceId;
       sortOrder = await this.nextSortOrder(spaceId, bot.ownerId);
     }
+    const isShared = input.isShared !== undefined ? Boolean(input.isShared) : Boolean(bot.isShared);
+    const description =
+      input.description !== undefined ? input.description.trim() : (bot.description ?? '');
     const result = await this.query(
       `UPDATE bricksbot.bots
-       SET name = $2, avatar_label = $3, space_id = $4, sort_order = $5
+       SET name = $2, avatar_label = $3, space_id = $4, sort_order = $5, is_shared = $6, description = $7
        WHERE id = $1
        RETURNING ${BOT_COLUMNS}`,
-      [botId, name, avatarLabel, spaceId, sortOrder],
+      [botId, name, avatarLabel, spaceId, sortOrder, isShared, description],
     );
     const updated = mapBot(result.rows[0]!);
     this.botsCache.set(updated.id, updated);
@@ -462,14 +517,22 @@ export class LakebaseChatStore implements ChatStore {
     if (bot.isPrimary) throw new Error('Cannot delete the Primary bot');
     await this.query(`DELETE FROM bricksbot.bots WHERE id = $1`, [botId]);
     this.botsCache.delete(botId);
-    const cachedChat = this.chatByBotCache.get(botId);
-    if (cachedChat) {
-      this.chatByBotCache.delete(botId);
-      this.chatToBotCache.delete(cachedChat.id);
+    for (const [key, cachedChat] of this.chatByBotCache.entries()) {
+      if (cachedChat.botId === botId) {
+        this.chatByBotCache.delete(key);
+        this.chatByIdCache.delete(cachedChat.id);
+        this.chatToBotCache.delete(cachedChat.id);
+      }
     }
     for (const [chatId, mappedBotId] of this.chatToBotCache.entries()) {
       if (mappedBotId === botId) {
         this.chatToBotCache.delete(chatId);
+        this.chatByIdCache.delete(chatId);
+      }
+    }
+    for (const key of this.userPreviewsByBotUser.keys()) {
+      if (key.startsWith(`${botId}:`)) {
+        this.userPreviewsByBotUser.delete(key);
       }
     }
     for (const [ownerId, entry] of this.bootstrappedByOwner.entries()) {
@@ -510,34 +573,40 @@ export class LakebaseChatStore implements ChatStore {
     return updated;
   }
 
-  async getOrCreateChatForBot(botId: string): Promise<Chat> {
-    const cachedChat = this.chatByBotCache.get(botId);
-    if (cachedChat) return cachedChat;
-
+  async getOrCreateChatForBot(botId: string, userId?: string): Promise<Chat> {
     const bot = await this.getBot(botId);
     if (!bot) throw new Error('Bot not found');
 
+    const resolvedUserId = userId?.trim() || bot.ownerId || 'workspace-user';
+    const cacheKey = `${botId}:${resolvedUserId}`;
+    const cachedChat = this.chatByBotCache.get(cacheKey);
+    if (cachedChat) return cachedChat;
+
     const existing = await this.query(
-      `SELECT id, bot_id, title, created_at, updated_at FROM bricksbot.chats WHERE bot_id = $1`,
-      [botId],
+      `SELECT id, bot_id, user_id, title, created_at, updated_at, last_message_preview FROM bricksbot.chats WHERE bot_id = $1 AND user_id = $2`,
+      [botId, resolvedUserId],
     );
     if (existing.rows[0]) {
       const chat = mapChat(existing.rows[0]);
-      this.chatByBotCache.set(botId, chat);
+      this.chatByBotCache.set(cacheKey, chat);
+      this.chatByIdCache.set(chat.id, chat);
       this.chatToBotCache.set(chat.id, botId);
+      this.userPreviewsByBotUser.set(cacheKey, chat.lastPreview ?? '');
       return chat;
     }
 
     const id = randomUUID();
     const inserted = await this.query(
-      `INSERT INTO bricksbot.chats (id, bot_id, title)
-       VALUES ($1, $2, $3)
-       RETURNING id, bot_id, title, created_at, updated_at`,
-      [id, botId, bot.name],
+      `INSERT INTO bricksbot.chats (id, bot_id, user_id, title)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, bot_id, user_id, title, created_at, updated_at, last_message_preview`,
+      [id, botId, resolvedUserId, bot.name],
     );
     const chat = mapChat(inserted.rows[0]!);
-    this.chatByBotCache.set(botId, chat);
+    this.chatByBotCache.set(cacheKey, chat);
+    this.chatByIdCache.set(chat.id, chat);
     this.chatToBotCache.set(chat.id, botId);
+    this.userPreviewsByBotUser.set(cacheKey, chat.lastPreview ?? '');
     return chat;
   }
 
@@ -590,20 +659,40 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING id, chat_id, role, content, created_at, tool_call_id, tool_calls`,
       [id, chatId, role, trimmed, options?.toolCallId ?? null, toolCallsJson],
     );
-    await this.query(`UPDATE bricksbot.chats SET updated_at = NOW() WHERE id = $1`, [chatId]);
     const preview = messagePreviewLine({ role, content: trimmed });
     if (preview !== null) {
-      const botId = await this.findBotIdForChat(chatId);
-      if (botId) {
-        await this.query(
-          `UPDATE bricksbot.bots SET last_message_preview = $2 WHERE id = $1`,
-          [botId, preview],
-        );
-        const cachedBot = this.botsCache.get(botId);
-        if (cachedBot) {
-          this.botsCache.set(botId, { ...cachedBot, lastPreview: preview });
+      await this.query(
+        `UPDATE bricksbot.chats SET updated_at = NOW(), last_message_preview = $2 WHERE id = $1`,
+        [chatId, preview],
+      );
+      const cachedChat = this.chatByIdCache.get(chatId);
+      if (cachedChat) {
+        const updatedChat: Chat = { ...cachedChat, lastPreview: preview };
+        this.chatByIdCache.set(chatId, updatedChat);
+        if (updatedChat.userId) {
+          const cacheKey = `${updatedChat.botId}:${updatedChat.userId}`;
+          this.chatByBotCache.set(cacheKey, updatedChat);
+          this.userPreviewsByBotUser.set(cacheKey, preview);
         }
       }
+      const botId = await this.findBotIdForChat(chatId);
+      if (botId) {
+        const bot = await this.getBot(botId);
+        const shouldUpdateBotPreview =
+          !bot || !cachedChat?.userId || cachedChat.userId === bot.ownerId;
+        if (shouldUpdateBotPreview) {
+          await this.query(
+            `UPDATE bricksbot.bots SET last_message_preview = $2 WHERE id = $1`,
+            [botId, preview],
+          );
+          const cachedBot = this.botsCache.get(botId);
+          if (cachedBot) {
+            this.botsCache.set(botId, { ...cachedBot, lastPreview: preview });
+          }
+        }
+      }
+    } else {
+      await this.query(`UPDATE bricksbot.chats SET updated_at = NOW() WHERE id = $1`, [chatId]);
     }
     return mapMessage(result.rows[0]!);
   }

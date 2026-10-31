@@ -15,7 +15,8 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
 
     if (
       normalized.startsWith('CREATE ') ||
-      normalized.startsWith('ALTER TABLE')
+      normalized.startsWith('ALTER TABLE') ||
+      normalized.startsWith('DROP INDEX')
     ) {
       return { rows: [] };
     }
@@ -43,6 +44,13 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       const row = { space_id, user_id, role };
       members.push(row);
       return { rows: [row] };
+    }
+
+    if (normalized.includes('FROM bricksbot.bots') && normalized.includes('is_shared = TRUE')) {
+      const rows = [...bots.values()]
+        .filter((b) => b.is_shared === true && !b.is_primary && b.archived_at == null)
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+      return { rows };
     }
 
     if (normalized.includes('FROM bricksbot.bots') && normalized.includes('is_primary = TRUE')) {
@@ -110,7 +118,18 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
     }
 
     if (normalized.startsWith('INSERT INTO bricksbot.bots')) {
-      const [id, name, avatar_label, space_id, is_primary, owner_id, sort_order] = params;
+      const [
+        id,
+        name,
+        avatar_label,
+        space_id,
+        is_primary,
+        is_shared,
+        description,
+        source_bot_id,
+        owner_id,
+        sort_order,
+      ] = params;
       const row = {
         id: String(id),
         name: String(name),
@@ -118,6 +137,9 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
         presence: 'online',
         space_id: space_id ?? null,
         is_primary: Boolean(is_primary),
+        is_shared: Boolean(is_shared),
+        description: description ? String(description) : '',
+        source_bot_id: source_bot_id ?? null,
         owner_id: String(owner_id),
         sort_order: Number(sort_order ?? 0),
         archived_at: null as string | null,
@@ -187,6 +209,8 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       bot.avatar_label = String(params[2]);
       bot.space_id = params[3] ?? null;
       bot.sort_order = Number(params[4]);
+      if (params.length > 5) bot.is_shared = Boolean(params[5]);
+      if (params.length > 6) bot.description = String(params[6] ?? '');
       return { rows: [bot] };
     }
 
@@ -238,14 +262,29 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
     }
 
     if (normalized.includes('FROM bricksbot.chats WHERE bot_id =')) {
-      const row = [...chats.values()].find((c) => c.bot_id === params[0]);
+      const row = [...chats.values()].find(
+        (c) => c.bot_id === params[0] && (params.length < 2 || c.user_id === params[1]),
+      );
       return { rows: row ? [row] : [] };
     }
 
+    if (normalized.includes('FROM bricksbot.chats WHERE user_id =')) {
+      const rows = [...chats.values()].filter((c) => c.user_id === params[0]);
+      return { rows };
+    }
+
     if (normalized.startsWith('INSERT INTO bricksbot.chats')) {
-      const [id, bot_id, title] = params.map(String);
+      const [id, bot_id, user_id, title] = params.map(String);
       const now = new Date().toISOString();
-      const row = { id, bot_id, title, created_at: now, updated_at: now };
+      const row = {
+        id,
+        bot_id,
+        user_id,
+        title,
+        created_at: now,
+        updated_at: now,
+        last_message_preview: null as string | null,
+      };
       chats.set(id, row);
       return { rows: [row] };
     }
@@ -287,7 +326,12 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
 
     if (normalized.startsWith('UPDATE bricksbot.chats SET updated_at')) {
       const chat = chats.get(String(params[0]));
-      if (chat) chat.updated_at = new Date().toISOString();
+      if (chat) {
+        chat.updated_at = new Date().toISOString();
+        if (params.length > 1) {
+          chat.last_message_preview = String(params[1]);
+        }
+      }
       return { rows: [] };
     }
 
@@ -394,5 +438,62 @@ describe('LakebaseChatStore', () => {
     await cachedStore.findBotIdForChat(chat.id);
     await cachedStore.setBotPresence(primary.id, primary.presence);
     expect(queries).toHaveLength(0);
+  });
+
+  test('isolates per-user chats and lastPreview on shared bots across instances', async () => {
+    await store.ensureBootstrap('user-a');
+    await store.ensureBootstrap('user-b');
+    const sharedSpace = await store.createSpace({ name: 'Team', ownerId: 'user-a' });
+    await store.addSpaceMember(sharedSpace.id, 'user-b', 'member');
+    const bot = await store.createBot({
+      name: 'Analyst',
+      spaceId: sharedSpace.id,
+      ownerId: 'user-a',
+    });
+
+    const chatA = await store.getOrCreateChatForBot(bot.id, 'user-a');
+    const chatB = await store.getOrCreateChatForBot(bot.id, 'user-b');
+    expect(chatA.id).not.toBe(chatB.id);
+    expect(chatA.userId).toBe('user-a');
+    expect(chatB.userId).toBe('user-b');
+
+    await store.addMessage(chatA.id, 'user', 'Secret from user-a');
+    expect(await store.listMessages(chatA.id)).toHaveLength(1);
+    expect(await store.listMessages(chatB.id)).toHaveLength(0);
+
+    const freshStore = new LakebaseChatStore(fake.query);
+    const botsForB = await freshStore.listBots({ ownerId: 'user-b' });
+    expect(botsForB.find((b) => b.id === bot.id)?.lastPreview).toBe('');
+
+    const botsForA = await freshStore.listBots({ ownerId: 'user-a' });
+    expect(botsForA.find((b) => b.id === bot.id)?.lastPreview).toBe('Secret from user-a');
+
+    await freshStore.addMessage(chatB.id, 'user', 'Secret from user-b');
+    const freshStore2 = new LakebaseChatStore(fake.query);
+    const botsForBAfter = await freshStore2.listBots({ ownerId: 'user-b' });
+    expect(botsForBAfter.find((b) => b.id === bot.id)?.lastPreview).toBe('Secret from user-b');
+  });
+
+  test('persists marketplace sharing and description', async () => {
+    const bot = await store.createBot({
+      name: 'SQL Helper',
+      ownerId: 'user-a',
+      description: 'Writes warehouse queries',
+    });
+    expect(bot.isShared).toBe(false);
+    expect(await store.listMarketplaceBots()).toEqual([]);
+
+    const chat = await store.getOrCreateChatForBot(bot.id, 'user-a');
+    await store.addMessage(chat.id, 'user', 'Private owner prompt');
+
+    await store.updateBot(bot.id, { isShared: true, description: 'Updated SQL Helper' });
+    const marketplace = await store.listMarketplaceBots();
+    expect(marketplace).toHaveLength(1);
+    expect(marketplace[0]).toMatchObject({
+      id: bot.id,
+      isShared: true,
+      description: 'Updated SQL Helper',
+      lastPreview: '',
+    });
   });
 });

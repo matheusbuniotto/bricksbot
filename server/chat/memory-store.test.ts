@@ -151,4 +151,71 @@ describe('MemoryChatStore', () => {
     await store.addMessage(chat.id, 'assistant', 'Sales look healthy');
     expect((await store.getBot(primary.id))?.lastPreview).toBe('Sales look healthy');
   });
+
+  test('isolates per-user chats and lastPreview on shared bots', async () => {
+    await store.ensureBootstrap('user-a');
+    await store.ensureBootstrap('user-b');
+    const sharedSpace = await store.createSpace({ name: 'Team', ownerId: 'user-a' });
+    await store.addSpaceMember(sharedSpace.id, 'user-b', 'member');
+    const bot = await store.createBot({
+      name: 'Analyst',
+      spaceId: sharedSpace.id,
+      ownerId: 'user-a',
+    });
+
+    const chatA = await store.getOrCreateChatForBot(bot.id, 'user-a');
+    const chatB = await store.getOrCreateChatForBot(bot.id, 'user-b');
+    expect(chatA.id).not.toBe(chatB.id);
+    expect(chatA.userId).toBe('user-a');
+    expect(chatB.userId).toBe('user-b');
+
+    await store.addMessage(chatA.id, 'user', 'Private to user-a');
+    expect(await store.listMessages(chatA.id)).toHaveLength(1);
+    expect(await store.listMessages(chatB.id)).toHaveLength(0);
+
+    const botsForA = await store.listBots({ ownerId: 'user-a' });
+    const botsForB = await store.listBots({ ownerId: 'user-b' });
+    expect(botsForA.find((b) => b.id === bot.id)?.lastPreview).toBe('Private to user-a');
+    expect(botsForB.find((b) => b.id === bot.id)?.lastPreview).toBe('');
+
+    await store.addMessage(chatB.id, 'user', 'Private to user-b');
+    const botsForBAfter = await store.listBots({ ownerId: 'user-b' });
+    expect(botsForBAfter.find((b) => b.id === bot.id)?.lastPreview).toBe('Private to user-b');
+    expect((await store.getBot(bot.id))?.lastPreview).toBe('Private to user-a');
+  });
+
+  test('listMarketplaceBots returns only active shared non-primary bots with blank preview', async () => {
+    const { primary } = await store.ensureBootstrap('user-a');
+    await expect(store.updateBot(primary.id, { isShared: true })).rejects.toThrow(
+      'Cannot share the Primary bot',
+    );
+
+    const personalBot = await store.createBot({
+      name: 'Private Bot',
+      ownerId: 'user-a',
+      description: 'Stays private',
+    });
+    expect(personalBot.isShared).toBe(false);
+    expect(await store.listMarketplaceBots()).toEqual([]);
+
+    const chat = await store.getOrCreateChatForBot(personalBot.id, 'user-a');
+    await store.addMessage(chat.id, 'user', 'Owner secret message');
+
+    const shared = await store.updateBot(personalBot.id, {
+      isShared: true,
+      description: 'Shared analyst instructions',
+    });
+    expect(shared.isShared).toBe(true);
+    expect(shared.description).toBe('Shared analyst instructions');
+
+    const marketplace = await store.listMarketplaceBots();
+    expect(marketplace).toHaveLength(1);
+    expect(marketplace[0]).toMatchObject({
+      id: personalBot.id,
+      name: 'Private Bot',
+      isShared: true,
+      description: 'Shared analyst instructions',
+      lastPreview: '',
+    });
+  });
 });

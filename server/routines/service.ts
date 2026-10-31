@@ -44,7 +44,7 @@ export class RoutineService {
     if (!bot) {
       throw new Error('Bot not found');
     }
-    const chat = await this.chats.getOrCreateChatForBot(routine.botId);
+    const chat = await this.chats.getOrCreateChatForBot(routine.botId, routine.ownerId);
     const systemNote = `[routine:${routine.name}] scheduled run`;
     await this.chats.addMessage(chat.id, 'system', systemNote);
     const result = await this.chatService.sendUserMessage(chat.id, routine.prompt);

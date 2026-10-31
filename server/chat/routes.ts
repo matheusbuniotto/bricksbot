@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import type { ChatStore } from '../../shared/chat/types.js';
+import type { ChatStore, MarketplaceBot } from '../../shared/chat/types.js';
 import { resolveOwnerId } from './identity.js';
 import type { ChatService } from './service.js';
 
@@ -21,6 +21,8 @@ const createBotSchema = z.object({
   name: z.string().trim().min(1).max(64),
   spaceId: z.string().uuid().nullable().optional(),
   avatarLabel: z.string().trim().min(1).max(32).optional(),
+  description: z.string().trim().max(2000).optional(),
+  isShared: z.boolean().optional(),
 });
 
 const updateBotSchema = z
@@ -28,10 +30,24 @@ const updateBotSchema = z
     name: z.string().trim().min(1).max(64).optional(),
     spaceId: z.string().uuid().nullable().optional(),
     avatarLabel: z.string().trim().min(1).max(32).optional(),
+    description: z.string().trim().max(2000).optional(),
+    isShared: z.boolean().optional(),
   })
-  .refine((value) => value.name !== undefined || value.spaceId !== undefined || value.avatarLabel !== undefined, {
-    message: 'At least one field is required',
-  });
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.spaceId !== undefined ||
+      value.avatarLabel !== undefined ||
+      value.description !== undefined ||
+      value.isShared !== undefined,
+    {
+      message: 'At least one field is required',
+    },
+  );
+
+const installBotSchema = z.object({
+  spaceId: z.string().uuid().nullable().optional(),
+});
 
 const moveBotSchema = z.object({
   spaceId: z.string().uuid().nullable(),
@@ -68,7 +84,7 @@ function isBadRequest(err: unknown): boolean {
     err instanceof Error &&
     (/required/i.test(err.message) ||
       /already decided/i.test(err.message) ||
-      /Cannot (archive|delete|move)/i.test(err.message) ||
+      /Cannot (archive|delete|move|share)/i.test(err.message) ||
       /Unarchive/i.test(err.message) ||
       /index must/i.test(err.message) ||
       /At least one field/i.test(err.message) ||
@@ -163,6 +179,8 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
         name: parsed.data.name,
         spaceId: parsed.data.spaceId ?? null,
         avatarLabel: parsed.data.avatarLabel,
+        description: parsed.data.description,
+        isShared: parsed.data.isShared,
         ownerId: resolveOwnerId(req),
       });
       res.status(201).json({ bot });
@@ -178,8 +196,78 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
       return;
     }
     try {
-      const bot = await store.updateBot(String(req.params.botId), parsed.data);
+      const botId = String(req.params.botId);
+      if (parsed.data.isShared !== undefined) {
+        const existing = await store.getBot(botId);
+        if (!existing) {
+          res.status(404).json({ error: 'Bot not found' });
+          return;
+        }
+        if (existing.ownerId !== resolveOwnerId(req)) {
+          res.status(403).json({ error: 'Only the bot owner can change sharing settings' });
+          return;
+        }
+      }
+      const bot = await store.updateBot(botId, parsed.data);
       res.json({ bot });
+    } catch (err) {
+      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.get('/api/marketplace/bots', async (_req: Request, res: Response) => {
+    try {
+      const sharedBots = await store.listMarketplaceBots();
+      const bots: MarketplaceBot[] = await Promise.all(
+        sharedBots.map(async (bot) => {
+          const skills = await service.getMemory().listSkills(bot.id);
+          return {
+            id: bot.id,
+            name: bot.name,
+            avatarLabel: bot.avatarLabel,
+            description: bot.description ?? '',
+            ownerId: bot.ownerId,
+            skillNames: skills.map((s) => s.name),
+            createdAt: bot.createdAt,
+          };
+        }),
+      );
+      res.json({ bots });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.post('/api/marketplace/bots/:botId/install', async (req: Request, res: Response) => {
+    const parsed = installBotSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid spaceId' });
+      return;
+    }
+    try {
+      const sourceBot = await store.getBot(String(req.params.botId));
+      if (!sourceBot || sourceBot.isShared !== true || sourceBot.isPrimary || sourceBot.archivedAt) {
+        res.status(404).json({ error: 'Marketplace bot not found' });
+        return;
+      }
+      const ownerId = resolveOwnerId(req);
+      const installed = await store.createBot({
+        name: sourceBot.name,
+        avatarLabel: sourceBot.avatarLabel,
+        description: sourceBot.description,
+        spaceId: parsed.data.spaceId ?? null,
+        ownerId,
+        isShared: false,
+        sourceBotId: sourceBot.id,
+      });
+      const skills = await service.getMemory().listSkills(sourceBot.id);
+      for (const skill of skills) {
+        await service.getMemory().upsertSkill(installed.id, skill.name, skill.body);
+      }
+      const chat = await store.getOrCreateChatForBot(installed.id, ownerId);
+      const greeting = `Hi — I'm ${installed.name}.${installed.description ? ` ${installed.description}` : ''} How can I help?`;
+      await store.addMessage(chat.id, 'assistant', greeting);
+      res.status(201).json({ bot: installed });
     } catch (err) {
       res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
     }
@@ -229,7 +317,7 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.get('/api/bots/:botId/chat', async (req: Request, res: Response) => {
     try {
       const botId = String(req.params.botId);
-      const chat = await store.getOrCreateChatForBot(botId);
+      const chat = await store.getOrCreateChatForBot(botId, resolveOwnerId(req));
       const [
         messages,
         pendingApprovals,
@@ -266,7 +354,7 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.get('/api/bots/:botId/sandbox', async (req: Request, res: Response) => {
     try {
       const botId = String(req.params.botId);
-      const chat = await store.getOrCreateChatForBot(botId);
+      const chat = await store.getOrCreateChatForBot(botId, resolveOwnerId(req));
       const sandbox = service.getSandbox()
         ? await service.getSandbox()!.getUiStatusForChat(chat.id)
         : { enabled: false, backend: 'off' as const, session: null, recentEvents: [] };
@@ -279,7 +367,7 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.post('/api/bots/:botId/sandbox/stop', async (req: Request, res: Response) => {
     try {
       const botId = String(req.params.botId);
-      const chat = await store.getOrCreateChatForBot(botId);
+      const chat = await store.getOrCreateChatForBot(botId, resolveOwnerId(req));
       const sandboxSvc = service.getSandbox();
       if (sandboxSvc?.isEnabled()) {
         await sandboxSvc.stopSession(chat.id, 'user_ui');
@@ -296,7 +384,7 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.delete('/api/bots/:botId/sandbox', async (req: Request, res: Response) => {
     try {
       const botId = String(req.params.botId);
-      const chat = await store.getOrCreateChatForBot(botId);
+      const chat = await store.getOrCreateChatForBot(botId, resolveOwnerId(req));
       const sandboxSvc = service.getSandbox();
       if (sandboxSvc?.isEnabled()) {
         await sandboxSvc.deleteSession(chat.id, 'user_ui');

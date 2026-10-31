@@ -134,7 +134,7 @@ export async function deliverHandoff(
 
   const { target, brief } = planned.plan;
   const from = planned.plan.sender;
-  const targetChat = await store.getOrCreateChatForBot(target.id);
+  const targetChat = await store.getOrCreateChatForBot(target.id, from.ownerId);
   await store.addMessage(targetChat.id, 'user', handoffBriefUserLine(from.name, brief));
 
   const notice = serializeHandoffNotice({

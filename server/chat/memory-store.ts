@@ -42,7 +42,8 @@ export class MemoryChatStore implements ChatStore {
   private spaces = new Map<string, Space>();
   private members: SpaceMember[] = [];
   private bots = new Map<string, Bot>();
-  private chatsByBot = new Map<string, Chat>();
+  private chatsByBotUser = new Map<string, Chat>();
+  private chatById = new Map<string, Chat>();
   private messagesByChat = new Map<string, Message[]>();
   private primaryByOwner = new Map<string, string>();
   private personalSpaceByOwner = new Map<string, string>();
@@ -146,7 +147,24 @@ export class MemoryChatStore implements ChatStore {
     } else if (archived === 'archived') {
       bots = bots.filter((bot) => bot.archivedAt != null);
     }
-    return bots.sort(sortBots);
+    const sorted = bots.sort(sortBots);
+    if (options?.ownerId) {
+      const ownerId = options.ownerId;
+      return sorted.map((bot) => ({
+        ...bot,
+        lastPreview:
+          this.chatsByBotUser.get(`${bot.id}:${ownerId}`)?.lastPreview ??
+          (bot.ownerId === ownerId ? (bot.lastPreview ?? '') : ''),
+      }));
+    }
+    return sorted;
+  }
+
+  async listMarketplaceBots(): Promise<Bot[]> {
+    return [...this.bots.values()]
+      .filter((bot) => bot.archivedAt == null && !bot.isPrimary && Boolean(bot.isShared))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((bot) => ({ ...bot, lastPreview: '' }));
   }
 
   private nextSortOrder(spaceId: string | null, ownerId: string): number {
@@ -174,6 +192,9 @@ export class MemoryChatStore implements ChatStore {
       presence: 'online',
       spaceId: input.spaceId ?? null,
       isPrimary: Boolean(input.isPrimary),
+      isShared: Boolean(!input.isPrimary && input.isShared),
+      description: input.description?.trim() ?? '',
+      sourceBotId: input.sourceBotId ?? null,
       ownerId: input.ownerId,
       sortOrder: input.isPrimary ? -1 : this.nextSortOrder(input.spaceId ?? null, input.ownerId),
       archivedAt: null,
@@ -203,6 +224,11 @@ export class MemoryChatStore implements ChatStore {
             ? avatarFromName(name)
             : bot.avatarLabel
           : bot.avatarLabel;
+    if (input.isShared !== undefined) {
+      if (bot.isPrimary && input.isShared) {
+        throw new Error('Cannot share the Primary bot');
+      }
+    }
     let spaceId = bot.spaceId;
     let sortOrder = bot.sortOrder;
     if (input.spaceId !== undefined && input.spaceId !== bot.spaceId) {
@@ -210,7 +236,18 @@ export class MemoryChatStore implements ChatStore {
       spaceId = input.spaceId;
       sortOrder = this.nextSortOrder(spaceId, bot.ownerId);
     }
-    const updated: Bot = { ...bot, name, avatarLabel, spaceId, sortOrder };
+    const isShared = input.isShared !== undefined ? Boolean(input.isShared) : bot.isShared;
+    const description =
+      input.description !== undefined ? input.description.trim() : bot.description;
+    const updated: Bot = {
+      ...bot,
+      name,
+      avatarLabel,
+      spaceId,
+      sortOrder,
+      isShared,
+      description,
+    };
     this.bots.set(botId, updated);
     return updated;
   }
@@ -274,10 +311,12 @@ export class MemoryChatStore implements ChatStore {
     const bot = this.bots.get(botId);
     if (!bot) throw new Error('Bot not found');
     if (bot.isPrimary) throw new Error('Cannot delete the Primary bot');
-    const chat = this.chatsByBot.get(botId);
-    if (chat) {
-      this.messagesByChat.delete(chat.id);
-      this.chatsByBot.delete(botId);
+    for (const [key, chat] of this.chatsByBotUser.entries()) {
+      if (chat.botId === botId) {
+        this.messagesByChat.delete(chat.id);
+        this.chatById.delete(chat.id);
+        this.chatsByBotUser.delete(key);
+      }
     }
     this.bots.delete(botId);
   }
@@ -294,33 +333,35 @@ export class MemoryChatStore implements ChatStore {
     return updated;
   }
 
-  async getOrCreateChatForBot(botId: string): Promise<Chat> {
+  async getOrCreateChatForBot(botId: string, userId?: string): Promise<Chat> {
     const bot = this.bots.get(botId);
     if (!bot) {
       throw new Error('Bot not found');
     }
 
-    const existing = this.chatsByBot.get(botId);
+    const resolvedUserId = userId?.trim() || bot.ownerId || 'workspace-user';
+    const key = `${botId}:${resolvedUserId}`;
+    const existing = this.chatsByBotUser.get(key);
     if (existing) return existing;
 
     const createdAt = nowIso();
     const chat: Chat = {
       id: randomUUID(),
       botId,
+      userId: resolvedUserId,
       title: bot.name,
       createdAt,
       updatedAt: createdAt,
+      lastPreview: '',
     };
-    this.chatsByBot.set(botId, chat);
+    this.chatsByBotUser.set(key, chat);
+    this.chatById.set(chat.id, chat);
     this.messagesByChat.set(chat.id, []);
     return chat;
   }
 
   async findBotIdForChat(chatId: string): Promise<string | null> {
-    for (const [botId, chat] of this.chatsByBot) {
-      if (chat.id === chatId) return botId;
-    }
-    return null;
+    return this.chatById.get(chatId)?.botId ?? null;
   }
 
   async listMessages(chatId: string): Promise<Message[]> {
@@ -359,16 +400,15 @@ export class MemoryChatStore implements ChatStore {
     messages.push(message);
 
     const preview = messagePreviewLine({ role, content: trimmed });
-    for (const [botId, chat] of this.chatsByBot.entries()) {
-      if (chat.id === chatId) {
-        chat.updatedAt = message.createdAt;
-        if (preview !== null) {
-          const bot = this.bots.get(botId);
-          if (bot) {
-            this.bots.set(botId, { ...bot, lastPreview: preview });
-          }
+    const chat = this.chatById.get(chatId);
+    if (chat) {
+      chat.updatedAt = message.createdAt;
+      if (preview !== null) {
+        chat.lastPreview = preview;
+        const bot = this.bots.get(chat.botId);
+        if (bot && chat.userId === bot.ownerId) {
+          this.bots.set(chat.botId, { ...bot, lastPreview: preview });
         }
-        break;
       }
     }
 

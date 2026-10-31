@@ -5,7 +5,9 @@ import { MemoryChatStore } from './memory-store.js';
 import { registerChatRoutes } from './routes.js';
 import { ChatService } from './service.js';
 
-async function withChatApp(run: (baseUrl: string) => Promise<void>) {
+async function withChatApp(
+  run: (baseUrl: string, ctx: { store: MemoryChatStore; service: ChatService }) => Promise<void>,
+) {
   const store = new MemoryChatStore();
   const service = new ChatService({ store, client: new StubChatClient() });
   const app = express();
@@ -23,7 +25,7 @@ async function withChatApp(run: (baseUrl: string) => Promise<void>) {
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
   try {
-    await run(baseUrl);
+    await run(baseUrl, { store, service });
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
@@ -153,6 +155,178 @@ describe('chat HTTP API', () => {
 
       const deleted = await fetch(`${baseUrl}/api/bots/${bot.id}`, { method: 'DELETE' });
       expect(deleted.status).toBe(204);
+    });
+  });
+
+  test('isolates per-user chats on the same bot via HTTP headers', async () => {
+    await withChatApp(async (baseUrl) => {
+      const spaceRes = await fetch(`${baseUrl}/api/spaces`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'user-a' },
+        body: JSON.stringify({ name: 'Shared' }),
+      });
+      const { space } = (await spaceRes.json()) as { space: { id: string } };
+      await fetch(`${baseUrl}/api/spaces/${space.id}/members`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'user-a' },
+        body: JSON.stringify({ userId: 'user-b', role: 'member' }),
+      });
+
+      const botRes = await fetch(`${baseUrl}/api/bots`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'user-a' },
+        body: JSON.stringify({ name: 'Analyst', spaceId: space.id }),
+      });
+      const { bot } = (await botRes.json()) as { bot: { id: string } };
+
+      const chatARes = await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, {
+        headers: { 'x-forwarded-user': 'user-a' },
+      });
+      const { chat: chatA } = (await chatARes.json()) as { chat: { id: string } };
+
+      const chatBRes = await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, {
+        headers: { 'x-forwarded-user': 'user-b' },
+      });
+      const { chat: chatB } = (await chatBRes.json()) as { chat: { id: string } };
+      expect(chatA.id).not.toBe(chatB.id);
+
+      await fetch(`${baseUrl}/api/chats/${chatA.id}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'user-a' },
+        body: JSON.stringify({ content: 'hello from user-a' }),
+      });
+
+      const reloadB = await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, {
+        headers: { 'x-forwarded-user': 'user-b' },
+      });
+      const { messages: messagesB } = (await reloadB.json()) as { messages: unknown[] };
+      expect(messagesB).toHaveLength(0);
+
+      const botsBRes = await fetch(`${baseUrl}/api/bots`, {
+        headers: { 'x-forwarded-user': 'user-b' },
+      });
+      const { bots: botsB } = (await botsBRes.json()) as {
+        bots: Array<{ id: string; lastPreview?: string }>;
+      };
+      expect(botsB.find((b) => b.id === bot.id)?.lastPreview).toBe('');
+    });
+  });
+
+  test('supports personal-first bots and Workspace Marketplace publish + install flow', async () => {
+    await withChatApp(async (baseUrl, { service }) => {
+      const createRes = await fetch(`${baseUrl}/api/bots`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'alice' },
+        body: JSON.stringify({
+          name: 'FinOps Guru',
+          avatarLabel: '1.2.0.0',
+          description: 'Audits DBU spend across workspaces.',
+        }),
+      });
+      expect(createRes.status).toBe(201);
+      const { bot: sourceBot } = (await createRes.json()) as {
+        bot: { id: string; isShared: boolean; description: string };
+      };
+      expect(sourceBot.isShared).toBe(false);
+      expect(sourceBot.description).toBe('Audits DBU spend across workspaces.');
+
+      await service.getMemory().upsertSkill(sourceBot.id, 'dbu-audit', '# DBU Audit steps');
+      await service.getMemory().upsertMemory(sourceBot.id, 'secret-token', 'private-owner-note');
+
+      const chatAliceRes = await fetch(`${baseUrl}/api/bots/${sourceBot.id}/chat`, {
+        headers: { 'x-forwarded-user': 'alice' },
+      });
+      const { chat: aliceChat } = (await chatAliceRes.json()) as { chat: { id: string } };
+      await fetch(`${baseUrl}/api/chats/${aliceChat.id}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'alice' },
+        body: JSON.stringify({ content: 'my private chat message' }),
+      });
+
+      const emptyMarket = await fetch(`${baseUrl}/api/marketplace/bots`, {
+        headers: { 'x-forwarded-user': 'bob' },
+      });
+      expect(((await emptyMarket.json()) as { bots: unknown[] }).bots).toEqual([]);
+
+      const forbiddenShare = await fetch(`${baseUrl}/api/bots/${sourceBot.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'bob' },
+        body: JSON.stringify({ isShared: true }),
+      });
+      expect(forbiddenShare.status).toBe(403);
+
+      const shareRes = await fetch(`${baseUrl}/api/bots/${sourceBot.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'alice' },
+        body: JSON.stringify({ isShared: true }),
+      });
+      expect(shareRes.status).toBe(200);
+
+      const marketRes = await fetch(`${baseUrl}/api/marketplace/bots`, {
+        headers: { 'x-forwarded-user': 'bob' },
+      });
+      const { bots: marketBots } = (await marketRes.json()) as {
+        bots: Array<{
+          id: string;
+          name: string;
+          description: string;
+          ownerId: string;
+          skillNames: string[];
+        }>;
+      };
+      expect(marketBots).toEqual([
+        expect.objectContaining({
+          id: sourceBot.id,
+          name: 'FinOps Guru',
+          description: 'Audits DBU spend across workspaces.',
+          ownerId: 'alice',
+          skillNames: ['dbu-audit'],
+        }),
+      ]);
+
+      const installRes = await fetch(`${baseUrl}/api/marketplace/bots/${sourceBot.id}/install`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'bob' },
+        body: JSON.stringify({}),
+      });
+      expect(installRes.status).toBe(201);
+      const { bot: installed } = (await installRes.json()) as {
+        bot: {
+          id: string;
+          name: string;
+          avatarLabel: string;
+          description: string;
+          ownerId: string;
+          isShared: boolean;
+          sourceBotId: string;
+        };
+      };
+      expect(installed.id).not.toBe(sourceBot.id);
+      expect(installed).toMatchObject({
+        name: 'FinOps Guru',
+        avatarLabel: '1.2.0.0',
+        description: 'Audits DBU spend across workspaces.',
+        ownerId: 'bob',
+        isShared: false,
+        sourceBotId: sourceBot.id,
+      });
+
+      const clonedSkills = await service.getMemory().listSkills(installed.id);
+      expect(clonedSkills.map((s) => ({ name: s.name, body: s.body }))).toEqual([
+        { name: 'dbu-audit', body: '# DBU Audit steps' },
+      ]);
+      const clonedMemories = await service.getMemory().listMemories(installed.id);
+      expect(clonedMemories).toEqual([]);
+
+      const bobChatRes = await fetch(`${baseUrl}/api/bots/${installed.id}/chat`, {
+        headers: { 'x-forwarded-user': 'bob' },
+      });
+      const { messages: bobMessages } = (await bobChatRes.json()) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      expect(bobMessages).toHaveLength(1);
+      expect(bobMessages[0]?.role).toBe('assistant');
+      expect(bobMessages[0]?.content).toContain("Hi — I'm FinOps Guru.");
     });
   });
 });

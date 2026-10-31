@@ -35,6 +35,9 @@ export interface Bot {
   presence: Presence;
   spaceId: string | null;
   isPrimary: boolean;
+  isShared?: boolean;
+  description?: string;
+  sourceBotId?: string | null;
   ownerId: string;
   /** Lower sorts first within a section (and after Primary). */
   sortOrder: number;
@@ -44,12 +47,24 @@ export interface Bot {
   lastPreview?: string;
 }
 
+export interface MarketplaceBot {
+  id: string;
+  name: string;
+  avatarLabel: string;
+  description: string;
+  ownerId: string;
+  skillNames: string[];
+  createdAt: string;
+}
+
 export interface Chat {
   id: string;
   botId: string;
+  userId?: string;
   title: string;
   createdAt: string;
   updatedAt: string;
+  lastPreview?: string;
 }
 
 export interface Message {
@@ -69,12 +84,17 @@ export interface CreateBotInput {
   ownerId: string;
   avatarLabel?: string;
   isPrimary?: boolean;
+  description?: string;
+  isShared?: boolean;
+  sourceBotId?: string | null;
 }
 
 export interface UpdateBotInput {
   name?: string;
   avatarLabel?: string;
   spaceId?: string | null;
+  description?: string;
+  isShared?: boolean;
 }
 
 export interface MoveBotInput {
@@ -114,7 +134,8 @@ export interface ChatStore {
   setBotPresence(botId: string, presence: Presence): Promise<Bot>;
   /** @deprecated Prefer ensureBootstrap — kept for older call sites during Phase 3. */
   ensurePrimaryBot(): Promise<Bot>;
-  getOrCreateChatForBot(botId: string): Promise<Chat>;
+  listMarketplaceBots(): Promise<Bot[]>;
+  getOrCreateChatForBot(botId: string, userId?: string): Promise<Chat>;
   findBotIdForChat(chatId: string): Promise<string | null>;
   listMessages(chatId: string): Promise<Message[]>;
   addMessage(

@@ -131,7 +131,7 @@ describe('planHandoff', () => {
       brief: 'shared work',
     });
     expect(delivered).toBe('Handed off to Analyst.');
-    const target = await store.getOrCreateChatForBot(analyst.id);
+    const target = await store.getOrCreateChatForBot(analyst.id, 'alice');
     expect(await store.listMessages(target.id)).toEqual([
       expect.objectContaining({ role: 'user', content: 'From Primary: shared work' }),
     ]);

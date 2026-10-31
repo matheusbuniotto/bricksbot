@@ -234,6 +234,10 @@ export class ChatService {
     return this.choices;
   }
 
+  getMemory(): MemorySkillStore {
+    return this.memory;
+  }
+
   getSandbox(): SandboxSessionService | undefined {
     return this.options.sandbox;
   }
@@ -652,10 +656,14 @@ export class ChatService {
       skills,
     });
 
-    const base = [
+    const baseSections = [
       `You are ${botName}, a durable BricksBot teammate for the Databricks lakehouse. Be concise.`,
-      formatCapabilityPrompt(catalog),
-    ].join('\n\n');
+    ];
+    if (bot?.description?.trim()) {
+      baseSections.push(`Bot instructions: ${bot.description.trim()}`);
+    }
+    baseSections.push(formatCapabilityPrompt(catalog));
+    const base = baseSections.join('\n\n');
 
     // Memories keep values in-window; skills already appear as an index in Capabilities.
     const memorySection = formatBotContext(memories, []);
@@ -696,7 +704,7 @@ export class ChatService {
     if (!planned.ok) return planned.error;
 
     const { sender, target, brief } = planned.plan;
-    const targetChat = await this.options.store.getOrCreateChatForBot(target.id);
+    const targetChat = await this.options.store.getOrCreateChatForBot(target.id, sender.ownerId);
     const sourceChatId = ctx.chatId;
     const briefLine = handoffBriefUserLine(sender.name, brief);
 
