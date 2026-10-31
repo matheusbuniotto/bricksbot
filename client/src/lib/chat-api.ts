@@ -1,4 +1,4 @@
-import type { Bot, Chat, Message, Space, SpaceMember } from '../../../shared/chat/types';
+import type { Bot, Chat, MarketplaceBot, Message, Space, SpaceMember } from '../../../shared/chat/types';
 import type { PendingChoice } from '../../../shared/chat/choice-notice';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
 import type { SandboxUiStatus } from '../../../shared/sandbox/types';
@@ -65,6 +65,8 @@ export async function createBot(input: {
   name: string;
   spaceId?: string | null;
   avatarLabel?: string;
+  description?: string;
+  isShared?: boolean;
 }): Promise<Bot> {
   const data = await readJson<{ bot: Bot }>(
     await fetch('/api/bots', {
@@ -78,13 +80,38 @@ export async function createBot(input: {
 
 export async function updateBot(
   botId: string,
-  input: { name?: string; spaceId?: string | null; avatarLabel?: string },
+  input: {
+    name?: string;
+    spaceId?: string | null;
+    avatarLabel?: string;
+    description?: string;
+    isShared?: boolean;
+  },
 ): Promise<Bot> {
   const data = await readJson<{ bot: Bot }>(
     await fetch(`/api/bots/${botId}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
+    }),
+  );
+  return data.bot;
+}
+
+export async function fetchMarketplaceBots(): Promise<MarketplaceBot[]> {
+  const data = await readJson<{ bots: MarketplaceBot[] }>(await fetch('/api/marketplace/bots'));
+  return data.bots;
+}
+
+export async function installMarketplaceBot(
+  botId: string,
+  spaceId?: string | null,
+): Promise<Bot> {
+  const data = await readJson<{ bot: Bot }>(
+    await fetch(`/api/marketplace/bots/${encodeURIComponent(botId)}/install`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ spaceId: spaceId ?? null }),
     }),
   );
   return data.bot;

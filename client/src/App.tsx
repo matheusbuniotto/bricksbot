@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { PendingChoice } from '../../shared/chat/choice-notice';
-import type { Bot, Chat, Message, Space } from '../../shared/chat/types';
+import type { Bot, Chat, MarketplaceBot, Message, Space } from '../../shared/chat/types';
 import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/types';
 import { ApprovalCards } from './components/ApprovalCards';
 import { ChoiceCards } from './components/ChoiceCards';
@@ -20,7 +20,9 @@ import {
   deleteBotSandbox,
   fetchBotChat,
   fetchBots,
+  fetchMarketplaceBots,
   fetchSpaces,
+  installMarketplaceBot,
   moveBot,
   revokeAutoApproval,
   sendChatMessage,
@@ -71,6 +73,8 @@ export default function App() {
   } | null>(null);
   const [choiceBusyId, setChoiceBusyId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [marketplaceBots, setMarketplaceBots] = useState<MarketplaceBot[]>([]);
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,6 +145,22 @@ export default function App() {
     return next;
   }, []);
 
+  const refreshMarketplace = useCallback(async () => {
+    try {
+      const list = await fetchMarketplaceBots();
+      setMarketplaceBots(list);
+      return list;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  useEffect(() => {
+    if (marketplaceOpen) {
+      void refreshMarketplace();
+    }
+  }, [marketplaceOpen, refreshMarketplace]);
+
   const loadChat = useCallback(async (botId: string) => {
     const data = await fetchBotChat(botId);
     setChat(data.chat);
@@ -203,10 +223,15 @@ export default function App() {
     }
   }
 
-  async function handleCreateBot(name: string, spaceId: string | null, avatarLabel?: string) {
+  async function handleCreateBot(
+    name: string,
+    spaceId: string | null,
+    avatarLabel?: string,
+    description?: string,
+  ) {
     setError(null);
     try {
-      const bot = await createBot({ name, spaceId, avatarLabel });
+      const bot = await createBot({ name, spaceId, avatarLabel, description });
       markBotFresh(bot.id);
       await refreshRoster();
       setSelectedBotId(bot.id);
@@ -214,6 +239,49 @@ export default function App() {
       await loadChat(bot.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create bot');
+    }
+  }
+
+  async function handleToggleShareBot(botId: string, isShared: boolean) {
+    setError(null);
+    try {
+      await updateBot(botId, { isShared });
+      await refreshRoster();
+      if (marketplaceOpen) {
+        await refreshMarketplace();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update bot sharing');
+    }
+  }
+
+  async function handleUpdateBotConfig(
+    botId: string,
+    patch: { description?: string; isShared?: boolean },
+  ) {
+    setError(null);
+    try {
+      await updateBot(botId, patch);
+      await refreshRoster();
+      if (marketplaceOpen) {
+        await refreshMarketplace();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update bot');
+    }
+  }
+
+  async function handleInstallMarketplaceBot(botId: string, spaceId: string | null) {
+    setError(null);
+    try {
+      const installed = await installMarketplaceBot(botId, spaceId);
+      markBotFresh(installed.id);
+      await refreshRoster();
+      setSelectedBotId(installed.id);
+      setPreviews((prev) => ({ ...prev, [installed.id]: '' }));
+      await loadChat(installed.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to install marketplace bot');
     }
   }
 
@@ -495,14 +563,19 @@ export default function App() {
         spaces={spaces}
         bots={bots}
         archivedBots={archivedBots}
+        marketplaceBots={marketplaceBots}
         previews={previews}
         selectedBotId={selectedBotId}
         createOpen={createOpen}
+        marketplaceOpen={marketplaceOpen}
         theme={theme}
         onThemeChange={handleThemeChange}
         onCreateOpenChange={setCreateOpen}
+        onMarketplaceOpenChange={setMarketplaceOpen}
         onSelectBot={handleSelectBot}
         onCreateBot={handleCreateBot}
+        onInstallMarketplaceBot={handleInstallMarketplaceBot}
+        onToggleShareBot={handleToggleShareBot}
         onCreateSpace={handleCreateSpace}
         onRenameBot={handleRenameBot}
         onChangeLook={handleChangeLook}
@@ -641,6 +714,7 @@ export default function App() {
           onDeleteSandbox={handleDeleteSandbox}
           onClose={closeDetails}
           onChangeLook={handleChangeLook}
+          onUpdateBotConfig={handleUpdateBotConfig}
         />
       ) : null}
     </div>

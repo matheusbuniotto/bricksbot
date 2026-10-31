@@ -10,19 +10,22 @@ import {
   Pencil,
   Plus,
   Search,
+  Share2,
+  Store,
   Sun,
   Trash2,
   Palette,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Bot, Space } from '../../../shared/chat/types';
+import type { Bot, MarketplaceBot, Space } from '../../../shared/chat/types';
 import type { Theme } from '../lib/theme';
 import { presenceTooltip, rosterPreviewForPresence } from '../lib/user-facing';
 import {
   BotFace,
   botColor,
   botLook,
+  decodeLook,
   encodeLook,
   COLORS,
   DEFAULT_BOT,
@@ -55,14 +58,19 @@ export function BotRoster({
   spaces,
   bots,
   archivedBots,
+  marketplaceBots = [],
   previews,
   selectedBotId,
   createOpen,
+  marketplaceOpen = false,
   theme,
   onThemeChange,
   onCreateOpenChange,
+  onMarketplaceOpenChange,
   onSelectBot,
   onCreateBot,
+  onInstallMarketplaceBot,
+  onToggleShareBot,
   onCreateSpace,
   onRenameBot,
   onChangeLook,
@@ -74,14 +82,24 @@ export function BotRoster({
   spaces: Space[];
   bots: Bot[];
   archivedBots: Bot[];
+  marketplaceBots?: MarketplaceBot[];
   previews: Record<string, string>;
   selectedBotId: string | null;
   createOpen: boolean;
+  marketplaceOpen?: boolean;
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
   onCreateOpenChange: (open: boolean) => void;
+  onMarketplaceOpenChange?: (open: boolean) => void;
   onSelectBot: (botId: string) => void | Promise<void>;
-  onCreateBot: (name: string, spaceId: string | null, avatarLabel?: string) => void | Promise<void>;
+  onCreateBot: (
+    name: string,
+    spaceId: string | null,
+    avatarLabel?: string,
+    description?: string,
+  ) => void | Promise<void>;
+  onInstallMarketplaceBot?: (botId: string, spaceId: string | null) => void | Promise<void>;
+  onToggleShareBot?: (botId: string, isShared: boolean) => void | Promise<void>;
   onCreateSpace: (name: string) => void | Promise<string | void>;
   onRenameBot: (botId: string, name: string) => void | Promise<void>;
   onChangeLook: (botId: string, avatarLabel: string) => void | Promise<void>;
@@ -96,6 +114,7 @@ export function BotRoster({
   const [namingSection, setNamingSection] = useState(false);
   const [sectionName, setSectionName] = useState('');
   const [botName, setBotName] = useState('');
+  const [botDescription, setBotDescription] = useState('');
   const [editLook, setEditLook] = useState<{ botId: string; config: BotConfig } | null>(null);
   const [lookConfig, setLookConfig] = useState<BotConfig>(() => ({ ...DEFAULT_BOT }));
   const [botSpaceId, setBotSpaceId] = useState<string>('');
@@ -170,6 +189,7 @@ export function BotRoster({
 
   function openCreate() {
     setBotName('');
+    setBotDescription('');
     setLookConfig({ ...DEFAULT_BOT });
     setBotSpaceId(defaultSpaceId);
     onCreateOpenChange(true);
@@ -259,6 +279,18 @@ export function BotRoster({
         >
           <Search size={18} strokeWidth={1.75} />
         </button>
+        {onMarketplaceOpenChange ? (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Marketplace"
+            title="Bot Marketplace"
+            aria-pressed={marketplaceOpen}
+            onClick={() => onMarketplaceOpenChange(true)}
+          >
+            <Store size={18} strokeWidth={1.75} />
+          </button>
+        ) : null}
         <button type="button" className="icon-button" aria-label="New bot" onClick={openCreate}>
           <Plus size={18} strokeWidth={1.75} />
         </button>
@@ -495,7 +527,14 @@ export function BotRoster({
                             title={presenceTooltip(bot.presence)}
                           />
                           <span className="roster-bot-copy">
-                            <span className="roster-bot-name">{bot.name}</span>
+                            <span className="roster-bot-name">
+                              {bot.name}
+                              {bot.isShared ? (
+                                <span className="roster-bot-shared-badge" title="Compartilhado no Marketplace">
+                                  Shared
+                                </span>
+                              ) : null}
+                            </span>
                             <span className="roster-bot-preview">{preview || 'No messages'}</span>
                           </span>
                           <span
@@ -656,6 +695,19 @@ export function BotRoster({
                   <FolderInput size={16} /> Move to
                 </button>
               ) : null}
+              {!menuBot.isPrimary && onToggleShareBot ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    const nextShared = !menuBot.isShared;
+                    setMenu(null);
+                    void onToggleShareBot(menuBot.id, nextShared);
+                  }}
+                >
+                  <Share2 size={16} /> {menuBot.isShared ? 'Remover do Marketplace' : 'Compartilhar no Marketplace'}
+                </button>
+              ) : null}
               <button type="button" role="menuitem" onClick={() => startRename(menuBot)}>
                 <Pencil size={16} /> Rename Bot
               </button>
@@ -717,7 +769,12 @@ export function BotRoster({
               const name = botName.trim();
               const selected = botSpaceId || defaultSpaceId;
               if (!name) return;
-              void onCreateBot(name, selected === NO_SECTION ? null : selected, encodeLook(lookConfig));
+              void onCreateBot(
+                name,
+                selected === NO_SECTION ? null : selected,
+                encodeLook(lookConfig),
+                botDescription.trim() || undefined,
+              );
               onCreateOpenChange(false);
             }}
           >
@@ -742,6 +799,17 @@ export function BotRoster({
               />
             </BotPicker>
             <div className="dialog-field">
+              Instruções do Bot (opcional)
+              <textarea
+                className="dialog-textarea"
+                rows={2}
+                value={botDescription}
+                placeholder="Defina o papel, regras ou persona do bot"
+                aria-label="Instruções do Bot"
+                onChange={(event) => setBotDescription(event.target.value)}
+              />
+            </div>
+            <div className="dialog-field">
               Section
               <Select
                 value={botSpaceId || defaultSpaceId}
@@ -752,6 +820,18 @@ export function BotRoster({
                 ]}
               />
             </div>
+            {onMarketplaceOpenChange ? (
+              <button
+                type="button"
+                className="dialog-link-btn"
+                onClick={() => {
+                  onCreateOpenChange(false);
+                  onMarketplaceOpenChange(true);
+                }}
+              >
+                Explorar Marketplace de Bots →
+              </button>
+            ) : null}
             <div className="dialog-actions">
               <button type="button" onClick={() => onCreateOpenChange(false)}>
                 Cancelar
@@ -814,6 +894,102 @@ export function BotRoster({
               >
                 Salvar
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {marketplaceOpen && onMarketplaceOpenChange ? (
+        <div
+          className="dialog-backdrop"
+          role="presentation"
+          onClick={() => onMarketplaceOpenChange(false)}
+        >
+          <div
+            className="dialog marketplace-dialog"
+            role="dialog"
+            aria-labelledby="marketplace-dialog-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="dialog-header-row">
+              <h2 id="marketplace-dialog-title">Bot Marketplace</h2>
+              <button
+                type="button"
+                className="dialog-close-btn"
+                aria-label="Fechar"
+                onClick={() => onMarketplaceOpenChange(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="dialog-note">
+              Bots são pessoais por padrão. Ao usar um Bot do Marketplace, você recebe o comportamento,
+              instruções e skills dele em um chat 100% privado.
+            </p>
+            <div className="dialog-field">
+              Adicionar na seção:
+              <Select
+                value={botSpaceId || defaultSpaceId}
+                onChange={setBotSpaceId}
+                options={[
+                  ...spaces.map((space) => ({ value: space.id, label: space.name })),
+                  { value: NO_SECTION, label: 'No section' },
+                ]}
+              />
+            </div>
+            <div className="marketplace-list">
+              {marketplaceBots.length === 0 ? (
+                <div className="marketplace-empty">
+                  <p>Nenhum Bot publicado no Marketplace ainda.</p>
+                  <p className="marketplace-empty-sub">
+                    Compartilhe um dos seus Bots pelo menu de ações ou painel de detalhes para torná-lo disponível aos colegas.
+                  </p>
+                </div>
+              ) : (
+                marketplaceBots.map((mBot) => {
+                  const mLook = decodeLook(mBot.avatarLabel) ?? { ...DEFAULT_BOT };
+                  return (
+                    <div key={mBot.id} className="marketplace-card">
+                      <div className="marketplace-card-header">
+                        <BotFace config={mLook} size={40} />
+                        <div className="marketplace-card-info">
+                          <span className="marketplace-card-name">{mBot.name}</span>
+                          <span className="marketplace-card-owner">por {mBot.ownerId}</span>
+                        </div>
+                      </div>
+                      <p className="marketplace-card-desc">
+                        {mBot.description || 'Sem descrição adicional'}
+                      </p>
+                      {mBot.skillNames.length > 0 ? (
+                        <div className="marketplace-skills">
+                          {mBot.skillNames.map((skill) => (
+                            <span key={skill} className="marketplace-skill-chip">
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="marketplace-install-btn"
+                        aria-label={`Usar ${mBot.name}`}
+                        onClick={async () => {
+                          const targetSpace =
+                            (botSpaceId || defaultSpaceId) === NO_SECTION
+                              ? null
+                              : botSpaceId || defaultSpaceId;
+                          if (onInstallMarketplaceBot) {
+                            await onInstallMarketplaceBot(mBot.id, targetSpace);
+                          }
+                          onMarketplaceOpenChange(false);
+                        }}
+                      >
+                        Usar Bot
+                      </button>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

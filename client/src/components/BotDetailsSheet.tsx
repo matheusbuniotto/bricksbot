@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { FileSpreadsheet, FileText, Link2, Pencil, Table2, X } from 'lucide-react';
 import type { ArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
@@ -129,6 +129,7 @@ export function BotDetailsSheet({
   onDeleteSandbox,
   onClose,
   onChangeLook,
+  onUpdateBotConfig,
 }: {
   bot: Bot;
   messages: Message[];
@@ -157,11 +158,20 @@ export function BotDetailsSheet({
   onDeleteSandbox?: () => Promise<void>;
   onClose: () => void;
   onChangeLook: (botId: string, avatarLabel: string) => void | Promise<void>;
+  onUpdateBotConfig?: (
+    botId: string,
+    patch: { description?: string; isShared?: boolean },
+  ) => Promise<void>;
 }) {
   const [tab, setTab] = useState<BotDetailsTab>('details');
   const [libraryExpanded, setLibraryExpanded] = useState(false);
   const [resizing, setResizing] = useState(false);
   const [editLook, setEditLook] = useState<BotLook | null>(null);
+  const [descriptionDraft, setDescriptionDraft] = useState(bot.description ?? '');
+
+  useEffect(() => {
+    setDescriptionDraft(bot.description ?? '');
+  }, [bot.id, bot.description]);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const files = listArtifactPinsFromMessages(messages);
   const accent = botColor(bot.id, bot.isPrimary);
@@ -301,6 +311,57 @@ export function BotDetailsSheet({
       <div className="bot-details-scroll flex-1 min-h-0 overflow-y-auto">
         {tab === 'details' ? (
           <div role="tabpanel" aria-label="Detalhes" className="bot-details-panel">
+            {!bot.isPrimary && onUpdateBotConfig ? (
+              <section className="bot-details-section">
+                <h3 className="bot-details-section-label">Marketplace & Comportamento</h3>
+                <div className="bot-details-card">
+                  <div className="marketplace-toggle-row">
+                    <span className="marketplace-toggle-label">Compartilhar no Marketplace</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(bot.isShared)}
+                      className={bot.isShared ? 'marketplace-toggle is-on' : 'marketplace-toggle'}
+                      onClick={() => void onUpdateBotConfig(bot.id, { isShared: !bot.isShared })}
+                    >
+                      <span className="marketplace-toggle-knob" />
+                    </button>
+                  </div>
+                  <p className="marketplace-toggle-status">
+                    {bot.isShared
+                      ? 'Publicado no Marketplace (comportamento e skills visíveis a outros usuários)'
+                      : 'Privado (apenas você vê e usa este bot)'}
+                  </p>
+                  <div className="bot-details-field">
+                    <label htmlFor="bot-desc-input" className="bot-details-field-label">
+                      Instruções do Bot
+                    </label>
+                    <textarea
+                      id="bot-desc-input"
+                      className="dialog-textarea"
+                      rows={3}
+                      value={descriptionDraft}
+                      placeholder="Instruções ou papel durável deste bot..."
+                      onChange={(e) => setDescriptionDraft(e.target.value)}
+                    />
+                    {descriptionDraft !== (bot.description ?? '') ? (
+                      <button
+                        type="button"
+                        className="pane-btn pane-btn-solid mt-2 self-start"
+                        onClick={() =>
+                          void onUpdateBotConfig(bot.id, { description: descriptionDraft.trim() })
+                        }
+                      >
+                        Salvar instruções
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="marketplace-privacy-note">
+                    Mensagens, histórico, aprovações e memórias são 100% privadas por usuário.
+                  </p>
+                </div>
+              </section>
+            ) : null}
             <RoutinesPanel
               bots={[bot]}
               routines={routines}
