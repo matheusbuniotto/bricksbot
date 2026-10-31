@@ -209,6 +209,19 @@ describe('chat HTTP API', () => {
         bots: Array<{ id: string; lastPreview?: string }>;
       };
       expect(botsB.find((b) => b.id === bot.id)?.lastPreview).toBe('');
+
+      // Cross-tenant protection: user-b cannot post messages or read approvals on user-a's chat
+      const crossPostRes = await fetch(`${baseUrl}/api/chats/${chatA.id}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'user-b' },
+        body: JSON.stringify({ content: 'malicious injection' }),
+      });
+      expect(crossPostRes.status).toBe(403);
+
+      const crossAutoRes = await fetch(`${baseUrl}/api/chats/${chatA.id}/approvals/auto`, {
+        headers: { 'x-forwarded-user': 'user-b' },
+      });
+      expect(crossAutoRes.status).toBe(403);
     });
   });
 

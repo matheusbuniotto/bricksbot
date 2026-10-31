@@ -360,6 +360,10 @@ export class MemoryChatStore implements ChatStore {
     return chat;
   }
 
+  async getChat(chatId: string): Promise<Chat | null> {
+    return this.chatById.get(chatId) ?? null;
+  }
+
   async findBotIdForChat(chatId: string): Promise<string | null> {
     return this.chatById.get(chatId)?.botId ?? null;
   }

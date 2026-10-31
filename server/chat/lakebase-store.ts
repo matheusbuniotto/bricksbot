@@ -610,6 +610,20 @@ export class LakebaseChatStore implements ChatStore {
     return chat;
   }
 
+  async getChat(chatId: string): Promise<Chat | null> {
+    const cached = this.chatByIdCache.get(chatId);
+    if (cached) return cached;
+    const result = await this.query(
+      `SELECT id, bot_id, user_id, title, created_at, updated_at, last_message_preview FROM bricksbot.chats WHERE id = $1`,
+      [chatId],
+    );
+    if (!result.rows[0]) return null;
+    const chat = mapChat(result.rows[0]);
+    this.chatByIdCache.set(chat.id, chat);
+    this.chatToBotCache.set(chat.id, chat.botId);
+    return chat;
+  }
+
   async findBotIdForChat(chatId: string): Promise<string | null> {
     const cachedBotId = this.chatToBotCache.get(chatId);
     if (cachedBotId !== undefined) return cachedBotId;

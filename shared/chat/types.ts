@@ -136,6 +136,7 @@ export interface ChatStore {
   ensurePrimaryBot(): Promise<Bot>;
   listMarketplaceBots(): Promise<Bot[]>;
   getOrCreateChatForBot(botId: string, userId?: string): Promise<Chat>;
+  getChat(chatId: string): Promise<Chat | null>;
   findBotIdForChat(chatId: string): Promise<string | null>;
   listMessages(chatId: string): Promise<Message[]>;
   addMessage(

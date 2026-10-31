@@ -294,9 +294,9 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       return { rows: row ? [{ bot_id: row.bot_id }] : [] };
     }
 
-    if (normalized.includes('SELECT id FROM bricksbot.chats WHERE id =')) {
+    if (normalized.includes('FROM bricksbot.chats WHERE id =')) {
       const row = chats.get(String(params[0]));
-      return { rows: row ? [{ id: row.id }] : [] };
+      return { rows: row ? [row] : [] };
     }
 
     if (normalized.includes('FROM bricksbot.messages WHERE chat_id =')) {

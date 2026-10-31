@@ -398,9 +398,25 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     }
   });
 
+  async function assertChatOwnership(chatId: string, req: Request, res: Response) {
+    const chat = await store.getChat(chatId);
+    if (!chat) {
+      res.status(404).json({ error: 'Chat not found' });
+      return null;
+    }
+    const callerId = resolveOwnerId(req);
+    if (chat.userId && chat.userId !== callerId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return null;
+    }
+    return chat;
+  }
+
   app.get('/api/chats/:chatId/approvals/auto', async (req: Request, res: Response) => {
     try {
       const chatId = String(req.params.chatId);
+      const chat = await assertChatOwnership(chatId, req, res);
+      if (!chat) return;
       const autoApprovedTools = await service.getApprovals().listAutoApproved(chatId);
       res.json({ autoApprovedTools });
     } catch (err) {
@@ -411,6 +427,8 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.delete('/api/chats/:chatId/approvals/auto/:toolName', async (req: Request, res: Response) => {
     try {
       const chatId = String(req.params.chatId);
+      const chat = await assertChatOwnership(chatId, req, res);
+      if (!chat) return;
       const toolName = String(req.params.toolName);
       await service.getApprovals().revokeAutoApproved(chatId, toolName);
       const autoApprovedTools = await service.getApprovals().listAutoApproved(chatId);
@@ -423,6 +441,8 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.post('/api/chats/:chatId/approvals/auto/revoke', async (req: Request, res: Response) => {
     try {
       const chatId = String(req.params.chatId);
+      const chat = await assertChatOwnership(chatId, req, res);
+      if (!chat) return;
       const toolName = typeof req.body?.toolName === 'string' ? req.body.toolName : undefined;
       if (toolName) {
         await service.getApprovals().revokeAutoApproved(chatId, toolName);
@@ -445,6 +465,8 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
 
     try {
       const chatId = String(req.params.chatId);
+      const chat = await assertChatOwnership(chatId, req, res);
+      if (!chat) return;
       const result = await service.sendUserMessage(chatId, parsed.data.content, {
         requestId: parsed.data.requestId,
       });
@@ -467,6 +489,17 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
 
     try {
       const approvalId = String(req.params.approvalId);
+      const pending = await service.getApprovals().get(approvalId);
+      if (!pending) {
+        res.status(404).json({ error: 'Approval request not found' });
+        return;
+      }
+      const chat = await store.getChat(pending.chatId);
+      const callerId = resolveOwnerId(req);
+      if (chat?.userId && chat.userId !== callerId) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
       const result = await service.decideApproval(approvalId, parsed.data.decision);
       res.json(result);
     } catch (err) {
@@ -486,6 +519,9 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     }
 
     try {
+      const chatId = String(req.params.chatId);
+      const chat = await assertChatOwnership(chatId, req, res);
+      if (!chat) return;
       const choiceId = String(req.params.choiceId);
       const pending = await service.getChoices().get(choiceId);
       if (!pending || pending.chatId !== String(req.params.chatId)) {
