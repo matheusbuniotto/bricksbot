@@ -47,22 +47,25 @@ export function parseHandoffNotice(content: string): HandoffNotice | null {
     return null;
   }
   try {
-    const parsed = JSON.parse(trimmed) as Partial<HandoffNotice>;
-    if (parsed.kind !== 'handoff' || !parsed.targetName) return null;
+    const parsed: unknown = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!('kind' in parsed) || parsed.kind !== 'handoff') return null;
+    if (!('targetName' in parsed) || typeof parsed.targetName !== 'string' || !parsed.targetName) return null;
+    const rawDir = 'direction' in parsed && typeof parsed.direction === 'string' ? parsed.direction : '';
     const direction: HandoffDirection =
-      parsed.direction === 'received' || parsed.direction === 'thread' ? parsed.direction : 'sent';
+      rawDir === 'received' || rawDir === 'thread' ? rawDir : 'sent';
     return {
       kind: 'handoff',
       direction,
-      targetBotId: typeof parsed.targetBotId === 'string' ? parsed.targetBotId : '',
+      targetBotId: 'targetBotId' in parsed && typeof parsed.targetBotId === 'string' ? parsed.targetBotId : '',
       targetName: parsed.targetName,
-      targetChatId: typeof parsed.targetChatId === 'string' ? parsed.targetChatId : '',
-      senderBotId: typeof parsed.senderBotId === 'string' ? parsed.senderBotId : '',
-      senderName: typeof parsed.senderName === 'string' ? parsed.senderName : '',
-      brief: typeof parsed.brief === 'string' ? parsed.brief : '',
-      messageCount: typeof parsed.messageCount === 'number' ? parsed.messageCount : undefined,
-      replyPreview: typeof parsed.replyPreview === 'string' ? parsed.replyPreview : undefined,
-      threadBotId: typeof parsed.threadBotId === 'string' ? parsed.threadBotId : undefined,
+      targetChatId: 'targetChatId' in parsed && typeof parsed.targetChatId === 'string' ? parsed.targetChatId : '',
+      senderBotId: 'senderBotId' in parsed && typeof parsed.senderBotId === 'string' ? parsed.senderBotId : '',
+      senderName: 'senderName' in parsed && typeof parsed.senderName === 'string' ? parsed.senderName : '',
+      brief: 'brief' in parsed && typeof parsed.brief === 'string' ? parsed.brief : '',
+      messageCount: 'messageCount' in parsed && typeof parsed.messageCount === 'number' ? parsed.messageCount : undefined,
+      replyPreview: 'replyPreview' in parsed && typeof parsed.replyPreview === 'string' ? parsed.replyPreview : undefined,
+      threadBotId: 'threadBotId' in parsed && typeof parsed.threadBotId === 'string' ? parsed.threadBotId : undefined,
     };
   } catch {
     return null;
@@ -121,8 +124,8 @@ export function sliceHandoffThread(
   if (!notice.brief) return messages;
   let start = -1;
   for (let i = 0; i < messages.length; i += 1) {
-    const message = messages[i]!;
-    if (message.role === 'user' && isHandoffBriefUserLine(message.content, notice.brief, notice.senderName)) {
+    const message = messages[i];
+    if (message && message.role === 'user' && isHandoffBriefUserLine(message.content, notice.brief, notice.senderName)) {
       start = i;
     }
   }
@@ -130,8 +133,8 @@ export function sliceHandoffThread(
 
   let end = messages.length;
   for (let i = start + 1; i < messages.length; i += 1) {
-    const message = messages[i]!;
-    if (message.role === 'user' && message.content.startsWith('From ') && message.content.includes(': ')) {
+    const message = messages[i];
+    if (message && message.role === 'user' && message.content.startsWith('From ') && message.content.includes(': ')) {
       end = i;
       break;
     }

@@ -24,8 +24,12 @@ export function presenceTooltip(presence: Presence): string {
       return 'Ausente';
     case 'offline':
       return 'Offline';
-    default:
+    case 'online':
       return 'Online';
+    default: {
+      const _exhaustive: never = presence;
+      return _exhaustive;
+    }
   }
 }
 

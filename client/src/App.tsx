@@ -370,10 +370,14 @@ export default function App() {
     if (!chat || !selectedBotId) return;
     setError(null);
     const optimisticId = `pending-${Date.now()}`;
-    setMessages((prev) => [
-      ...prev,
-      { id: optimisticId, chatId: chat.id, role: 'user', content, createdAt: new Date().toISOString() } as unknown as Message,
-    ]);
+    const optimisticMessage: Message = {
+      id: optimisticId,
+      chatId: chat.id,
+      role: 'user',
+      content,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
     setBots((prev) => prev.map((bot) => (bot.id === selectedBotId ? { ...bot, presence: 'thinking' } : bot)));
     try {
       const result = await sendChatMessage(chat.id, content);

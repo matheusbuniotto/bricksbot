@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+echo "Running pre-commit checks..."
+npm run typecheck
+npm test
+echo "Pre-commit checks passed."

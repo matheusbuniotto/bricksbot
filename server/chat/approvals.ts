@@ -46,12 +46,8 @@ export class ApprovalStore {
         id,
         chatId: asString(row.chat_id),
         toolCall: parseToolCall(row.tool_call),
-        status: asString(row.status) as ApprovalStatus,
-        decision: row.decision
-          ? (asString(row.decision) as ApprovalRequest['decision'])
-          : undefined,
+        status: 'pending',
         createdAt: asString(row.created_at),
-        decidedAt: row.decided_at ? asString(row.decided_at) : undefined,
       });
     }
 
@@ -97,15 +93,28 @@ export class ApprovalStore {
     );
     const row = result.rows[0];
     if (!row) return null;
-    const request: ApprovalRequest = {
+    const status = asString(row.status);
+    const base = {
       id: asString(row.id),
       chatId: asString(row.chat_id),
       toolCall: parseToolCall(row.tool_call),
-      status: asString(row.status) as ApprovalStatus,
-      decision: row.decision ? (asString(row.decision) as ApprovalRequest['decision']) : undefined,
       createdAt: asString(row.created_at),
-      decidedAt: row.decided_at ? asString(row.decided_at) : undefined,
     };
+    const request: ApprovalRequest =
+      status === 'approved' || status === 'denied'
+        ? {
+            ...base,
+            status,
+            decision: (asString(row.decision) || (status === 'denied' ? 'denied' : 'once')) as
+              | 'all_the_time'
+              | 'once'
+              | 'denied',
+            decidedAt: asString(row.decided_at) || asString(row.created_at),
+          }
+        : {
+            ...base,
+            status: 'pending',
+          };
     this.byId.set(request.id, request);
     return request;
   }

@@ -48,12 +48,24 @@ export type ApprovalDecision =
   | 'denied'
   | 'not_approved';
 
-export interface ApprovalRequest {
+export interface BaseApprovalRequest {
   id: string;
   chatId: string;
   toolCall: ToolCall;
-  status: ApprovalStatus;
-  decision?: 'all_the_time' | 'once' | 'denied';
   createdAt: string;
-  decidedAt?: string;
 }
+
+export interface PendingApprovalRequest extends BaseApprovalRequest {
+  status: 'pending';
+  decision?: undefined;
+  decidedAt?: undefined;
+}
+
+export interface ResolvedApprovalRequest extends BaseApprovalRequest {
+  status: 'approved' | 'denied';
+  decision: 'all_the_time' | 'once' | 'denied';
+  decidedAt: string;
+}
+
+export type ApprovalRequest = PendingApprovalRequest | ResolvedApprovalRequest;
+

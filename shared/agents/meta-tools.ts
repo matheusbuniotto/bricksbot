@@ -14,6 +14,8 @@ export const DEFAULT_META_TOOL_NAMES = [
 
 export type DefaultMetaToolName = (typeof DEFAULT_META_TOOL_NAMES)[number];
 
+const DEFAULT_META_TOOL_SET: ReadonlySet<string> = new Set(DEFAULT_META_TOOL_NAMES);
+
 export function isDefaultMetaTool(name: string): name is DefaultMetaToolName {
-  return (DEFAULT_META_TOOL_NAMES as readonly string[]).includes(name);
+  return DEFAULT_META_TOOL_SET.has(name);
 }

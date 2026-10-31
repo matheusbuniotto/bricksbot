@@ -96,8 +96,9 @@ describe('handoff-notice', () => {
       (m) => m.role === 'system',
     );
     expect(collapsed).toHaveLength(3);
-    expect(JSON.parse(collapsed[1]!.content).direction).toBe('thread');
-    expect(JSON.parse(collapsed[1]!.content).messageCount).toBe(4);
+    const parsedNotice = parseHandoffNotice(collapsed[1]!.content);
+    expect(parsedNotice?.direction).toBe('thread');
+    expect(parsedNotice?.messageCount).toBe(4);
   });
 
   test('sliceHandoffThread keeps only the matching brief through reply', () => {

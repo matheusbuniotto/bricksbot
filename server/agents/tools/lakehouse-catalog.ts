@@ -1,13 +1,20 @@
+import { z } from 'zod';
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { SqlQueryToolOptions } from './sql-query.js';
 
-export interface LakehouseCatalogArgs {
-  action: 'list_catalogs' | 'list_schemas' | 'list_tables' | 'describe_table';
-  catalog?: string;
-  schema?: string;
-  table?: string;
-  warehouse_id?: string;
-}
+export const lakehouseCatalogArgsSchema = z.object({
+  action: z.enum(['list_catalogs', 'list_schemas', 'list_tables', 'describe_table']),
+  catalog: z.string().optional(),
+  schema: z.string().optional(),
+  table: z.string().optional(),
+  warehouse_id: z.string().optional(),
+});
+
+export type LakehouseCatalogArgs = z.infer<typeof lakehouseCatalogArgsSchema>;
+
+export type CatalogStatementResult =
+  | { readonly statement: string; readonly error?: never }
+  | { readonly error: string; readonly statement?: never };
 
 export const lakehouseCatalogToolDefinition: ToolDefinition = {
   name: 'lakehouse_catalog',
@@ -54,7 +61,7 @@ function sanitizeIdentifier(ident: string | undefined): string | null {
   return `\`${trimmed}\``;
 }
 
-export function buildCatalogStatement(args: LakehouseCatalogArgs): { error?: string; statement?: string } {
+export function buildCatalogStatement(args: LakehouseCatalogArgs): CatalogStatementResult {
   const action = args.action;
   switch (action) {
     case 'list_catalogs':
@@ -102,8 +109,10 @@ export function buildCatalogStatement(args: LakehouseCatalogArgs): { error?: str
       parts.push(tbl);
       return { statement: `DESCRIBE TABLE ${parts.join('.')}` };
     }
-    default:
-      return { error: `Unknown lakehouse_catalog action: ${String(action)}` };
+    default: {
+      const _exhaustive: never = action;
+      return { error: `Unknown lakehouse_catalog action: ${String(_exhaustive)}` };
+    }
   }
 }
 
@@ -113,14 +122,23 @@ export function createLakehouseCatalogTool(options: SqlQueryToolOptions = {}) {
   return {
     definition: lakehouseCatalogToolDefinition,
     preflight(args: Record<string, unknown>): string | null {
-      const parsed = buildCatalogStatement(args as unknown as LakehouseCatalogArgs);
+      const parsedArgs = lakehouseCatalogArgsSchema.safeParse(args);
+      if (!parsedArgs.success) {
+        return parsedArgs.error.issues[0]?.message ?? 'Invalid arguments for lakehouse_catalog';
+      }
+      const parsed = buildCatalogStatement(parsedArgs.data);
       return parsed.error ?? null;
     },
     async execute(args: Record<string, unknown>): Promise<string> {
-      const parsed = buildCatalogStatement(args as unknown as LakehouseCatalogArgs);
-      if (parsed.error || !parsed.statement) {
+      const parsedArgs = lakehouseCatalogArgsSchema.safeParse(args);
+      if (!parsedArgs.success) {
+        return `lakehouse_catalog error: ${parsedArgs.error.issues[0]?.message ?? 'invalid request'}`;
+      }
+      const parsed = buildCatalogStatement(parsedArgs.data);
+      if (!parsed.statement) {
         return `lakehouse_catalog error: ${parsed.error ?? 'invalid request'}`;
       }
+      const statement = parsed.statement;
 
       const fromArgs = typeof args.warehouse_id === 'string' ? args.warehouse_id.trim() : '';
       const warehouseId = fromArgs || options.warehouseId?.trim() || '';
@@ -129,7 +147,7 @@ export function createLakehouseCatalogTool(options: SqlQueryToolOptions = {}) {
       }
 
       if (options.executeImpl) {
-        return options.executeImpl({ statement: parsed.statement, warehouseId });
+        return options.executeImpl({ statement, warehouseId });
       }
 
       const host = options.host?.trim();

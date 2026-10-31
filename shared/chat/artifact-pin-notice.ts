@@ -41,19 +41,28 @@ export function parseArtifactPinNotice(content: string): ArtifactPinNotice | nul
   const trimmed = content.trim();
   if (!trimmed.startsWith('{')) return null;
   try {
-    const parsed = JSON.parse(trimmed) as Partial<ArtifactPinNotice>;
-    if (parsed.kind !== 'artifact_pin' || !parsed.title) return null;
-    const artifactKind = parsed.artifactKind;
-    if (!artifactKind || !ARTIFACT_PIN_KINDS.includes(artifactKind)) return null;
-    const body = typeof parsed.body === 'string' ? parsed.body : '';
+    const parsed: unknown = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!('kind' in parsed) || parsed.kind !== 'artifact_pin') return null;
+    if (!('title' in parsed) || typeof parsed.title !== 'string' || !parsed.title) return null;
+    if (!('artifactKind' in parsed) || typeof parsed.artifactKind !== 'string') return null;
+    const artifactKind = parsed.artifactKind as ArtifactPinKind;
+    if (!ARTIFACT_PIN_KINDS.includes(artifactKind)) return null;
+    const body = 'body' in parsed && typeof parsed.body === 'string' ? parsed.body : '';
     return {
       kind: 'artifact_pin',
       title: parsed.title,
       artifactKind,
       body,
-      summary: typeof parsed.summary === 'string' ? parsed.summary : undefined,
-      pinnedByBotId: typeof parsed.pinnedByBotId === 'string' ? parsed.pinnedByBotId : '',
-      pinnedByName: typeof parsed.pinnedByName === 'string' ? parsed.pinnedByName : '',
+      summary: 'summary' in parsed && typeof parsed.summary === 'string' ? parsed.summary : undefined,
+      pinnedByBotId:
+        'pinnedByBotId' in parsed && typeof parsed.pinnedByBotId === 'string'
+          ? parsed.pinnedByBotId
+          : '',
+      pinnedByName:
+        'pinnedByName' in parsed && typeof parsed.pinnedByName === 'string'
+          ? parsed.pinnedByName
+          : '',
     };
   } catch {
     return null;

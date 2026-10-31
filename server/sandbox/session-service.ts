@@ -67,11 +67,14 @@ function toUiEvent(event: SandboxEvent): SandboxUiEvent {
 
   let summary = '';
   switch (event.type) {
-    case 'create':
-      summary = `Sandbox started (${String(payload.backend ?? 'sandbox')})`;
+    case 'create': {
+      const backend = typeof payload.backend === 'string' ? payload.backend : 'sandbox';
+      summary = `Sandbox started (${backend})`;
       break;
+    }
     case 'command': {
-      const cmd = stripSandboxPaths(String(payload.cmd ?? 'command')).slice(0, 80);
+      const cmdRaw = typeof payload.cmd === 'string' ? payload.cmd : 'command';
+      const cmd = stripSandboxPaths(cmdRaw).slice(0, 80);
       summary = `Ran: ${cmd}`;
       break;
     }
@@ -87,9 +90,16 @@ function toUiEvent(event: SandboxEvent): SandboxUiEvent {
     case 'delete':
       summary = 'Sandbox deleted';
       break;
-    case 'error':
-      summary = stripSandboxPaths(String(payload.error ?? 'Sandbox error')).slice(0, 100);
+    case 'error': {
+      const errRaw = typeof payload.error === 'string' ? payload.error : 'Sandbox error';
+      summary = stripSandboxPaths(errRaw).slice(0, 100);
       break;
+    }
+    default: {
+      const _exhaustive: never = event.type;
+      summary = `Unknown event (${String(_exhaustive)})`;
+      break;
+    }
   }
 
   return {

@@ -87,13 +87,15 @@ export function describeCronExpression(
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;
 
-  const minute = parseCronField(parts[0]!);
-  const hour = parseCronField(parts[1]!);
-  const dom = parts[2];
-  const month = parts[3];
-  const dow = parts[4];
+  const [partMinute, partHour, dom, month, dow] = parts;
+  if (!partMinute || !partHour || dom === undefined || month === undefined || dow === undefined) {
+    return cron;
+  }
 
-  if (minute === null || hour === null || dom === undefined || month === undefined || dow === undefined) {
+  const minute = parseCronField(partMinute);
+  const hour = parseCronField(partHour);
+
+  if (minute === null || hour === null) {
     return cron;
   }
 
@@ -135,19 +137,15 @@ export function unixCronToQuartzHint(cron: string): string | null {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return null;
 
-  const minute = parseCronField(parts[0]!);
-  const hour = parseCronField(parts[1]!);
-  const dom = parts[2];
-  const month = parts[3];
-  const dow = parts[4];
+  const [partMinute, partHour, dom, month, dow] = parts;
+  if (!partMinute || !partHour || dom === undefined || month === undefined || dow === undefined) {
+    return null;
+  }
 
-  if (
-    minute === null ||
-    hour === null ||
-    dom === undefined ||
-    month === undefined ||
-    dow === undefined
-  ) {
+  const minute = parseCronField(partMinute);
+  const hour = parseCronField(partHour);
+
+  if (minute === null || hour === null) {
     return null;
   }
   if (typeof minute !== 'number' || typeof hour !== 'number') return null;

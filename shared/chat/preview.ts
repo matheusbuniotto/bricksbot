@@ -49,8 +49,11 @@ export function lastUserFacingPreview(
   messages: ReadonlyArray<Pick<Message, 'role' | 'content'>>,
 ): string {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const line = messagePreviewLine(messages[i]!);
-    if (line !== null) return line;
+    const message = messages[i];
+    if (message) {
+      const line = messagePreviewLine(message);
+      if (line !== null) return line;
+    }
   }
   return '';
 }

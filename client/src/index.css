@@ -1513,8 +1513,7 @@ textarea.field {
   font-size: 13px;
 }
 
-.chat-loading,
-.transcript-empty {
+.chat-loading {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1522,15 +1521,7 @@ textarea.field {
   justify-content: center;
   gap: 12px;
   text-align: center;
-}
-
-.chat-loading {
   color: var(--muted-foreground);
-}
-
-.transcript-empty-name {
-  margin: 0;
-  font-size: 15px;
 }
 
 .transcript {

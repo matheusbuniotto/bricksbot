@@ -69,7 +69,7 @@ function isRawSystemBlob(content: string): boolean {
 
 export function ChatTranscript({
   messages,
-  botName,
+  botName: _botName,
   accent,
   botId: _botId,
   thinking,
@@ -78,7 +78,7 @@ export function ChatTranscript({
   onOpenBot,
 }: {
   messages: Message[];
-  botName: string | null;
+  botName?: string | null;
   accent: string;
   botId?: string;
   thinking?: boolean;
@@ -130,14 +130,6 @@ export function ChatTranscript({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [visible.length, thinking, thinkingLabel]);
-
-  if (messages.length === 0) {
-    return (
-      <div className="transcript transcript-empty">
-        <p className="transcript-empty-name">{botName ?? 'No bot selected'}</p>
-      </div>
-    );
-  }
 
   return (
     <div className="transcript">

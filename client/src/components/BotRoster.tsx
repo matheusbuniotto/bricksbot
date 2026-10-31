@@ -200,10 +200,20 @@ export function BotRoster({
     setMenu(null);
   }
 
-  function openBotMenu(botId: string, event: React.MouseEvent) {
+  function openBotMenu(botId: string, event: React.MouseEvent | React.KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
-    setMenu({ kind: 'bot', botId, x: event.clientX, y: event.clientY });
+    let x = 0;
+    let y = 0;
+    if ('clientX' in event && typeof event.clientX === 'number') {
+      x = event.clientX;
+      y = event.clientY;
+    } else if (event.currentTarget instanceof HTMLElement) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      x = rect.left;
+      y = rect.bottom;
+    }
+    setMenu({ kind: 'bot', botId, x, y });
   }
 
   function startRename(bot: Bot) {
@@ -542,7 +552,7 @@ export function BotRoster({
                             onClick={(event) => openBotMenu(bot.id, event)}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
-                                openBotMenu(bot.id, event as unknown as React.MouseEvent);
+                                openBotMenu(bot.id, event);
                               }
                             }}
                             role="button"

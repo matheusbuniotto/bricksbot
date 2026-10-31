@@ -33,11 +33,14 @@ export function parseChoicePromptNotice(content: string): ChoicePromptNotice | n
   const trimmed = content.trim();
   if (!trimmed.startsWith('{')) return null;
   try {
-    const parsed = JSON.parse(trimmed) as Partial<ChoicePromptNotice>;
-    if (parsed.kind !== 'choice_prompt' || !parsed.id || !parsed.toolCallId) return null;
-    const prompt = typeof parsed.prompt === 'string' ? parsed.prompt.trim() : '';
+    const parsed: unknown = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!('kind' in parsed) || parsed.kind !== 'choice_prompt') return null;
+    if (!('id' in parsed) || typeof parsed.id !== 'string' || !parsed.id) return null;
+    if (!('toolCallId' in parsed) || typeof parsed.toolCallId !== 'string' || !parsed.toolCallId) return null;
+    const prompt = 'prompt' in parsed && typeof parsed.prompt === 'string' ? parsed.prompt.trim() : '';
     if (!prompt) return null;
-    const options = normalizeOptions(parsed.options);
+    const options = 'options' in parsed ? normalizeOptions(parsed.options) : null;
     if (!options) return null;
     return {
       kind: 'choice_prompt',
@@ -59,11 +62,16 @@ export function parseChoiceAnswerNotice(content: string): ChoiceAnswerNotice | n
   const trimmed = content.trim();
   if (!trimmed.startsWith('{')) return null;
   try {
-    const parsed = JSON.parse(trimmed) as Partial<ChoiceAnswerNotice>;
-    if (parsed.kind !== 'choice_answer' || !parsed.choiceId) return null;
-    const selectedOption = typeof parsed.selectedOption === 'string' ? parsed.selectedOption.trim() : '';
+    const parsed: unknown = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!('kind' in parsed) || parsed.kind !== 'choice_answer') return null;
+    if (!('choiceId' in parsed) || typeof parsed.choiceId !== 'string' || !parsed.choiceId) return null;
+    const selectedOption =
+      'selectedOption' in parsed && typeof parsed.selectedOption === 'string'
+        ? parsed.selectedOption.trim()
+        : '';
     if (!selectedOption) return null;
-    const prompt = typeof parsed.prompt === 'string' ? parsed.prompt : '';
+    const prompt = 'prompt' in parsed && typeof parsed.prompt === 'string' ? parsed.prompt : '';
     return {
       kind: 'choice_answer',
       choiceId: parsed.choiceId,

@@ -37,8 +37,8 @@ function markNames(value: unknown, out: string[] = []): string[] {
     for (const [k, v] of Object.entries(value)) {
       if (k === 'mark') {
         if (typeof v === 'string') out.push(v);
-        else if (v && typeof v === 'object' && typeof (v as { type?: unknown }).type === 'string') {
-          out.push((v as { type: string }).type);
+        else if (v && typeof v === 'object' && 'type' in v && typeof v.type === 'string') {
+          out.push(v.type);
         } else out.push('');
       } else markNames(v, out);
     }
