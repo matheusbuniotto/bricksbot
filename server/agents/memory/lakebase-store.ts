@@ -30,15 +30,23 @@ function mapSkill(row: Record<string, unknown>): BotSkill {
 }
 
 export class LakebaseMemorySkillStore implements MemorySkillStore {
+  private memoriesByBot = new Map<string, BotMemory[]>();
+  private skillsByBot = new Map<string, BotSkill[]>();
+  private verifiedBots = new Set<string>();
+
   constructor(private readonly query: LakebaseQuery) {}
 
   private async requireBot(botId: string): Promise<void> {
+    if (this.verifiedBots.has(botId)) return;
     const result = await this.query(`SELECT id FROM bricksbot.bots WHERE id = $1`, [botId]);
     if (!result.rows[0]) throw new Error('Bot not found');
+    this.verifiedBots.add(botId);
   }
 
   async listMemories(botId: string): Promise<BotMemory[]> {
     const id = requireBotId(botId);
+    const cached = this.memoriesByBot.get(id);
+    if (cached) return [...cached];
     const result = await this.query(
       `SELECT id, bot_id, key, content, updated_at
        FROM bricksbot.bot_memories
@@ -46,7 +54,9 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
        ORDER BY key ASC`,
       [id]
     );
-    return result.rows.map(mapMemory);
+    const memories = result.rows.map(mapMemory);
+    this.memoriesByBot.set(id, memories);
+    return [...memories];
   }
 
   async upsertMemory(botId: string, key: string, content: string): Promise<BotMemory> {
@@ -63,7 +73,18 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
     );
     const row = result.rows[0];
     if (!row) throw new Error('Memory upsert failed');
-    return mapMemory(row);
+    const memory = mapMemory(row);
+    const cached = this.memoriesByBot.get(id);
+    if (cached) {
+      const idx = cached.findIndex((m) => m.key === memory.key);
+      if (idx >= 0) {
+        cached[idx] = memory;
+      } else {
+        cached.push(memory);
+        cached.sort((a, b) => a.key.localeCompare(b.key));
+      }
+    }
+    return memory;
   }
 
   async deleteMemory(botId: string, key: string): Promise<void> {
@@ -77,10 +98,17 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
       [id, trimmedKey],
     );
     if (!result.rows[0]) throw new Error('Memory not found');
+    const cached = this.memoriesByBot.get(id);
+    if (cached) {
+      const idx = cached.findIndex((m) => m.key === trimmedKey);
+      if (idx >= 0) cached.splice(idx, 1);
+    }
   }
 
   async listSkills(botId: string): Promise<BotSkill[]> {
     const id = requireBotId(botId);
+    const cached = this.skillsByBot.get(id);
+    if (cached) return [...cached];
     const result = await this.query(
       `SELECT id, bot_id, name, body, created_at
        FROM bricksbot.bot_skills
@@ -88,7 +116,9 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
        ORDER BY name ASC`,
       [id]
     );
-    return result.rows.map(mapSkill);
+    const skills = result.rows.map(mapSkill);
+    this.skillsByBot.set(id, skills);
+    return [...skills];
   }
 
   async createSkill(botId: string, name: string, body: string): Promise<BotSkill> {
@@ -109,7 +139,13 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
     );
     const row = result.rows[0];
     if (!row) throw new Error('Skill create failed');
-    return mapSkill(row);
+    const skill = mapSkill(row);
+    const cached = this.skillsByBot.get(id);
+    if (cached) {
+      cached.push(skill);
+      cached.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return skill;
   }
 
   async upsertSkill(botId: string, name: string, body: string): Promise<BotSkill> {
@@ -126,7 +162,18 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
     );
     const row = result.rows[0];
     if (!row) throw new Error('Skill upsert failed');
-    return mapSkill(row);
+    const skill = mapSkill(row);
+    const cached = this.skillsByBot.get(id);
+    if (cached) {
+      const idx = cached.findIndex((s) => s.name === skill.name);
+      if (idx >= 0) {
+        cached[idx] = skill;
+      } else {
+        cached.push(skill);
+        cached.sort((a, b) => a.name.localeCompare(b.name));
+      }
+    }
+    return skill;
   }
 
   async deleteSkill(botId: string, skillId: string): Promise<void> {
@@ -138,5 +185,10 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
       [skillId, id]
     );
     if (!result.rows[0]) throw new Error('Skill not found');
+    const cached = this.skillsByBot.get(id);
+    if (cached) {
+      const idx = cached.findIndex((s) => s.id === skillId);
+      if (idx >= 0) cached.splice(idx, 1);
+    }
   }
 }

@@ -36,6 +36,14 @@ function createFakeLakebase(): { query: LakebaseQuery; bots: Set<string> } {
       return { rows: [{ ...row }] };
     }
 
+    if (normalized.startsWith('DELETE FROM bricksbot.bot_memories')) {
+      const [botId, key] = params.map(String);
+      const index = memories.findIndex((row) => row.bot_id === botId && row.key === key);
+      if (index < 0) return { rows: [] };
+      const [removed] = memories.splice(index, 1);
+      return { rows: [{ id: removed?.id }] };
+    }
+
     if (normalized.includes('FROM bricksbot.bot_memories')) {
       const botId = String(params[0]);
       return {
@@ -53,6 +61,11 @@ function createFakeLakebase(): { query: LakebaseQuery; bots: Set<string> } {
 
     if (normalized.startsWith('INSERT INTO bricksbot.bot_skills')) {
       const [id, botId, name, body] = params.map(String);
+      const existing = skills.find((row) => row.bot_id === botId && row.name === name);
+      if (existing) {
+        existing.body = body;
+        return { rows: [{ ...existing }] };
+      }
       const row = {
         id,
         bot_id: botId,
@@ -103,5 +116,43 @@ describe('LakebaseMemorySkillStore', () => {
     await store.deleteSkill('bot-a', skill.id);
     expect(await store.listSkills('bot-a')).toEqual([]);
     await expect(store.upsertMemory('missing-bot', 'warehouse', 'us-west')).rejects.toThrow(/not found/i);
+  });
+
+  test('caches listMemories and listSkills and updates caches in-place on mutations', async () => {
+    const fake = createFakeLakebase();
+    fake.bots.add('bot-a');
+    const queries: string[] = [];
+    const countingQuery: LakebaseQuery = async (sql, params) => {
+      queries.push(sql.replace(/\s+/g, ' ').trim());
+      return fake.query(sql, params);
+    };
+    const store = new LakebaseMemorySkillStore(countingQuery);
+
+    expect(await store.listMemories('bot-a')).toEqual([]);
+    expect(await store.listSkills('bot-a')).toEqual([]);
+
+    queries.length = 0;
+    expect(await store.listMemories('bot-a')).toEqual([]);
+    expect(await store.listSkills('bot-a')).toEqual([]);
+    expect(queries).toHaveLength(0);
+
+    await store.upsertMemory('bot-a', 'b-key', 'two');
+    await store.upsertMemory('bot-a', 'a-key', 'one');
+    await store.createSkill('bot-a', 'z-skill', 'body z');
+    await store.upsertSkill('bot-a', 'a-skill', 'body a');
+
+    queries.length = 0;
+    expect((await store.listMemories('bot-a')).map((m) => m.key)).toEqual(['a-key', 'b-key']);
+    expect((await store.listSkills('bot-a')).map((s) => s.name)).toEqual(['a-skill', 'z-skill']);
+    expect(queries).toHaveLength(0);
+
+    await store.deleteMemory('bot-a', 'a-key');
+    const zSkill = (await store.listSkills('bot-a')).find((s) => s.name === 'z-skill')!;
+    await store.deleteSkill('bot-a', zSkill.id);
+
+    queries.length = 0;
+    expect((await store.listMemories('bot-a')).map((m) => m.key)).toEqual(['b-key']);
+    expect((await store.listSkills('bot-a')).map((s) => s.name)).toEqual(['a-skill']);
+    expect(queries).toHaveLength(0);
   });
 });

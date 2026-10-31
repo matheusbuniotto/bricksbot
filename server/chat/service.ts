@@ -585,7 +585,7 @@ export class ChatService {
           };
         }
 
-        return this.continueTurn(chatId, user, depth + 1, opts);
+        return await this.continueTurn(chatId, user, depth + 1, opts);
       }
 
       const assistant = await this.options.store.addMessage(
@@ -602,7 +602,9 @@ export class ChatService {
         provider: this.options.client.provider,
       };
     } finally {
-      await this.syncBotPresenceAfterTurn(chatId, botId);
+      if (depth === 0) {
+        await this.syncBotPresenceAfterTurn(chatId, botId);
+      }
     }
   }
 

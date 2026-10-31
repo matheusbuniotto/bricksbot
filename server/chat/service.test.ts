@@ -914,4 +914,43 @@ describe('ChatService', () => {
       ),
     ).toBe(true);
   });
+
+  test('Primary bot in a shared Space discovers and hands off by name to a teammate created by another member', async () => {
+    const store = new MemoryChatStore();
+    const { space: spaceA, primary: primaryA } = await store.ensureBootstrap('user-a');
+    await store.ensureBootstrap('user-b');
+    await store.addSpaceMember(spaceA.id, 'user-b', 'member');
+
+    const sharedTeammate = await store.createBot({
+      name: 'DataWizard',
+      spaceId: spaceA.id,
+      ownerId: 'user-b',
+    });
+
+    const primaryChat = await store.getOrCreateChatForBot(primaryA.id);
+    const client = new ScriptedClient([
+      {
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_shared_handoff',
+            name: 'handoff_to_bot',
+            arguments: { bot_name: 'DataWizard', brief: 'check shared metrics' },
+          },
+        ],
+      },
+      { content: 'Shared metrics are green.', toolCalls: [] },
+      { content: 'DataWizard reports shared metrics are green.', toolCalls: [] },
+    ]);
+    const service = new ChatService({ store, client });
+
+    const pending = await service.sendUserMessage(primaryChat.id, 'ask DataWizard');
+    expect(client.requests[0]?.messages[0]?.content).toContain(
+      `DataWizard (${sharedTeammate.id})`,
+    );
+    expect(pending.pendingApprovals).toHaveLength(1);
+
+    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
+    expect(continued.assistant?.content).toBe('DataWizard reports shared metrics are green.');
+  });
 });

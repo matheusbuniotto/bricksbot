@@ -230,13 +230,26 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     try {
       const botId = String(req.params.botId);
       const chat = await store.getOrCreateChatForBot(botId);
-      const messages = await store.listMessages(chat.id);
-      const pendingApprovals = await service.getApprovals().listPending(chat.id);
-      const pendingChoices = await service.getChoices().listPending(chat.id);
-      const autoApprovedTools = await service.getApprovals().listAutoApproved(chat.id);
-      const sandboxStatus = service.getSandbox()
-        ? await service.getSandbox()!.getUiStatusForChat(chat.id)
-        : { enabled: false, backend: 'off' as const, session: null, recentEvents: [] };
+      const [
+        messages,
+        pendingApprovals,
+        pendingChoices,
+        autoApprovedTools,
+        sandboxStatus,
+      ] = await Promise.all([
+        store.listMessages(chat.id),
+        service.getApprovals().listPending(chat.id),
+        service.getChoices().listPending(chat.id),
+        service.getApprovals().listAutoApproved(chat.id),
+        service.getSandbox()
+          ? service.getSandbox()!.getUiStatusForChat(chat.id)
+          : Promise.resolve({
+              enabled: false,
+              backend: 'off' as const,
+              session: null,
+              recentEvents: [],
+            }),
+      ]);
       res.json({
         chat,
         messages,
