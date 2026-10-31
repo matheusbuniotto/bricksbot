@@ -34,7 +34,7 @@ export const CHAT_SCHEMA_STATEMENTS = [
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chats_bot_id
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_chats_bot_lookup
   ON bricksbot.chats(bot_id)`,
   `CREATE TABLE IF NOT EXISTS bricksbot.messages (
   id UUID PRIMARY KEY,
