@@ -51,6 +51,45 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       return { rows: row ? [row] : [] };
     }
 
+    if (normalized.includes('FROM bricksbot.bots') && normalized.includes('ORDER BY is_primary')) {
+      let rows = [...bots.values()];
+      if (normalized.includes('archived_at IS NULL')) {
+        rows = rows.filter((b) => b.archived_at == null);
+      } else if (normalized.includes('archived_at IS NOT NULL')) {
+        rows = rows.filter((b) => b.archived_at != null);
+      }
+      const hasSpaceFilter = normalized.includes('space_id IS NOT DISTINCT FROM');
+      if (hasSpaceFilter) {
+        rows = rows.filter((b) => b.space_id === params[0]);
+      }
+      if (normalized.includes('EXISTS (SELECT 1 FROM bricksbot.spaces')) {
+        const viewerId = String(hasSpaceFilter ? params[1] : params[0]);
+        const accessibleSpaceIds = new Set(
+          [...spaces.values()]
+            .filter(
+              (s) =>
+                s.owner_id === viewerId ||
+                members.some((m) => m.space_id === s.id && m.user_id === viewerId),
+            )
+            .map((s) => String(s.id)),
+        );
+        rows = rows.filter(
+          (b) =>
+            b.owner_id === viewerId ||
+            (!b.is_primary && b.space_id != null && accessibleSpaceIds.has(String(b.space_id))),
+        );
+      } else if (params.length >= 1 && normalized.includes('owner_id =')) {
+        const ownerParam = hasSpaceFilter ? params[1] : params[0];
+        rows = rows.filter((b) => b.owner_id === ownerParam);
+      }
+      rows.sort(
+        (a, b) =>
+          Number(b.is_primary) - Number(a.is_primary) ||
+          Number(a.sort_order) - Number(b.sort_order),
+      );
+      return { rows };
+    }
+
     if (normalized.includes('FROM bricksbot.spaces s')) {
       const ownerId = String(params[0]);
       const rows = [...spaces.values()].filter(
@@ -71,7 +110,7 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
     }
 
     if (normalized.startsWith('INSERT INTO bricksbot.bots')) {
-      const [id, name, avatar_label, , space_id, is_primary, owner_id, sort_order] = params;
+      const [id, name, avatar_label, space_id, is_primary, owner_id, sort_order] = params;
       const row = {
         id: String(id),
         name: String(name),
@@ -83,6 +122,7 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
         sort_order: Number(sort_order ?? 0),
         archived_at: null as string | null,
         created_at: new Date().toISOString(),
+        last_message_preview: null as string | null,
       };
       bots.set(row.id, row);
       return { rows: [row] };
@@ -102,27 +142,6 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       return { rows: [{ next }] };
     }
 
-    if (normalized.includes('FROM bricksbot.bots') && normalized.includes('ORDER BY is_primary')) {
-      let rows = [...bots.values()];
-      if (normalized.includes('archived_at IS NULL')) {
-        rows = rows.filter((b) => b.archived_at == null);
-      } else if (normalized.includes('archived_at IS NOT NULL')) {
-        rows = rows.filter((b) => b.archived_at != null);
-      }
-      if (params.length >= 2 && normalized.includes('space_id IS NOT DISTINCT FROM')) {
-        rows = rows.filter((b) => b.space_id === params[0] && b.owner_id === params[1]);
-      } else if (params.length >= 1 && normalized.includes('owner_id =')) {
-        const ownerParam = normalized.includes('space_id IS NOT DISTINCT FROM') ? params[1] : params[0];
-        rows = rows.filter((b) => b.owner_id === ownerParam);
-      }
-      rows.sort(
-        (a, b) =>
-          Number(b.is_primary) - Number(a.is_primary) ||
-          Number(a.sort_order) - Number(b.sort_order),
-      );
-      return { rows };
-    }
-
     if (normalized.includes('FROM bricksbot.bots WHERE id =')) {
       const row = bots.get(String(params[0]));
       return { rows: row ? [row] : [] };
@@ -135,8 +154,18 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       return { rows: [bot] };
     }
 
+    if (normalized.startsWith('UPDATE bricksbot.bots SET last_message_preview')) {
+      const bot = bots.get(String(params[0]));
+      if (bot) {
+        bot.last_message_preview = String(params[1]);
+      }
+      return { rows: [] };
+    }
+
     if (normalized.includes('FROM bricksbot.bots') && normalized.includes('WHERE name =')) {
-      const row = [...bots.values()].find((b) => b.name === params[0]);
+      const row = [...bots.values()].find(
+        (b) => b.name === params[0] && (params.length < 2 || b.owner_id === params[1]),
+      );
       return { rows: row ? [row] : [] };
     }
 
@@ -309,5 +338,61 @@ describe('LakebaseChatStore', () => {
     expect(messages[0]?.toolCalls).toEqual([
       { id: 'call_1', name: 'sql_query', arguments: { statement: 'SELECT 1' } },
     ]);
+  });
+
+  test('shares space bots across members without exposing Primary or stealing Primary on bootstrap', async () => {
+    const { primary: primaryA } = await store.ensureBootstrap('user-a');
+    const { primary: primaryB } = await store.ensureBootstrap('user-b');
+    expect(primaryB.id).not.toBe(primaryA.id);
+    expect((await store.getBot(primaryA.id))?.ownerId).toBe('user-a');
+
+    const shared = await store.createSpace({ name: 'Shared Team', ownerId: 'user-a' });
+    const analyst = await store.createBot({
+      name: 'Analyst',
+      spaceId: shared.id,
+      ownerId: 'user-a',
+    });
+    await store.addSpaceMember(shared.id, 'user-b', 'member');
+
+    const botsForB = await store.listBots({ ownerId: 'user-b' });
+    expect(botsForB.map((b) => b.id)).toEqual([primaryB.id, analyst.id]);
+
+    const spaceBotsForB = await store.listBots({ ownerId: 'user-b', spaceId: shared.id });
+    expect(spaceBotsForB.map((b) => b.id)).toEqual([analyst.id]);
+  });
+
+  test('addMessage updates bot.lastPreview and ignores tool rows', async () => {
+    const { primary } = await store.ensureBootstrap('user-a');
+    expect(primary.lastPreview).toBe('');
+    const chat = await store.getOrCreateChatForBot(primary.id);
+
+    await store.addMessage(chat.id, 'user', 'Run report');
+    expect((await store.getBot(primary.id))?.lastPreview).toBe('Run report');
+
+    await store.addMessage(chat.id, 'tool', JSON.stringify({ result: 'ok' }), {
+      toolCallId: 'call_1',
+    });
+    expect((await store.getBot(primary.id))?.lastPreview).toBe('Run report');
+
+    const freshStore = new LakebaseChatStore(fake.query);
+    expect((await freshStore.getBot(primary.id))?.lastPreview).toBe('Run report');
+  });
+
+  test('write-through cache avoids duplicate SQL queries for ensureBootstrap, getBot, and findBotIdForChat', async () => {
+    const queries: string[] = [];
+    const countingQuery: LakebaseQuery = async (sql, params) => {
+      queries.push(sql.replace(/\s+/g, ' ').trim());
+      return fake.query(sql, params);
+    };
+    const cachedStore = new LakebaseChatStore(countingQuery);
+    const { primary } = await cachedStore.ensureBootstrap('user-1');
+    const chat = await cachedStore.getOrCreateChatForBot(primary.id);
+
+    queries.length = 0;
+    await cachedStore.ensureBootstrap('user-1');
+    await cachedStore.getBot(primary.id);
+    await cachedStore.findBotIdForChat(chat.id);
+    await cachedStore.setBotPresence(primary.id, primary.presence);
+    expect(queries).toHaveLength(0);
   });
 });

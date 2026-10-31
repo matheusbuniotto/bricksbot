@@ -114,4 +114,41 @@ describe('MemoryChatStore', () => {
     await expect(store.archiveBot(primary.id)).rejects.toThrow(/Primary/);
     await expect(store.deleteBot(primary.id)).rejects.toThrow(/Primary/);
   });
+
+  test('shares non-primary space bots across members without exposing Primary', async () => {
+    const { primary: primaryA } = await store.ensureBootstrap('user-a');
+    const { primary: primaryB } = await store.ensureBootstrap('user-b');
+    expect(primaryB.id).not.toBe(primaryA.id);
+
+    const shared = await store.createSpace({ name: 'Shared Team', ownerId: 'user-a' });
+    const analyst = await store.createBot({
+      name: 'Analyst',
+      spaceId: shared.id,
+      ownerId: 'user-a',
+    });
+    await store.addSpaceMember(shared.id, 'user-b', 'member');
+
+    const botsForB = await store.listBots({ ownerId: 'user-b' });
+    expect(botsForB.map((b) => b.id)).toEqual([primaryB.id, analyst.id]);
+
+    const spaceBotsForB = await store.listBots({ ownerId: 'user-b', spaceId: shared.id });
+    expect(spaceBotsForB.map((b) => b.id)).toEqual([analyst.id]);
+  });
+
+  test('addMessage updates bot.lastPreview for user/assistant/handoff notices and ignores tool rows', async () => {
+    const { primary } = await store.ensureBootstrap('user-a');
+    expect(primary.lastPreview).toBe('');
+    const chat = await store.getOrCreateChatForBot(primary.id);
+
+    await store.addMessage(chat.id, 'user', 'Check the sales table');
+    expect((await store.getBot(primary.id))?.lastPreview).toBe('Check the sales table');
+
+    await store.addMessage(chat.id, 'tool', JSON.stringify({ result: '10 rows' }), {
+      toolCallId: 'call-1',
+    });
+    expect((await store.getBot(primary.id))?.lastPreview).toBe('Check the sales table');
+
+    await store.addMessage(chat.id, 'assistant', 'Sales look healthy');
+    expect((await store.getBot(primary.id))?.lastPreview).toBe('Sales look healthy');
+  });
 });

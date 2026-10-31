@@ -16,6 +16,8 @@ import type {
   UpdateBotInput,
 } from '../../shared/chat/types.js';
 import type { ToolCall } from '../../shared/agents/types.js';
+import { messagePreviewLine } from '../../shared/chat/preview.js';
+import { canViewerAccessSpace, isBotVisibleToViewer } from './access-policy.js';
 
 const PRIMARY_NAME = 'Primary';
 const DEFAULT_SPACE_NAME = 'Personal';
@@ -131,7 +133,13 @@ export class MemoryChatStore implements ChatStore {
       bots = bots.filter((bot) => bot.spaceId === options.spaceId);
     }
     if (options?.ownerId) {
-      bots = bots.filter((bot) => bot.ownerId === options.ownerId);
+      const ownerId = options.ownerId;
+      const accessibleSpaceIds = new Set(
+        [...this.spaces.values()]
+          .filter((space) => canViewerAccessSpace(space, this.members, ownerId))
+          .map((space) => space.id),
+      );
+      bots = bots.filter((bot) => isBotVisibleToViewer(bot, ownerId, accessibleSpaceIds));
     }
     if (archived === 'active') {
       bots = bots.filter((bot) => bot.archivedAt == null);
@@ -144,8 +152,7 @@ export class MemoryChatStore implements ChatStore {
   private nextSortOrder(spaceId: string | null, ownerId: string): number {
     const siblings = [...this.bots.values()].filter(
       (bot) =>
-        bot.ownerId === ownerId &&
-        bot.spaceId === spaceId &&
+        (spaceId !== null ? bot.spaceId === spaceId : bot.ownerId === ownerId && bot.spaceId === null) &&
         !bot.isPrimary &&
         bot.archivedAt == null,
     );
@@ -171,6 +178,7 @@ export class MemoryChatStore implements ChatStore {
       sortOrder: input.isPrimary ? -1 : this.nextSortOrder(input.spaceId ?? null, input.ownerId),
       archivedAt: null,
       createdAt: nowIso(),
+      lastPreview: '',
     };
     this.bots.set(bot.id, bot);
     if (bot.isPrimary) {
@@ -222,8 +230,9 @@ export class MemoryChatStore implements ChatStore {
     const siblings = [...this.bots.values()]
       .filter(
         (row) =>
-          row.ownerId === bot.ownerId &&
-          row.spaceId === input.spaceId &&
+          (input.spaceId !== null
+            ? row.spaceId === input.spaceId
+            : row.ownerId === bot.ownerId && row.spaceId === null) &&
           !row.isPrimary &&
           row.archivedAt == null &&
           row.id !== bot.id,
@@ -349,9 +358,16 @@ export class MemoryChatStore implements ChatStore {
     };
     messages.push(message);
 
-    for (const chat of this.chatsByBot.values()) {
+    const preview = messagePreviewLine({ role, content: trimmed });
+    for (const [botId, chat] of this.chatsByBot.entries()) {
       if (chat.id === chatId) {
         chat.updatedAt = message.createdAt;
+        if (preview !== null) {
+          const bot = this.bots.get(botId);
+          if (bot) {
+            this.bots.set(botId, { ...bot, lastPreview: preview });
+          }
+        }
         break;
       }
     }

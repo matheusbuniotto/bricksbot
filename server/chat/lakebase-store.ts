@@ -16,10 +16,12 @@ import type {
   UpdateBotInput,
 } from '../../shared/chat/types.js';
 import type { ToolCall } from '../../shared/agents/types.js';
+import { messagePreviewLine } from '../../shared/chat/preview.js';
+import { buildBotVisibilitySqlClause } from './access-policy.js';
 import { CHAT_SCHEMA_STATEMENTS } from './schema.js';
 
 const BOT_COLUMNS =
-  'id, name, avatar_label, presence, space_id, is_primary, owner_id, sort_order, archived_at, created_at';
+  'id, name, avatar_label, presence, space_id, is_primary, owner_id, sort_order, archived_at, created_at, last_message_preview';
 
 export type LakebaseQuery = (
   sql: string,
@@ -64,6 +66,7 @@ function mapBot(row: Record<string, unknown>): Bot {
     sortOrder: Number(row.sort_order ?? 0),
     archivedAt: row.archived_at ? asString(row.archived_at) : null,
     createdAt: asString(row.created_at),
+    lastPreview: row.last_message_preview ? asString(row.last_message_preview) : '',
   };
 }
 
@@ -116,6 +119,12 @@ function mapMember(row: Record<string, unknown>): SpaceMember {
 }
 
 export class LakebaseChatStore implements ChatStore {
+  private bootstrappedByOwner = new Map<string, { space: Space; primaryId: string }>();
+  private bootstrapInFlight = new Map<string, Promise<{ space: Space; primary: Bot }>>();
+  private botsCache = new Map<string, Bot>();
+  private chatByBotCache = new Map<string, Chat>();
+  private chatToBotCache = new Map<string, string>();
+
   constructor(private readonly query: LakebaseQuery) {}
 
   async initSchema(): Promise<void> {
@@ -125,54 +134,73 @@ export class LakebaseChatStore implements ChatStore {
   }
 
   async ensureBootstrap(ownerId: string): Promise<{ space: Space; primary: Bot }> {
-    const spaces = await this.query(
-      `SELECT id, name, owner_id, created_at FROM bricksbot.spaces
-       WHERE owner_id = $1 AND name = $2
-       ORDER BY created_at ASC LIMIT 1`,
-      [ownerId, DEFAULT_SPACE_NAME],
-    );
-    let space = spaces.rows[0] ? mapSpace(spaces.rows[0]) : null;
-    if (!space) {
-      space = await this.createSpace({ name: DEFAULT_SPACE_NAME, ownerId });
-    }
-
-    const primaries = await this.query(
-      `SELECT ${BOT_COLUMNS}
-       FROM bricksbot.bots
-       WHERE owner_id = $1 AND is_primary = TRUE
-       ORDER BY created_at ASC LIMIT 1`,
-      [ownerId],
-    );
-    let primary = primaries.rows[0] ? mapBot(primaries.rows[0]) : null;
-    if (!primary) {
-      // Promote a legacy Phase 1 Primary row if present.
-      const legacy = await this.query(
-        `SELECT ${BOT_COLUMNS}
-         FROM bricksbot.bots
-         WHERE name = $1
-         ORDER BY created_at ASC LIMIT 1`,
-        [PRIMARY_NAME],
-      );
-      if (legacy.rows[0]) {
-        const promoted = await this.query(
-          `UPDATE bricksbot.bots
-           SET is_primary = TRUE, space_id = $2, owner_id = $3, sort_order = -1, archived_at = NULL
-           WHERE id = $1
-           RETURNING ${BOT_COLUMNS}`,
-          [asString(legacy.rows[0].id), space.id, ownerId],
-        );
-        primary = mapBot(promoted.rows[0]!);
-      } else {
-        primary = await this.createBot({
-          name: PRIMARY_NAME,
-          spaceId: space.id,
-          ownerId,
-          avatarLabel: 'P',
-          isPrimary: true,
-        });
+    const cached = this.bootstrappedByOwner.get(ownerId);
+    if (cached) {
+      const primary = this.botsCache.get(cached.primaryId);
+      if (primary) {
+        return { space: cached.space, primary };
       }
     }
-    return { space, primary };
+
+    const inFlight = this.bootstrapInFlight.get(ownerId);
+    if (inFlight) return inFlight;
+
+    const promise = (async () => {
+      const spaces = await this.query(
+        `SELECT id, name, owner_id, created_at FROM bricksbot.spaces
+         WHERE owner_id = $1 AND name = $2
+         ORDER BY created_at ASC LIMIT 1`,
+        [ownerId, DEFAULT_SPACE_NAME],
+      );
+      let space = spaces.rows[0] ? mapSpace(spaces.rows[0]) : null;
+      if (!space) {
+        space = await this.createSpace({ name: DEFAULT_SPACE_NAME, ownerId });
+      }
+
+      const primaries = await this.query(
+        `SELECT ${BOT_COLUMNS}
+         FROM bricksbot.bots
+         WHERE owner_id = $1 AND is_primary = TRUE
+         ORDER BY created_at ASC LIMIT 1`,
+        [ownerId],
+      );
+      let primary = primaries.rows[0] ? mapBot(primaries.rows[0]) : null;
+      if (!primary) {
+        const legacy = await this.query(
+          `SELECT ${BOT_COLUMNS}
+           FROM bricksbot.bots
+           WHERE name = $1 AND owner_id = $2
+           ORDER BY created_at ASC LIMIT 1`,
+          [PRIMARY_NAME, ownerId],
+        );
+        if (legacy.rows[0]) {
+          const promoted = await this.query(
+            `UPDATE bricksbot.bots
+             SET is_primary = TRUE, space_id = $2, owner_id = $3, sort_order = -1, archived_at = NULL
+             WHERE id = $1
+             RETURNING ${BOT_COLUMNS}`,
+            [asString(legacy.rows[0].id), space.id, ownerId],
+          );
+          primary = mapBot(promoted.rows[0]!);
+        } else {
+          primary = await this.createBot({
+            name: PRIMARY_NAME,
+            spaceId: space.id,
+            ownerId,
+            avatarLabel: 'P',
+            isPrimary: true,
+          });
+        }
+      }
+      this.botsCache.set(primary.id, primary);
+      this.bootstrappedByOwner.set(ownerId, { space, primaryId: primary.id });
+      return { space, primary };
+    })().finally(() => {
+      this.bootstrapInFlight.delete(ownerId);
+    });
+
+    this.bootstrapInFlight.set(ownerId, promise);
+    return promise;
   }
 
   async ensurePrimaryBot(): Promise<Bot> {
@@ -254,7 +282,7 @@ export class LakebaseChatStore implements ChatStore {
     }
     if (options?.ownerId) {
       params.push(options.ownerId);
-      clauses.push(`owner_id = $${params.length}`);
+      clauses.push(buildBotVisibilitySqlClause(params.length));
     }
     const archived = options?.archived ?? 'active';
     if (archived === 'active') {
@@ -270,7 +298,11 @@ export class LakebaseChatStore implements ChatStore {
        ORDER BY is_primary DESC, sort_order ASC, created_at ASC`,
       params,
     );
-    return result.rows.map(mapBot);
+    const bots = result.rows.map(mapBot);
+    for (const bot of bots) {
+      this.botsCache.set(bot.id, bot);
+    }
+    return bots;
   }
 
   private async nextSortOrder(spaceId: string | null, ownerId: string): Promise<number> {
@@ -312,7 +344,9 @@ export class LakebaseChatStore implements ChatStore {
         sortOrder,
       ],
     );
-    return mapBot(inserted.rows[0]!);
+    const bot = mapBot(inserted.rows[0]!);
+    this.botsCache.set(bot.id, bot);
+    return bot;
   }
 
   async updateBot(botId: string, input: UpdateBotInput): Promise<Bot> {
@@ -344,7 +378,9 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING ${BOT_COLUMNS}`,
       [botId, name, avatarLabel, spaceId, sortOrder],
     );
-    return mapBot(result.rows[0]!);
+    const updated = mapBot(result.rows[0]!);
+    this.botsCache.set(updated.id, updated);
+    return updated;
   }
 
   async moveBot(botId: string, input: MoveBotInput): Promise<Bot> {
@@ -381,7 +417,10 @@ export class LakebaseChatStore implements ChatStore {
         `UPDATE bricksbot.bots SET space_id = $2, sort_order = $3 WHERE id = $1`,
         [row.id, input.spaceId, index],
       );
+      const cached = this.botsCache.get(row.id) ?? row;
+      this.botsCache.set(row.id, { ...cached, spaceId: input.spaceId, sortOrder: index });
     }
+    this.botsCache.delete(botId);
     const updated = await this.getBot(botId);
     if (!updated) throw new Error('Bot not found');
     return updated;
@@ -397,7 +436,9 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING ${BOT_COLUMNS}`,
       [botId],
     );
-    return mapBot(result.rows[0]!);
+    const updated = mapBot(result.rows[0]!);
+    this.botsCache.set(updated.id, updated);
+    return updated;
   }
 
   async unarchiveBot(botId: string): Promise<Bot> {
@@ -410,7 +451,9 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING ${BOT_COLUMNS}`,
       [botId, sortOrder],
     );
-    return mapBot(result.rows[0]!);
+    const updated = mapBot(result.rows[0]!);
+    this.botsCache.set(updated.id, updated);
+    return updated;
   }
 
   async deleteBot(botId: string): Promise<void> {
@@ -418,28 +461,59 @@ export class LakebaseChatStore implements ChatStore {
     if (!bot) throw new Error('Bot not found');
     if (bot.isPrimary) throw new Error('Cannot delete the Primary bot');
     await this.query(`DELETE FROM bricksbot.bots WHERE id = $1`, [botId]);
+    this.botsCache.delete(botId);
+    const cachedChat = this.chatByBotCache.get(botId);
+    if (cachedChat) {
+      this.chatByBotCache.delete(botId);
+      this.chatToBotCache.delete(cachedChat.id);
+    }
+    for (const [chatId, mappedBotId] of this.chatToBotCache.entries()) {
+      if (mappedBotId === botId) {
+        this.chatToBotCache.delete(chatId);
+      }
+    }
+    for (const [ownerId, entry] of this.bootstrappedByOwner.entries()) {
+      if (entry.primaryId === botId) {
+        this.bootstrappedByOwner.delete(ownerId);
+      }
+    }
   }
 
   async getBot(botId: string): Promise<Bot | null> {
+    const cached = this.botsCache.get(botId);
+    if (cached) return cached;
     const result = await this.query(
       `SELECT ${BOT_COLUMNS}
        FROM bricksbot.bots WHERE id = $1`,
       [botId],
     );
-    return result.rows[0] ? mapBot(result.rows[0]) : null;
+    const bot = result.rows[0] ? mapBot(result.rows[0]) : null;
+    if (bot) {
+      this.botsCache.set(bot.id, bot);
+    }
+    return bot;
   }
 
   async setBotPresence(botId: string, presence: Presence): Promise<Bot> {
+    const cached = this.botsCache.get(botId);
+    if (cached?.presence === presence) {
+      return cached;
+    }
     const result = await this.query(
       `UPDATE bricksbot.bots SET presence = $2 WHERE id = $1
        RETURNING ${BOT_COLUMNS}`,
       [botId, presence],
     );
     if (!result.rows[0]) throw new Error('Bot not found');
-    return mapBot(result.rows[0]);
+    const updated = mapBot(result.rows[0]);
+    this.botsCache.set(updated.id, updated);
+    return updated;
   }
 
   async getOrCreateChatForBot(botId: string): Promise<Chat> {
+    const cachedChat = this.chatByBotCache.get(botId);
+    if (cachedChat) return cachedChat;
+
     const bot = await this.getBot(botId);
     if (!bot) throw new Error('Bot not found');
 
@@ -447,7 +521,12 @@ export class LakebaseChatStore implements ChatStore {
       `SELECT id, bot_id, title, created_at, updated_at FROM bricksbot.chats WHERE bot_id = $1`,
       [botId],
     );
-    if (existing.rows[0]) return mapChat(existing.rows[0]);
+    if (existing.rows[0]) {
+      const chat = mapChat(existing.rows[0]);
+      this.chatByBotCache.set(botId, chat);
+      this.chatToBotCache.set(chat.id, botId);
+      return chat;
+    }
 
     const id = randomUUID();
     const inserted = await this.query(
@@ -456,17 +535,27 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING id, bot_id, title, created_at, updated_at`,
       [id, botId, bot.name],
     );
-    return mapChat(inserted.rows[0]!);
+    const chat = mapChat(inserted.rows[0]!);
+    this.chatByBotCache.set(botId, chat);
+    this.chatToBotCache.set(chat.id, botId);
+    return chat;
   }
 
   async findBotIdForChat(chatId: string): Promise<string | null> {
+    const cachedBotId = this.chatToBotCache.get(chatId);
+    if (cachedBotId !== undefined) return cachedBotId;
     const result = await this.query(`SELECT bot_id FROM bricksbot.chats WHERE id = $1`, [chatId]);
-    return result.rows[0] ? asString(result.rows[0].bot_id) : null;
+    if (!result.rows[0]) return null;
+    const botId = asString(result.rows[0].bot_id);
+    this.chatToBotCache.set(chatId, botId);
+    return botId;
   }
 
   async listMessages(chatId: string): Promise<Message[]> {
-    const chat = await this.query(`SELECT id FROM bricksbot.chats WHERE id = $1`, [chatId]);
-    if (!chat.rows[0]) throw new Error('Chat not found');
+    if (!this.chatToBotCache.has(chatId)) {
+      const chat = await this.query(`SELECT id FROM bricksbot.chats WHERE id = $1`, [chatId]);
+      if (!chat.rows[0]) throw new Error('Chat not found');
+    }
     const result = await this.query(
       `SELECT id, chat_id, role, content, created_at, tool_call_id, tool_calls
        FROM bricksbot.messages
@@ -487,8 +576,10 @@ export class LakebaseChatStore implements ChatStore {
     if (!trimmed && role !== 'assistant') {
       throw new Error('Message content is required');
     }
-    const chat = await this.query(`SELECT id FROM bricksbot.chats WHERE id = $1`, [chatId]);
-    if (!chat.rows[0]) throw new Error('Chat not found');
+    if (!this.chatToBotCache.has(chatId)) {
+      const chat = await this.query(`SELECT id FROM bricksbot.chats WHERE id = $1`, [chatId]);
+      if (!chat.rows[0]) throw new Error('Chat not found');
+    }
 
     const id = randomUUID();
     const toolCallsJson =
@@ -500,6 +591,20 @@ export class LakebaseChatStore implements ChatStore {
       [id, chatId, role, trimmed, options?.toolCallId ?? null, toolCallsJson],
     );
     await this.query(`UPDATE bricksbot.chats SET updated_at = NOW() WHERE id = $1`, [chatId]);
+    const preview = messagePreviewLine({ role, content: trimmed });
+    if (preview !== null) {
+      const botId = await this.findBotIdForChat(chatId);
+      if (botId) {
+        await this.query(
+          `UPDATE bricksbot.bots SET last_message_preview = $2 WHERE id = $1`,
+          [botId, preview],
+        );
+        const cachedBot = this.botsCache.get(botId);
+        if (cachedBot) {
+          this.botsCache.set(botId, { ...cachedBot, lastPreview: preview });
+        }
+      }
+    }
     return mapMessage(result.rows[0]!);
   }
 }

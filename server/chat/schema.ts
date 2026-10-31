@@ -54,6 +54,9 @@ export const CHAT_SCHEMA_STATEMENTS = [
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS owner_id TEXT NOT NULL DEFAULT 'workspace-user'`,
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ`,
+  `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS last_message_preview TEXT`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_space_members_user
+  ON bricksbot.space_members(user_id, space_id)`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_bots_roster
   ON bricksbot.bots(owner_id, space_id, sort_order, created_at)`,
   `ALTER TABLE bricksbot.messages DROP CONSTRAINT IF EXISTS messages_role_check`,
