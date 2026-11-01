@@ -420,7 +420,7 @@
         </div>
         <div class="card">
           <strong>Multi-Agent Roster</strong>
-          <p>Primary router bot handoffs to specialized domain bots (SQL analysts, FinOps gurus, data engineers, chart visualizers).</p>
+          <p>Primary router bot bootstrapped on first login, with durable handoffs to domain bots created on-demand, by Primary, or installed from the Marketplace.</p>
         </div>
         <div class="card">
           <strong>Human-in-the-Loop Trust</strong>
@@ -671,6 +671,48 @@
             <td><code>sandbox_exec</code></td>
             <td><span class="pill pill-yellow">Ask-First</span></td>
             <td>Executes shell commands or Python scripts inside isolated compute sandboxes.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Built-in Seed Skills (Available Out-of-the-Box)</h3>
+      <p>
+        In addition to tools, every bot has access to 5 built-in lakehouse skills defined in <code>shared/agents/seed-skills.ts</code>. These guide the agent on how to sequence tools, apply limits, and validate answers:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Seed Skill Name</th>
+            <th>Trigger Context</th>
+            <th>Operational Guidance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>sql-explore</code></td>
+            <td>Lakehouse data queries</td>
+            <td>Enforces single read-only queries (SELECT/DESCRIBE), requires LIMIT (20–100), and mandates citing exact SQL and table identifiers in replies.</td>
+          </tr>
+          <tr>
+            <td><code>catalog-recon</code></td>
+            <td>Metastore exploration</td>
+            <td>Directs the bot to map catalogs → schemas → tables → columns, summarize fact vs. dim relationships, and offer verified follow-up queries.</td>
+          </tr>
+          <tr>
+            <td><code>weekly-table-health</code></td>
+            <td>Data quality & freshness</td>
+            <td>Calculates row counts, freshness latency, and null rates; reports explicit pass/warn/fail thresholds; recommends automation as a routine.</td>
+          </tr>
+          <tr>
+            <td><code>pin-finding</code></td>
+            <td>Shareable insights</td>
+            <td>Extracts key findings (SQL snippets, table summaries, volume paths) and pins them to the transcript right-side rail using <code>pin_artifact</code>.</td>
+          </tr>
+          <tr>
+            <td><code>dataviz</code></td>
+            <td>Charts & distributions</td>
+            <td>Transforms tabular query rows into interactive Vega-Lite v5 specifications (bar, line, scatter) rendered via <code>pin_chart</code>.</td>
           </tr>
         </tbody>
       </table>
