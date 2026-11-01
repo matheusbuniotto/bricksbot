@@ -18,8 +18,8 @@ function createFakeLakebase(): { query: LakebaseQuery; bots: Set<string> } {
     }
 
     if (normalized.startsWith('INSERT INTO bricksbot.bot_memories')) {
-      const [id, botId, key, content] = params.map(String);
-      const existing = memories.find((row) => row.bot_id === botId && row.key === key);
+      const [id, botId, userId, key, content] = params.map(String);
+      const existing = memories.find((row) => row.bot_id === botId && row.user_id === userId && row.key === key);
       if (existing) {
         existing.content = content;
         existing.updated_at = new Date().toISOString();
@@ -28,6 +28,7 @@ function createFakeLakebase(): { query: LakebaseQuery; bots: Set<string> } {
       const row = {
         id,
         bot_id: botId,
+        user_id: userId,
         key,
         content,
         updated_at: new Date().toISOString(),
@@ -37,8 +38,8 @@ function createFakeLakebase(): { query: LakebaseQuery; bots: Set<string> } {
     }
 
     if (normalized.startsWith('DELETE FROM bricksbot.bot_memories')) {
-      const [botId, key] = params.map(String);
-      const index = memories.findIndex((row) => row.bot_id === botId && row.key === key);
+      const [botId, userId, key] = params.map(String);
+      const index = memories.findIndex((row) => row.bot_id === botId && row.user_id === userId && row.key === key);
       if (index < 0) return { rows: [] };
       const [removed] = memories.splice(index, 1);
       return { rows: [{ id: removed?.id }] };
@@ -46,8 +47,11 @@ function createFakeLakebase(): { query: LakebaseQuery; bots: Set<string> } {
 
     if (normalized.includes('FROM bricksbot.bot_memories')) {
       const botId = String(params[0]);
+      const userId = params[1] ? String(params[1]) : undefined;
       return {
-        rows: memories.filter((row) => row.bot_id === botId).sort((a, b) => String(a.key).localeCompare(String(b.key))),
+        rows: memories
+          .filter((row) => row.bot_id === botId && (!userId || row.user_id === userId))
+          .sort((a, b) => String(a.key).localeCompare(String(b.key))),
       };
     }
 
@@ -57,6 +61,23 @@ function createFakeLakebase(): { query: LakebaseQuery; bots: Set<string> } {
       if (index < 0) return { rows: [] };
       const [removed] = skills.splice(index, 1);
       return { rows: [{ id: removed?.id }] };
+    }
+
+    if (normalized.startsWith('INSERT INTO bricksbot.bot_skills') && normalized.includes('SELECT')) {
+      const [src, tgt] = params.map(String);
+      const toClone = skills.filter((s) => s.bot_id === src);
+      for (const s of toClone) {
+        if (!skills.some((existing) => existing.bot_id === tgt && existing.name === s.name)) {
+          skills.push({
+            id: `cloned-${s.id}`,
+            bot_id: tgt,
+            name: s.name,
+            body: s.body,
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+      return { rows: [] };
     }
 
     if (normalized.startsWith('INSERT INTO bricksbot.bot_skills')) {
@@ -76,6 +97,17 @@ function createFakeLakebase(): { query: LakebaseQuery; bots: Set<string> } {
       skills.push(row);
       return { rows: [{ ...row }] };
     }
+
+    if (normalized.includes('FROM bricksbot.bot_skills') && normalized.includes('ANY($1)')) {
+      const botIds = (params[0] as string[]) ?? [];
+      const set = new Set(botIds);
+      return {
+        rows: skills
+          .filter((s) => set.has(String(s.bot_id)))
+          .map((s) => ({ bot_id: s.bot_id, name: s.name })),
+      };
+    }
+
 
     if (normalized.includes('FROM bricksbot.bot_skills') && normalized.includes('AND name =')) {
       const [botId, name] = params.map(String);
@@ -154,5 +186,50 @@ describe('LakebaseMemorySkillStore', () => {
     expect((await store.listMemories('bot-a')).map((m) => m.key)).toEqual(['b-key']);
     expect((await store.listSkills('bot-a')).map((s) => s.name)).toEqual(['a-skill']);
     expect(queries).toHaveLength(0);
+  });
+
+  test('isolates memories per user on the same bot', async () => {
+    const fake = createFakeLakebase();
+    fake.bots.add('shared-bot');
+    const store = new LakebaseMemorySkillStore(fake.query);
+
+    await store.upsertMemory('shared-bot', 'pref', 'user1-pref', 'user-1');
+    await store.upsertMemory('shared-bot', 'pref', 'user2-pref', 'user-2');
+
+    const u1Memories = await store.listMemories('shared-bot', 'user-1');
+    const u2Memories = await store.listMemories('shared-bot', 'user-2');
+
+    expect(u1Memories).toEqual([expect.objectContaining({ key: 'pref', content: 'user1-pref', userId: 'user-1' })]);
+    expect(u2Memories).toEqual([expect.objectContaining({ key: 'pref', content: 'user2-pref', userId: 'user-2' })]);
+
+    await store.deleteMemory('shared-bot', 'pref', 'user-1');
+    expect(await store.listMemories('shared-bot', 'user-1')).toEqual([]);
+    expect(await store.listMemories('shared-bot', 'user-2')).toHaveLength(1);
+  });
+
+  test('batches skill names, clones skills across bots, and evicts bot cache', async () => {
+    const fake = createFakeLakebase();
+    fake.bots.add('source-bot');
+    fake.bots.add('target-bot');
+    const store = new LakebaseMemorySkillStore(fake.query);
+
+    await store.createSkill('source-bot', 'skill-1', 'body 1');
+    await store.createSkill('source-bot', 'skill-2', 'body 2');
+
+    const skillMap = await store.listSkillNamesForBots(['source-bot', 'target-bot']);
+    expect(skillMap.get('source-bot')).toEqual(['skill-1', 'skill-2']);
+    expect(skillMap.get('target-bot')).toEqual([]);
+
+    await store.cloneSkills('source-bot', 'target-bot');
+    const targetSkills = await store.listSkills('target-bot');
+    expect(targetSkills.map((s) => s.name)).toEqual(['skill-1', 'skill-2']);
+
+    await store.upsertMemory('source-bot', 'k', 'v', 'user-1');
+    expect(await store.listMemories('source-bot', 'user-1')).toHaveLength(1);
+
+    store.evictBot('source-bot');
+    // After eviction, verifiedBots and cached entries are cleared
+    fake.bots.delete('source-bot');
+    await expect(store.upsertMemory('source-bot', 'k', 'v2', 'user-1')).rejects.toThrow(/not found/i);
   });
 });

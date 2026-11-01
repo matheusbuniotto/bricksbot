@@ -3281,7 +3281,7 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
 .connectors-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 @media (max-width: 640px) {
@@ -3290,20 +3290,67 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   }
 }
 
+.connectors-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.connectors-pill-count {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 0 5px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--muted-foreground);
+}
+
+.connectors-pill.is-active .connectors-pill-count {
+  background: color-mix(in srgb, var(--background) 25%, transparent);
+  color: var(--background);
+}
+
 .connector-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: 12px;
+  flex-direction: column;
+  padding: 12px 14px;
+  border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--card);
   gap: 10px;
-  transition: border-color 0.15s, background-color 0.15s;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
 }
 
 .connector-card:hover {
-  border-color: var(--muted-foreground);
+  border-color: color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+
+.connector-card.is-expanded {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  box-shadow: 0 4px 18px -4px oklch(0 0 0 / 0.12);
+}
+
+.connector-card-primary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
 }
 
 .connector-card-main {
@@ -3312,6 +3359,55 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   gap: 10px;
   min-width: 0;
   flex: 1;
+}
+
+.connector-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.connector-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.connector-expand-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+  border-color: var(--muted-foreground);
+}
+
+.connector-source-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.connector-source-badge.is-system {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.connector-source-badge.is-custom {
+  background: color-mix(in srgb, #8a4dff 14%, transparent);
+  color: #8a4dff;
 }
 
 .connector-card-icon {
@@ -3338,7 +3434,7 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 3px 6px;
+  gap: 4px 6px;
   min-width: 0;
   margin-bottom: 2px;
 }
@@ -3392,12 +3488,12 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
 }
 
 .connector-card-desc {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--muted-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 260px;
+  max-width: 280px;
 }
 
 .connector-tools-pill {
@@ -3407,8 +3503,303 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 260px;
+  max-width: 280px;
   opacity: 0.85;
+}
+
+.connector-card-expansion {
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+  animation: connectorExpand 0.18s ease-out;
+}
+
+@keyframes connectorExpand {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.connector-expanded-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+
+.connector-tools-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.connector-tools-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.connector-tools-header-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.connector-tools-hint {
+  font-size: 10.5px;
+  font-weight: 400;
+  text-transform: none;
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+
+.connector-tools-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.connector-tool-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.connector-tool-badge:hover {
+  background: var(--card);
+  border-color: var(--accent);
+  color: var(--primary);
+}
+
+.connector-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  font-size: 11.5px;
+}
+
+.connector-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.connector-meta-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.connector-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.connector-copy-btn:hover {
+  background: var(--muted);
+}
+
+.connector-detail-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--primary);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.connector-detail-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+.connectors-custom-panel {
+  padding: 16px 18px;
+  margin: 0 0 16px 0;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 6px 20px -4px oklch(0 0 0 / 0.18);
+  animation: connectorExpand 0.18s ease-out;
+}
+
+.connectors-custom-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.connectors-custom-panel-title-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.connectors-custom-panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.connectors-custom-panel-sub {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+
+.connectors-custom-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.connectors-custom-fields {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .connectors-custom-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.connectors-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.connectors-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.connectors-custom-input {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.connectors-custom-input:focus {
+  border-color: var(--accent);
+}
+
+.connectors-example-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.connectors-example-chip {
+  border: 1px dashed var(--border);
+  background: transparent;
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.connectors-example-chip:hover {
+  border-color: var(--primary);
+  color: var(--foreground);
+}
+
+.connectors-error-banner {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
+  color: #ef4444;
+  font-size: 12px;
+}
+
+.connectors-custom-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.connectors-btn-secondary {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.connectors-btn-secondary:hover {
+  background: var(--card);
 }
 
 .connector-action-btn {

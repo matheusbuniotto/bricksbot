@@ -21,7 +21,6 @@ export function BotAvatar({ config, size = 48 }: { config: BotConfig; size?: num
   return <Html html={html} />;
 }
 
-/** Call once near the app root. */
 export function useMouseFollow() {
   useEffect(() => attachMouseFollow(), []);
 }
@@ -33,7 +32,6 @@ export function BotPicker({
 }: {
   value: BotConfig;
   onChange: (v: BotConfig) => void;
-  /** Rendered between the live preview and the shape grid (e.g. name input). */
   children?: ReactNode;
 }) {
   const set = (p: Partial<BotConfig>) => onChange({ ...value, ...p });
@@ -45,14 +43,14 @@ export function BotPicker({
 
       {children}
 
-      <div role="radiogroup" aria-label="Forma" className="grid5">
+      <div role="radiogroup" aria-label="Shape" className="grid5">
         {SHAPES.map((_, i) => (
           <button
             key={i}
             type="button"
             role="radio"
             aria-checked={value.shape === i}
-            aria-label={`Forma ${i + 1}`}
+            aria-label={`Shape ${i + 1}`}
             onClick={() => set({ shape: i })}
           >
             <BotAvatar config={{ ...value, shape: i }} size={46} />
@@ -60,14 +58,14 @@ export function BotPicker({
         ))}
       </div>
 
-      <div role="radiogroup" aria-label="Cor" className="dots">
+      <div role="radiogroup" aria-label="Color" className="dots">
         {COLORS.map(([face], i) => (
           <button
             key={i}
             type="button"
             role="radio"
             aria-checked={value.color === i}
-            aria-label={`Cor ${i + 1}`}
+            aria-label={`Color ${i + 1}`}
             style={{ background: face }}
             onClick={() => set({ color: i })}
           />
@@ -75,8 +73,8 @@ export function BotPicker({
       </div>
 
       <div className="bot-picker-row">
-        <span className="bot-picker-label">Chapéu</span>
-        <div role="radiogroup" aria-label="Chapéu" className="chips">
+        <span className="bot-picker-label">Hat</span>
+        <div role="radiogroup" aria-label="Hat" className="chips">
           {HAT_NAMES.map((name, i) => (
             <button
               key={i}
@@ -86,15 +84,15 @@ export function BotPicker({
               aria-label={name}
               onClick={() => set({ hat: i })}
             >
-              {i ? <Html html={hatChip(i, value.color)} /> : <span>Nenhum</span>}
+              {i ? <Html html={hatChip(i, value.color)} /> : <span>None</span>}
             </button>
           ))}
         </div>
       </div>
 
       <div className="bot-picker-row">
-        <span className="bot-picker-label">Óculos</span>
-        <div role="radiogroup" aria-label="Óculos" className="chips">
+        <span className="bot-picker-label">Glasses</span>
+        <div role="radiogroup" aria-label="Glasses" className="chips">
           {GLASSES_NAMES.map((name, i) => (
             <button
               key={i}
@@ -104,7 +102,7 @@ export function BotPicker({
               aria-label={name}
               onClick={() => set({ glasses: i })}
             >
-              {i ? <Html html={glassesChip(i, value.color)} /> : <span>Nenhum</span>}
+              {i ? <Html html={glassesChip(i, value.color)} /> : <span>None</span>}
             </button>
           ))}
         </div>

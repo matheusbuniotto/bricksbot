@@ -187,6 +187,7 @@ export class ChatService {
   private readonly tools: RegisteredTool[];
   private readonly compactionSettings: CompactionSettings;
   private readonly memory: MemorySkillStore;
+  private readonly activeTurnsByBot = new Map<string, number>();
 
   constructor(private readonly options: ChatServiceOptions) {
     this.approvals = options.approvals ?? new ApprovalStore();
@@ -285,7 +286,6 @@ export class ChatService {
 
   async decideApproval(approvalId: string, decision: ApprovalDecision): Promise<SendMessageResult> {
     const pending = await this.approvals.get(approvalId);
-    // create_bot never persists “all the time” — coerce to once.
     const effectiveDecision: ApprovalDecision =
       decision === 'all_the_time' && pending && requiresAlwaysAsk(pending.toolCall.name)
         ? 'once'
@@ -314,12 +314,13 @@ export class ChatService {
         );
       }
     } else {
-      const botId = await this.options.store.findBotIdForChat(chatId);
+      const chat = await this.options.store.getChat(chatId);
+      const botId = chat?.botId ?? (await this.options.store.findBotIdForChat(chatId));
       const bot = botId ? await this.options.store.getBot(botId) : null;
       if (botId) {
         await this.options.store.setBotPresence(botId, 'working');
       }
-      const toolResult = await this.executeTool(approval.toolCall, { chatId, bot });
+      const toolResult = await this.executeTool(approval.toolCall, { chatId, bot, userId: chat?.userId });
       await this.options.store.addMessage(chatId, 'tool', toolResult, {
         toolCallId: approval.toolCall.id,
       });
@@ -431,6 +432,22 @@ export class ChatService {
     return null;
   }
 
+  private markBotTurnStart(botId: string | null): void {
+    if (!botId) return;
+    this.activeTurnsByBot.set(botId, (this.activeTurnsByBot.get(botId) ?? 0) + 1);
+  }
+
+  private async markBotTurnEnd(chatId: string, botId: string | null): Promise<void> {
+    if (!botId) return;
+    const active = (this.activeTurnsByBot.get(botId) ?? 1) - 1;
+    if (active <= 0) {
+      this.activeTurnsByBot.delete(botId);
+      await this.syncBotPresenceAfterTurn(chatId, botId);
+    } else {
+      this.activeTurnsByBot.set(botId, active);
+    }
+  }
+
   /** After a turn stops: waiting (approvals) or blocked (user choice) or online. */
   private async syncBotPresenceAfterTurn(chatId: string, botId: string | null): Promise<void> {
     if (!botId) return;
@@ -482,15 +499,19 @@ export class ChatService {
       };
     }
 
-    const botId = await this.options.store.findBotIdForChat(chatId);
+    const chat = await this.options.store.getChat(chatId);
+    const botId = chat?.botId ?? (await this.options.store.findBotIdForChat(chatId));
     const bot = botId ? await this.options.store.getBot(botId) : null;
     if (botId) {
+      if (depth === 0) {
+        this.markBotTurnStart(botId);
+      }
       await this.options.store.setBotPresence(botId, 'thinking');
     }
 
     try {
       let history = await this.options.store.listMessages(chatId);
-      const systemPrompt = await this.systemPromptFor(bot);
+      const systemPrompt = await this.systemPromptFor(bot, chat?.userId);
 
       if (this.options.compaction && shouldCompact(history, systemPrompt, this.compactionSettings)) {
         await runCompaction({
@@ -571,7 +592,7 @@ export class ChatService {
         }
 
         for (const toolCall of toAutoExecute) {
-          const toolResult = await this.executeTool(toolCall, { chatId, bot });
+          const toolResult = await this.executeTool(toolCall, { chatId, bot, userId: chat?.userId });
           await this.options.store.addMessage(chatId, 'tool', toolResult, {
             toolCallId: toolCall.id,
           });
@@ -621,7 +642,7 @@ export class ChatService {
       };
     } finally {
       if (depth === 0) {
-        await this.syncBotPresenceAfterTurn(chatId, botId);
+        await this.markBotTurnEnd(chatId, botId);
       }
     }
   }
@@ -637,7 +658,7 @@ export class ChatService {
       .map((tool) => tool.definition);
   }
 
-  private async systemPromptFor(bot: Bot | null): Promise<string> {
+  private async systemPromptFor(bot: Bot | null, userId?: string): Promise<string> {
     const botName = bot?.name ?? 'Primary';
     const toolNames = this.toolsFor(bot).map((t) => t.name);
 
@@ -655,7 +676,7 @@ export class ChatService {
     let botSkills: Awaited<ReturnType<MemorySkillStore['listSkills']>> = [];
     if (bot) {
       [memories, botSkills] = await Promise.all([
-        this.memory.listMemories(bot.id),
+        this.memory.listMemories(bot.id, userId),
         this.memory.listSkills(bot.id),
       ]);
     }

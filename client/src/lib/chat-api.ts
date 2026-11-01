@@ -2,6 +2,7 @@ import type { Bot, Chat, MarketplaceBot, Message, Space, SpaceMember } from '../
 import type { PendingChoice } from '../../../shared/chat/choice-notice';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
 import type { SandboxUiStatus } from '../../../shared/sandbox/types';
+import type { DatabricksMcpApp } from '../../../shared/agents/mcp-types';
 
 async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -274,4 +275,33 @@ export async function fetchAutoApprovedTools(
   chatId: string,
 ): Promise<{ autoApprovedTools: string[] }> {
   return readJson(await fetch(`/api/chats/${chatId}/approvals/auto`));
+}
+
+export async function fetchMcps(refresh = false): Promise<DatabricksMcpApp[]> {
+  const query = refresh ? '?refresh=true' : '';
+  const data = await readJson<{ mcps: DatabricksMcpApp[] }>(await fetch(`/api/mcps${query}`));
+  return data.mcps;
+}
+
+export async function registerCustomMcp(
+  service: string,
+  meta?: { name?: string; description?: string },
+): Promise<DatabricksMcpApp> {
+  const data = await readJson<{ mcp: DatabricksMcpApp }>(
+    await fetch('/api/mcps/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ service, ...meta }),
+    }),
+  );
+  return data.mcp;
+}
+
+export async function removeCustomMcp(service: string): Promise<boolean> {
+  const data = await readJson<{ success: boolean }>(
+    await fetch(`/api/mcps/${encodeURIComponent(service)}`, {
+      method: 'DELETE',
+    }),
+  );
+  return data.success;
 }

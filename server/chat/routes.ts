@@ -1,7 +1,9 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import type { ChatStore, MarketplaceBot } from '../../shared/chat/types.js';
+import type { Bot, ChatStore, MarketplaceBot } from '../../shared/chat/types.js';
 import { AVAILABLE_DATABRICKS_MCPS } from '../../shared/agents/mcp-types.js';
+import type { McpDiscoveryService } from '../agents/tools/mcp-discovery.js';
+import { canViewerAccessSpace } from './access-policy.js';
 import { resolveOwnerId } from './identity.js';
 import type { ChatService } from './service.js';
 
@@ -94,8 +96,19 @@ function isBadRequest(err: unknown): boolean {
   );
 }
 
+function isUnauthorized(err: unknown): boolean {
+  return err instanceof Error && /authentication required/i.test(err.message);
+}
+
 /** Register Spaces, roster, durable chat, and approval HTTP routes. */
-export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: ChatService): void {
+export function registerChatRoutes(
+  app: ChatHttpApp,
+  store: ChatStore,
+  service: ChatService,
+  options?: {
+    mcpDiscovery?: McpDiscoveryService;
+  },
+): void {
   app.get('/api/spaces', async (req: Request, res: Response) => {
     try {
       const ownerId = resolveOwnerId(req);
@@ -147,8 +160,51 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     }
   });
 
-  app.get('/api/mcps', (_req: Request, res: Response) => {
-    res.json({ mcps: AVAILABLE_DATABRICKS_MCPS });
+  app.get('/api/mcps', async (req: Request, res: Response) => {
+    try {
+      const refresh = req.query.refresh === 'true' || req.query.refresh === '1';
+      if (options?.mcpDiscovery) {
+        const mcps = await options.mcpDiscovery.listViableMcps({ refresh });
+        res.json({ mcps });
+        return;
+      }
+      const viable = AVAILABLE_DATABRICKS_MCPS.filter((m) => m.isViable !== false);
+      res.json({ mcps: viable });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.post('/api/mcps/register', async (req: Request, res: Response) => {
+    if (!options?.mcpDiscovery) {
+      res.status(400).json({ error: 'MCP discovery service not configured' });
+      return;
+    }
+    const serviceName = typeof req.body?.service === 'string' ? req.body.service.trim() : '';
+    if (!serviceName) {
+      res.status(400).json({ error: 'service name is required' });
+      return;
+    }
+    try {
+      const appItem = await options.mcpDiscovery.registerCustomMcp(serviceName, {
+        name: typeof req.body?.name === 'string' ? req.body.name : undefined,
+        description: typeof req.body?.description === 'string' ? req.body.description : undefined,
+      });
+      res.status(201).json({ mcp: appItem });
+    } catch (err) {
+      res.status(400).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.delete('/api/mcps/:service(*)', (req: Request, res: Response) => {
+    if (!options?.mcpDiscovery) {
+      res.status(400).json({ error: 'MCP discovery service not configured' });
+      return;
+    }
+    const rawService = req.params.service;
+    const service = Array.isArray(rawService) ? rawService.join('/') : String(rawService ?? '');
+    const removed = options.mcpDiscovery.removeCustomMcp(service);
+    res.json({ success: removed });
   });
 
   app.get('/api/bots', async (req: Request, res: Response) => {
@@ -194,6 +250,47 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     }
   });
 
+  async function assertBotOwnership(botId: string, req: Request, res: Response): Promise<Bot | null> {
+    const bot = await store.getBot(botId);
+    if (!bot) {
+      res.status(404).json({ error: 'Bot not found' });
+      return null;
+    }
+    const callerId = resolveOwnerId(req);
+    if (bot.ownerId !== callerId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return null;
+    }
+    return bot;
+  }
+
+  async function assertBotAccess(botId: string, req: Request, res: Response): Promise<Bot | null> {
+    const bot = await store.getBot(botId);
+    if (!bot) {
+      res.status(404).json({ error: 'Bot not found' });
+      return null;
+    }
+    const callerId = resolveOwnerId(req);
+    if (bot.ownerId === callerId) {
+      return bot;
+    }
+    if (bot.isPrimary || !bot.isShared || !bot.spaceId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return null;
+    }
+    const space = await store.getSpace(bot.spaceId);
+    if (!space) {
+      res.status(403).json({ error: 'Forbidden' });
+      return null;
+    }
+    const members = await store.listSpaceMembers(bot.spaceId);
+    if (!canViewerAccessSpace(space, members, callerId)) {
+      res.status(403).json({ error: 'Forbidden' });
+      return null;
+    }
+    return bot;
+  }
+
   app.put('/api/bots/:botId', async (req: Request, res: Response) => {
     const parsed = updateBotSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -202,14 +299,23 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     }
     try {
       const botId = String(req.params.botId);
-      if (parsed.data.isShared !== undefined) {
-        const existing = await store.getBot(botId);
-        if (!existing) {
-          res.status(404).json({ error: 'Bot not found' });
+      const existing = await assertBotOwnership(botId, req, res);
+      if (!existing) return;
+
+      const callerId = resolveOwnerId(req);
+      if (
+        parsed.data.spaceId !== undefined &&
+        parsed.data.spaceId !== null &&
+        parsed.data.spaceId !== existing.spaceId
+      ) {
+        const space = await store.getSpace(parsed.data.spaceId);
+        if (!space) {
+          res.status(404).json({ error: 'Space not found' });
           return;
         }
-        if (existing.ownerId !== resolveOwnerId(req)) {
-          res.status(403).json({ error: 'Only the bot owner can change sharing settings' });
+        const members = await store.listSpaceMembers(space.id);
+        if (!canViewerAccessSpace(space, members, callerId)) {
+          res.status(403).json({ error: 'Forbidden' });
           return;
         }
       }
@@ -220,26 +326,24 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     }
   });
 
-  app.get('/api/marketplace/bots', async (_req: Request, res: Response) => {
+  app.get('/api/marketplace/bots', async (req: Request, res: Response) => {
     try {
+      resolveOwnerId(req);
       const sharedBots = await store.listMarketplaceBots();
-      const bots: MarketplaceBot[] = await Promise.all(
-        sharedBots.map(async (bot) => {
-          const skills = await service.getMemory().listSkills(bot.id);
-          return {
-            id: bot.id,
-            name: bot.name,
-            avatarLabel: bot.avatarLabel,
-            description: bot.description ?? '',
-            ownerId: bot.ownerId,
-            skillNames: skills.map((s) => s.name),
-            createdAt: bot.createdAt,
-          };
-        }),
-      );
+      const botIds = sharedBots.map((b) => b.id);
+      const skillsByBot = await service.getMemory().listSkillNamesForBots(botIds);
+      const bots: MarketplaceBot[] = sharedBots.map((bot) => ({
+        id: bot.id,
+        name: bot.name,
+        avatarLabel: bot.avatarLabel,
+        description: bot.description ?? '',
+        ownerId: bot.ownerId.split('@')[0] || bot.ownerId,
+        skillNames: skillsByBot.get(bot.id) ?? [],
+        createdAt: bot.createdAt,
+      }));
       res.json({ bots });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
+      res.status(isUnauthorized(err) ? 401 : 500).json({ error: errorMessage(err) });
     }
   });
 
@@ -256,6 +360,18 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
         return;
       }
       const ownerId = resolveOwnerId(req);
+      if (parsed.data.spaceId) {
+        const space = await store.getSpace(parsed.data.spaceId);
+        if (!space) {
+          res.status(404).json({ error: 'Space not found' });
+          return;
+        }
+        const members = await store.listSpaceMembers(space.id);
+        if (!canViewerAccessSpace(space, members, ownerId)) {
+          res.status(403).json({ error: 'Forbidden' });
+          return;
+        }
+      }
       const installed = await store.createBot({
         name: sourceBot.name,
         avatarLabel: sourceBot.avatarLabel,
@@ -265,16 +381,13 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
         isShared: false,
         sourceBotId: sourceBot.id,
       });
-      const skills = await service.getMemory().listSkills(sourceBot.id);
-      for (const skill of skills) {
-        await service.getMemory().upsertSkill(installed.id, skill.name, skill.body);
-      }
+      await service.getMemory().cloneSkills(sourceBot.id, installed.id);
       const chat = await store.getOrCreateChatForBot(installed.id, ownerId);
       const greeting = `Hi — I'm ${installed.name}.${installed.description ? ` ${installed.description}` : ''} How can I help?`;
       await store.addMessage(chat.id, 'assistant', greeting);
       res.status(201).json({ bot: installed });
     } catch (err) {
-      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+      res.status(isUnauthorized(err) ? 401 : isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
     }
   });
 
@@ -285,7 +398,25 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
       return;
     }
     try {
-      const bot = await store.moveBot(String(req.params.botId), parsed.data);
+      const botId = String(req.params.botId);
+      const existing = await assertBotOwnership(botId, req, res);
+      if (!existing) return;
+
+      const callerId = resolveOwnerId(req);
+      if (parsed.data.spaceId !== null && parsed.data.spaceId !== existing.spaceId) {
+        const space = await store.getSpace(parsed.data.spaceId);
+        if (!space) {
+          res.status(404).json({ error: 'Space not found' });
+          return;
+        }
+        const members = await store.listSpaceMembers(space.id);
+        if (!canViewerAccessSpace(space, members, callerId)) {
+          res.status(403).json({ error: 'Forbidden' });
+          return;
+        }
+      }
+
+      const bot = await store.moveBot(botId, parsed.data);
       res.json({ bot });
     } catch (err) {
       res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
@@ -294,7 +425,10 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
 
   app.post('/api/bots/:botId/archive', async (req: Request, res: Response) => {
     try {
-      const bot = await store.archiveBot(String(req.params.botId));
+      const botId = String(req.params.botId);
+      const existing = await assertBotOwnership(botId, req, res);
+      if (!existing) return;
+      const bot = await store.archiveBot(botId);
       res.json({ bot });
     } catch (err) {
       res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
@@ -303,7 +437,10 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
 
   app.post('/api/bots/:botId/unarchive', async (req: Request, res: Response) => {
     try {
-      const bot = await store.unarchiveBot(String(req.params.botId));
+      const botId = String(req.params.botId);
+      const existing = await assertBotOwnership(botId, req, res);
+      if (!existing) return;
+      const bot = await store.unarchiveBot(botId);
       res.json({ bot });
     } catch (err) {
       res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
@@ -312,7 +449,11 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
 
   app.delete('/api/bots/:botId', async (req: Request, res: Response) => {
     try {
-      await store.deleteBot(String(req.params.botId));
+      const botId = String(req.params.botId);
+      const existing = await assertBotOwnership(botId, req, res);
+      if (!existing) return;
+      await store.deleteBot(botId);
+      service.getMemory().evictBot?.(botId);
       res.status(204).send();
     } catch (err) {
       res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
@@ -322,6 +463,8 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.get('/api/bots/:botId/chat', async (req: Request, res: Response) => {
     try {
       const botId = String(req.params.botId);
+      const bot = await assertBotAccess(botId, req, res);
+      if (!bot) return;
       const chat = await store.getOrCreateChatForBot(botId, resolveOwnerId(req));
       const [
         messages,
@@ -359,6 +502,8 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.get('/api/bots/:botId/sandbox', async (req: Request, res: Response) => {
     try {
       const botId = String(req.params.botId);
+      const bot = await assertBotAccess(botId, req, res);
+      if (!bot) return;
       const chat = await store.getOrCreateChatForBot(botId, resolveOwnerId(req));
       const sandbox = service.getSandbox()
         ? await service.getSandbox()!.getUiStatusForChat(chat.id)
@@ -372,6 +517,8 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.post('/api/bots/:botId/sandbox/stop', async (req: Request, res: Response) => {
     try {
       const botId = String(req.params.botId);
+      const bot = await assertBotAccess(botId, req, res);
+      if (!bot) return;
       const chat = await store.getOrCreateChatForBot(botId, resolveOwnerId(req));
       const sandboxSvc = service.getSandbox();
       if (sandboxSvc?.isEnabled()) {
@@ -389,6 +536,8 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
   app.delete('/api/bots/:botId/sandbox', async (req: Request, res: Response) => {
     try {
       const botId = String(req.params.botId);
+      const bot = await assertBotAccess(botId, req, res);
+      if (!bot) return;
       const chat = await store.getOrCreateChatForBot(botId, resolveOwnerId(req));
       const sandboxSvc = service.getSandbox();
       if (sandboxSvc?.isEnabled()) {
@@ -410,7 +559,7 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
       return null;
     }
     const callerId = resolveOwnerId(req);
-    if (chat.userId && chat.userId !== callerId) {
+    if (!chat.userId || chat.userId !== callerId) {
       res.status(403).json({ error: 'Forbidden' });
       return null;
     }
@@ -500,8 +649,12 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
         return;
       }
       const chat = await store.getChat(pending.chatId);
+      if (!chat) {
+        res.status(404).json({ error: 'Chat not found' });
+        return;
+      }
       const callerId = resolveOwnerId(req);
-      if (chat?.userId && chat.userId !== callerId) {
+      if (!chat.userId || chat.userId !== callerId) {
         res.status(403).json({ error: 'Forbidden' });
         return;
       }

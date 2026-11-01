@@ -8,8 +8,11 @@ import type {
 
 export class UnityGatewayMcpClient {
   private requestId = 0;
+  private readonly config: McpClientConfig;
 
-  constructor(private readonly config: McpClientConfig) {}
+  constructor(config: McpClientConfig) {
+    this.config = config;
+  }
 
   private getUrl(serviceName: string): string {
     let host = this.config.host.trim().replace(/\/+$/, '');

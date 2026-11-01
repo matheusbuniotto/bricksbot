@@ -925,6 +925,7 @@ describe('ChatService', () => {
       name: 'DataWizard',
       spaceId: spaceA.id,
       ownerId: 'user-b',
+      isShared: true,
     });
 
     const primaryChat = await store.getOrCreateChatForBot(primaryA.id);

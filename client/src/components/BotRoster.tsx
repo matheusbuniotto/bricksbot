@@ -40,7 +40,6 @@ type MenuState =
   | { kind: 'move'; botId: string; x: number; y: number }
   | null;
 
-/** Select value for the default, section-less group. */
 const NO_SECTION = '__none';
 
 type DragPayload = { botId: string };
@@ -59,9 +58,9 @@ function readDragPayload(event: React.DragEvent): DragPayload | null {
 export function BotRoster({
   spaces,
   bots,
-  archivedBots,
+  archivedBots = [],
   marketplaceBots = [],
-  previews,
+  previews = {},
   selectedBotId,
   createOpen,
   marketplaceOpen = false,
@@ -451,8 +450,8 @@ export function BotRoster({
                     <div className="roster-bot">
                       <BotFace config={lookConfig} size={34} />
                       <span className="roster-bot-copy">
-                        <span className="roster-bot-name">{botName.trim() || 'Novo Bot'}</span>
-                        <span className="roster-bot-preview">Criando…</span>
+                        <span className="roster-bot-name">{botName.trim() || 'New Bot'}</span>
+                        <span className="roster-bot-preview">Creating…</span>
                       </span>
                     </div>
                   </div>
@@ -463,7 +462,7 @@ export function BotRoster({
                 ) : null}
                 {section.bots.map((bot, index) => {
                   const selected = bot.id === selectedBotId;
-                  const preview = rosterPreviewForPresence(bot.presence, previews[bot.id] ?? '');
+                  const preview = rosterPreviewForPresence(bot.presence, previews?.[bot.id] ?? '');
                   const isRenaming = renamingId === bot.id;
                   return (
                     <div
@@ -738,7 +737,7 @@ export function BotRoster({
                     void onToggleShareBot(menuBot.id, nextShared);
                   }}
                 >
-                  <Share2 size={16} /> {menuBot.isShared ? 'Remover do Marketplace' : 'Compartilhar no Marketplace'}
+                  <Share2 size={16} /> {menuBot.isShared ? 'Remove from Marketplace' : 'Share in Marketplace'}
                 </button>
               ) : null}
               <button type="button" role="menuitem" onClick={() => startRename(menuBot)}>
@@ -812,11 +811,11 @@ export function BotRoster({
             }}
           >
             <div className="dialog-header-row">
-              <h2 id="create-bot-title">Criar novo Bot</h2>
+              <h2 id="create-bot-title">Create new Bot</h2>
               <button
                 type="button"
                 className="dialog-close-btn"
-                aria-label="Fechar"
+                aria-label="Close"
                 onClick={() => onCreateOpenChange(false)}
               >
                 <X size={18} />
@@ -826,19 +825,19 @@ export function BotRoster({
               <input
                 autoFocus
                 value={botName}
-                placeholder="Dê um nome ao seu Bot"
-                aria-label="Dê um nome ao seu Bot"
+                placeholder="Name your Bot"
+                aria-label="Name your Bot"
                 onChange={(event) => setBotName(event.target.value)}
               />
             </BotPicker>
             <div className="dialog-field">
-              Instruções do Bot (opcional)
+              Bot instructions (optional)
               <textarea
                 className="dialog-textarea"
                 rows={2}
                 value={botDescription}
-                placeholder="Defina o papel, regras ou persona do bot"
-                aria-label="Instruções do Bot"
+                placeholder="Define the bot's role, rules, or persona"
+                aria-label="Bot instructions"
                 onChange={(event) => setBotDescription(event.target.value)}
               />
             </div>
@@ -862,12 +861,12 @@ export function BotRoster({
                   onMarketplaceOpenChange(true);
                 }}
               >
-                Explorar Marketplace de Bots →
+                Explore Bot Marketplace →
               </button>
             ) : null}
             <div className="dialog-actions">
               <button type="button" onClick={() => onCreateOpenChange(false)}>
-                Cancelar
+                Cancel
               </button>
               <button
                 type="submit"
@@ -883,7 +882,7 @@ export function BotRoster({
                     : undefined
                 }
               >
-                Criar
+                Create
               </button>
             </div>
           </form>
@@ -892,13 +891,13 @@ export function BotRoster({
 
       {editLook ? (
         <div className="dialog-backdrop" role="presentation" onClick={() => setEditLook(null)}>
-          <div className="dialog" role="dialog" aria-label="Mudar visual" onClick={(event) => event.stopPropagation()}>
+          <div className="dialog" role="dialog" aria-label="Change look" onClick={(event) => event.stopPropagation()}>
             <div className="dialog-header-row">
-              <h2>Mudar visual</h2>
+              <h2>Change look</h2>
               <button
                 type="button"
                 className="dialog-close-btn"
-                aria-label="Fechar"
+                aria-label="Close"
                 onClick={() => setEditLook(null)}
               >
                 <X size={18} />
@@ -910,7 +909,7 @@ export function BotRoster({
             />
             <div className="dialog-actions">
               <button type="button" onClick={() => setEditLook(null)}>
-                Cancelar
+                Cancel
               </button>
               <button
                 type="button"
@@ -925,7 +924,7 @@ export function BotRoster({
                   setEditLook(null);
                 }}
               >
-                Salvar
+                Save
               </button>
             </div>
           </div>
@@ -949,18 +948,18 @@ export function BotRoster({
               <button
                 type="button"
                 className="dialog-close-btn"
-                aria-label="Fechar"
+                aria-label="Close"
                 onClick={() => onMarketplaceOpenChange(false)}
               >
                 <X size={18} />
               </button>
             </div>
             <p className="dialog-note">
-              Bots são pessoais por padrão. Ao usar um Bot do Marketplace, você recebe o comportamento,
-              instruções e skills dele em um chat 100% privado.
+              Bots are personal by default. When using a Marketplace Bot, you receive its behavior,
+              instructions, and skills in a 100% private chat.
             </p>
             <div className="dialog-field">
-              Adicionar na seção:
+              Add to section:
               <Select
                 value={botSpaceId || defaultSpaceId}
                 onChange={setBotSpaceId}
@@ -973,9 +972,9 @@ export function BotRoster({
             <div className="marketplace-list">
               {marketplaceBots.length === 0 ? (
                 <div className="marketplace-empty">
-                  <p>Nenhum Bot publicado no Marketplace ainda.</p>
+                  <p>No bots published to the Marketplace yet.</p>
                   <p className="marketplace-empty-sub">
-                    Compartilhe um dos seus Bots pelo menu de ações ou painel de detalhes para torná-lo disponível aos colegas.
+                    Share one of your bots from the actions menu or details sheet to make it available to teammates.
                   </p>
                 </div>
               ) : (
@@ -987,11 +986,11 @@ export function BotRoster({
                         <BotFace config={mLook} size={40} />
                         <div className="marketplace-card-info">
                           <span className="marketplace-card-name">{mBot.name}</span>
-                          <span className="marketplace-card-owner">por {mBot.ownerId}</span>
+                          <span className="marketplace-card-owner">by {mBot.ownerId}</span>
                         </div>
                       </div>
                       <p className="marketplace-card-desc">
-                        {mBot.description || 'Sem descrição adicional'}
+                        {mBot.description || 'No additional description'}
                       </p>
                       {mBot.skillNames.length > 0 ? (
                         <div className="marketplace-skills">
@@ -1005,7 +1004,7 @@ export function BotRoster({
                       <button
                         type="button"
                         className="marketplace-install-btn"
-                        aria-label={`Usar ${mBot.name}`}
+                        aria-label={`Use ${mBot.name}`}
                         onClick={() => {
                           const targetSpace =
                             (botSpaceId || defaultSpaceId) === NO_SECTION
@@ -1017,7 +1016,7 @@ export function BotRoster({
                           onMarketplaceOpenChange(false);
                         }}
                       >
-                        Usar Bot
+                        Use Bot
                       </button>
                     </div>
                   );

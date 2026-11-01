@@ -20,14 +20,14 @@ describe('ConnectorsDialog Component', () => {
     expect(html).toContain('class="dialog-backdrop"');
   });
 
-  test('renders title and connected badge', () => {
+  test('renders title and connected badge in English', () => {
     const html = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
-    expect(html).toContain('Conectar aplicativos (MCPs)');
+    expect(html).toContain('Connect Applications (MCPs)');
     expect(html).toContain('id="connectors-dialog-title"');
     expect(html).toContain('class="connectors-badge"');
-    expect(html).toContain('conectados');
+    expect(html).toContain('connected');
   });
 
   test('renders search input bar with placeholder and autofocus', () => {
@@ -35,35 +35,36 @@ describe('ConnectorsDialog Component', () => {
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
     expect(html).toContain('class="connectors-search-input"');
-    expect(html).toContain('placeholder="Buscar em MCPs, ferramentas e conectores do Databricks"');
+    expect(html).toContain('placeholder="Search MCPs, tools, and Databricks connectors..."');
     expect(html).not.toContain('class="connectors-search-clear"');
   });
 
-  test('renders Modelos de Bots button only when onOpenMarketplace is passed', () => {
+  test('renders Bot Templates button only when onOpenMarketplace is passed', () => {
     const withoutMarketplace = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
-    expect(withoutMarketplace).not.toContain('Modelos de Bots');
+    expect(withoutMarketplace).not.toContain('Bot Templates');
 
     const withMarketplace = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} onOpenMarketplace={() => {}} />,
     );
-    expect(withMarketplace).toContain('Modelos de Bots');
+    expect(withMarketplace).toContain('Bot Templates');
     expect(withMarketplace).toContain('class="connectors-marketplace-btn"');
     expect(withMarketplace).toContain('class="connectors-marketplace-dot"');
   });
 
-  test('renders category filter pills including Comunicação and Produtividade', () => {
+  test('renders category filter pills in English', () => {
     const html = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
     const expectedCategories = [
-      'Todos',
-      'Lakehouse &amp; Análise',
-      'Comunicação',
-      'Produtividade',
-      'Código &amp; Execução',
-      'Busca Web',
+      'All',
+      'Lakehouse &amp; Analytics',
+      'Communication',
+      'Productivity',
+      'Code &amp; Execution',
+      'Web Search',
+      'Custom',
     ];
     for (const label of expectedCategories) {
       expect(html).toContain(label);
@@ -71,11 +72,11 @@ describe('ConnectorsDialog Component', () => {
     expect(html).toContain('class="connectors-pill is-active"');
   });
 
-  test('renders active Databricks MCPs with interactive connect buttons', () => {
+  test('renders only viable Databricks MCPs and excludes non-viable mockup MCPs', () => {
     const html = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
-    expect(html).toContain('MCPs Ativos no Databricks');
+    expect(html).toContain('System MCPs (Unity AI Gateway)');
     expect(html).toContain('Databricks One (Genie)');
     expect(html).toContain('Databricks SQL');
     expect(html).toContain('Databricks Web Search');
@@ -86,50 +87,36 @@ describe('ConnectorsDialog Component', () => {
     expect(html).toContain('system.ai.web_search');
     expect(html).toContain('system.ai.sandbox');
 
+    expect(html).not.toContain('system.ai.confluence');
+    expect(html).not.toContain('system.ai.jira');
+
     expect(html).toContain('class="connector-action-btn is-connected"');
-    expect(html).toContain('Conectado');
+    expect(html).toContain('Connected');
   });
 
-  test('renders inactive corporate connectors directed to Databricks One and AI Gateway MCP', () => {
+  test('renders close button with accessibility label in English', () => {
     const html = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
-    expect(html).toContain('Conectores Corporativos (via Databricks One)');
-    expect(html).toContain('Slack');
-    expect(html).toContain('Confluence');
-    expect(html).toContain('Jira Software');
-    expect(html).toContain('GitHub');
-    expect(html).toContain('Notion');
-    expect(html).toContain('Google Drive');
-    expect(html).toContain('Microsoft 365');
-
-    // Badges indicating Genie One requirement
-    expect(html).toContain('Requer Databricks One');
-    expect(html).toContain('is-genie-link');
-    expect(html).toContain('Conectar via Genie');
-
-    // Direct Unity Catalog MCP service redirect URL (e.g. for Slack)
-    expect(html).toContain(
-      'https://dbc-562d9321-2592.cloud.databricks.com/explore/mcp-services/system/ai/slack?o=3020310945116198&amp;activeTab=overview',
-    );
-
-    // Direct AI Gateway MCP configuration URL
-    expect(html).toContain(
-      'https://dbc-562d9321-2592.cloud.databricks.com/ml/ai-gateway/mcp?o=3020310945116198',
-    );
-    expect(html).toContain('Configurar no AI Gateway');
-  });
-
-  test('renders close button with accessibility label', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
-    );
-    expect(html).toContain('aria-label="Fechar"');
+    expect(html).toContain('aria-label="Close"');
     expect(html).toContain('class="dialog-close-btn"');
   });
 
+  test('renders progressive disclosure elements: card details buttons, expand all, and pill count badges', () => {
+    const html = renderToString(
+      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
+    );
+    expect(html).toContain('class="connector-expand-btn"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('Details');
+    expect(html).toContain('Expand all');
+    expect(html).toContain('class="connectors-pill-count"');
+    expect(html).toContain('class="connector-source-badge is-system"');
+    expect(html).toContain('System');
+  });
+
   test('validates CONNECTOR_APPS catalog structure integrity', () => {
-    expect(CONNECTOR_APPS.length).toBe(11);
+    expect(CONNECTOR_APPS.length).toBeGreaterThan(0);
     const ids = new Set<string>();
     for (const app of CONNECTOR_APPS) {
       expect(app.id).toBeTruthy();
@@ -143,7 +130,8 @@ describe('ConnectorsDialog Component', () => {
       expect(app.tools.length).toBeGreaterThan(0);
       expect(app.iconBg).toBeTruthy();
       expect(app.iconColor).toBeTruthy();
-      expect(['active', 'inactive']).toContain(app.status);
+      expect(app.isViable).toBe(true);
+      expect(app.status).toBe('active');
     }
   });
 });

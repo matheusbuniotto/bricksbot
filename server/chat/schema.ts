@@ -59,6 +59,7 @@ export const CHAT_SCHEMA_STATEMENTS = [
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS description TEXT`,
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS source_bot_id UUID`,
   `ALTER TABLE bricksbot.chats ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'workspace-user'`,
+  `UPDATE bricksbot.chats c SET user_id = b.owner_id FROM bricksbot.bots b WHERE c.bot_id = b.id AND c.user_id = 'workspace-user' AND b.owner_id <> 'workspace-user' AND NOT EXISTS (SELECT 1 FROM bricksbot.chats existing WHERE existing.bot_id = c.bot_id AND existing.user_id = b.owner_id)`,
   `ALTER TABLE bricksbot.chats ADD COLUMN IF NOT EXISTS last_message_preview TEXT`,
   `DROP INDEX IF EXISTS bricksbot.idx_bricksbot_chats_bot_id`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chats_bot_user ON bricksbot.chats(bot_id, user_id)`,
@@ -87,11 +88,17 @@ export const CHAT_SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS bricksbot.bot_memories (
   id UUID PRIMARY KEY,
   bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL DEFAULT 'workspace-user',
   key TEXT NOT NULL,
   content TEXT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (bot_id, key)
+  UNIQUE (bot_id, user_id, key)
 )`,
+  `ALTER TABLE bricksbot.bot_memories ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'workspace-user'`,
+  `UPDATE bricksbot.bot_memories m SET user_id = b.owner_id FROM bricksbot.bots b WHERE m.bot_id = b.id AND m.user_id = 'workspace-user' AND b.owner_id <> 'workspace-user' AND NOT EXISTS (SELECT 1 FROM bricksbot.bot_memories existing WHERE existing.bot_id = m.bot_id AND existing.user_id = b.owner_id AND existing.key = m.key)`,
+  `ALTER TABLE bricksbot.bot_memories DROP CONSTRAINT IF EXISTS bot_memories_bot_id_key_key`,
+  `ALTER TABLE bricksbot.bot_memories DROP CONSTRAINT IF EXISTS bot_memories_bot_id_user_id_key_key`,
+  `ALTER TABLE bricksbot.bot_memories ADD CONSTRAINT bot_memories_bot_id_user_id_key_key UNIQUE (bot_id, user_id, key)`,
   `CREATE TABLE IF NOT EXISTS bricksbot.bot_skills (
   id UUID PRIMARY KEY,
   bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,

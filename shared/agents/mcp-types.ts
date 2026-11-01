@@ -101,15 +101,21 @@ export interface SystemAiMcpOptions {
 
 export type McpStatus = 'active' | 'inactive';
 
+export type McpSource = 'system' | 'user' | 'custom';
+
 export interface DatabricksMcpApp {
   id: string;
   name: string;
   service: string;
-  category: 'lakehouse' | 'communication' | 'productivity' | 'compute' | 'search';
+  catalog?: string;
+  schema?: string;
+  source?: McpSource;
+  category: 'lakehouse' | 'communication' | 'productivity' | 'compute' | 'search' | 'custom';
   categoryLabel: string;
   description: string;
   tools: string[];
   status: McpStatus;
+  isViable?: boolean;
   recommended?: boolean;
   connectUrl?: string;
   iconBg: string;
@@ -125,7 +131,8 @@ export interface DatabricksMcpApp {
     | 'github'
     | 'notion'
     | 'google-drive'
-    | 'm365';
+    | 'm365'
+    | 'custom';
 }
 
 export const DEFAULT_DATABRICKS_WORKSPACE_HOST = 'https://dbc-562d9321-2592.cloud.databricks.com';
@@ -151,16 +158,17 @@ export function buildDatabricksMcpServiceUrl(
 }
 
 export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
-  // Active Databricks MCPs (Live on Unity Gateway)
   {
     id: 'genie-one',
     name: 'Databricks One (Genie)',
     service: 'system.ai.genie_one_mcp',
+    source: 'system',
     category: 'lakehouse',
-    categoryLabel: 'Lakehouse & Análise',
-    description: 'Análise em linguagem natural com a Ontologia do Lakehouse (Genie Analytics)',
+    categoryLabel: 'Lakehouse & Analytics',
+    description: 'Natural language analytics grounded in Lakehouse Ontology (Genie Analytics)',
     tools: ['genie_ask', 'genie_poll_response', 'genie_get_query_result', 'genie_cancel_response'],
     status: 'active',
+    isViable: true,
     recommended: true,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.genie_one_mcp'),
     iconBg: '#1b1b1d',
@@ -171,11 +179,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     id: 'databricks-dbsql',
     name: 'Databricks SQL',
     service: 'system.ai.dbsql',
+    source: 'system',
     category: 'lakehouse',
-    categoryLabel: 'Lakehouse & Análise',
-    description: 'Consultas governadas em SQL Warehouses via system.ai.dbsql',
+    categoryLabel: 'Lakehouse & Analytics',
+    description: 'Governed SQL warehouse queries via system.ai.dbsql',
     tools: ['execute_sql', 'poll_sql_result'],
     status: 'active',
+    isViable: true,
     recommended: true,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.dbsql'),
     iconBg: '#ff3621',
@@ -186,11 +196,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     id: 'databricks-web-search',
     name: 'Databricks Web Search',
     service: 'system.ai.web_search',
+    source: 'system',
     category: 'search',
-    categoryLabel: 'Busca Web',
-    description: 'Busca pública na web com citações sintetizadas via Foundation Model API',
+    categoryLabel: 'Web Search',
+    description: 'Public web search with synthesized citations via Foundation Model API',
     tools: ['web_search'],
     status: 'active',
+    isViable: true,
     recommended: true,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.web_search'),
     iconBg: '#00a2ff',
@@ -201,28 +213,30 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     id: 'databricks-sandbox',
     name: 'Databricks Code Sandbox',
     service: 'system.ai.sandbox',
+    source: 'system',
     category: 'compute',
-    categoryLabel: 'Código & Execução',
-    description: 'Ambiente isolado de execução Python e shell em Serverless compute',
+    categoryLabel: 'Code & Execution',
+    description: 'Isolated Python and shell execution environment on Serverless compute',
     tools: ['create_sandbox', 'run_code', 'delete_sandbox'],
     status: 'active',
+    isViable: true,
     recommended: true,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.sandbox'),
     iconBg: '#0f766e',
     iconColor: '#ffffff',
     iconType: 'code',
   },
-
-  // Inactive Corporate Connectors (Configured & connected via Databricks One / Unity Catalog Explorer)
   {
     id: 'slack',
     name: 'Slack',
     service: 'system.ai.slack',
+    source: 'system',
     category: 'communication',
-    categoryLabel: 'Comunicação',
-    description: 'Canais, mensagens e histórico de equipes integrados ao Databricks One',
+    categoryLabel: 'Communication',
+    description: 'Team channels, messages, and discussion history integrated into Databricks One',
     tools: ['search_messages', 'read_channel'],
     status: 'inactive',
+    isViable: false,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.slack'),
     iconBg: '#4a154b',
     iconColor: '#ffffff',
@@ -232,11 +246,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     id: 'confluence',
     name: 'Confluence',
     service: 'system.ai.confluence',
+    source: 'system',
     category: 'productivity',
-    categoryLabel: 'Produtividade',
-    description: 'Espaços de documentação, wikis e especificações de produto via Genie',
+    categoryLabel: 'Productivity',
+    description: 'Documentation spaces, wikis, and product specs via Databricks One',
     tools: ['search_pages', 'read_page'],
     status: 'inactive',
+    isViable: false,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.confluence'),
     iconBg: '#0052cc',
     iconColor: '#ffffff',
@@ -246,11 +262,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     id: 'jira',
     name: 'Jira Software',
     service: 'system.ai.jira',
+    source: 'system',
     category: 'productivity',
-    categoryLabel: 'Produtividade',
-    description: 'Sprints, backlog de tickets e tarefas de engenharia indexados na Ontologia',
+    categoryLabel: 'Productivity',
+    description: 'Sprints, backlog tickets, and engineering tasks indexed in Unity Catalog',
     tools: ['search_issues', 'get_issue'],
     status: 'inactive',
+    isViable: false,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.jira'),
     iconBg: '#0052cc',
     iconColor: '#ffffff',
@@ -260,11 +278,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     id: 'github',
     name: 'GitHub',
     service: 'system.ai.github',
+    source: 'system',
     category: 'compute',
-    categoryLabel: 'Código & Execução',
-    description: 'Repositórios de código, pull requests e documentação técnica Git',
+    categoryLabel: 'Code & Execution',
+    description: 'Code repositories, pull requests, and technical Git documentation',
     tools: ['search_code', 'get_pr'],
     status: 'inactive',
+    isViable: false,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.github'),
     iconBg: '#24292e',
     iconColor: '#ffffff',
@@ -274,11 +294,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     id: 'notion',
     name: 'Notion',
     service: 'system.ai.notion',
+    source: 'system',
     category: 'productivity',
-    categoryLabel: 'Produtividade',
-    description: 'Bases de conhecimento, páginas e projetos colaborativos integrados ao Genie',
+    categoryLabel: 'Productivity',
+    description: 'Knowledge bases, pages, and collaborative workspaces integrated into Databricks One',
     tools: ['search_pages', 'get_block'],
     status: 'inactive',
+    isViable: false,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.notion'),
     iconBg: '#000000',
     iconColor: '#ffffff',
@@ -288,11 +310,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     id: 'google-drive',
     name: 'Google Drive',
     service: 'system.ai.google_drive',
+    source: 'system',
     category: 'productivity',
-    categoryLabel: 'Produtividade',
-    description: 'Documentos, planilhas e relatórios compartilhados indexados via Databricks One',
+    categoryLabel: 'Productivity',
+    description: 'Shared documents, spreadsheets, and reports indexed via Databricks One',
     tools: ['search_files', 'read_doc'],
     status: 'inactive',
+    isViable: false,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.google_drive'),
     iconBg: '#f1f3f4',
     iconColor: '#0f9d58',
@@ -302,11 +326,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     id: 'm365',
     name: 'Microsoft 365',
     service: 'system.ai.m365',
+    source: 'system',
     category: 'communication',
-    categoryLabel: 'Comunicação',
-    description: 'SharePoint, emails do Outlook e documentos empresariais no Databricks One',
+    categoryLabel: 'Communication',
+    description: 'SharePoint sites, Outlook emails, and enterprise documents in Databricks One',
     tools: ['search_sharepoint', 'search_emails'],
     status: 'inactive',
+    isViable: false,
     connectUrl: buildDatabricksMcpServiceUrl('system.ai.m365'),
     iconBg: '#0078d4',
     iconColor: '#ffffff',

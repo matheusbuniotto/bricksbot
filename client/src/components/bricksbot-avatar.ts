@@ -1,4 +1,3 @@
-// bricksbot-avatar.ts: dependency-free. renderBot() returns an SVG string.
 export type BotConfig = { shape: number; color: number; hat: number; glasses: number };
 export const DEFAULT_BOT: BotConfig = { shape: 1, color: 7, hat: 0, glasses: 0 };
 export const encodeBot = (b: BotConfig) => `${b.shape}.${b.color}.${b.hat}.${b.glasses}`;
@@ -21,16 +20,16 @@ export const decodeBot = (s: string | undefined | null): BotConfig => {
 type Brick = { r: string[]; f: [number, number, number]; n?: 1 };
 type Solid = { t: 'p' | 'y' | 'c'; c: number; d?: number; h: number; s: number };
 type Pair = [string, string];
-const P = 28, D = 14, U = 22; // column width, depth row (screen), height unit
+const P = 28, D = 14, U = 22;
 
 export const SHAPES: (Brick | Solid)[] = [
   { r: ['2'], f: [0.5, 0, 0.8] }, { r: ['22'], f: [1, 0, 1] }, { r: ['22', '22'], f: [1, 1, 1] },
   { r: ['222'], f: [1.5, 0, 1.25] }, { r: ['2222'], f: [2, 0, 1.5] }, { r: ['11'], f: [1, 0, 0.6] },
   { r: ['33'], f: [1, 0, 1.1] }, { r: ['22', '22'], f: [1, 1, 1], n: 1 }, { r: ['33', '22'], f: [1, 1, 1] },
   { r: ['222', '222'], f: [1.5, 1, 1.2] }, { r: ['3'], f: [0.5, 0, 0.8] }, { r: ['1'], f: [0.5, 0, 0.5] },
-  { t: 'p', c: 2, d: 2, h: 2.5, s: 0.9 }, // roof (triangular prism)
-  { t: 'y', c: 2, d: 2, h: 2.5, s: 0.9 }, // pyramid
-  { t: 'c', c: 2, h: 2, s: 1 }, // round (cylinder)
+  { t: 'p', c: 2, d: 2, h: 2.5, s: 0.9 },
+  { t: 'y', c: 2, d: 2, h: 2.5, s: 0.9 },
+  { t: 'c', c: 2, h: 2, s: 1 },
 ];
 export const COLORS: Pair[] = [
   ['#2a2a31', '#000000'], ['#9a5b2e', '#6a3a1a'], ['#f0283c', '#a81626'], ['#ff6a13', '#bf4806'],
@@ -44,15 +43,14 @@ const HAT_COLORS: (string[] | null)[] = [null,
   ['#ffd23f', '#d99a0b', '#ffffff', '#b8bdc7'], ['#e8412c', '#b82d1c', '#2f6bff', '#1d46b8'],
   ['#26262c', '#d63a3a', '#f2f2f4', '#8a8f98'], ['#ffc83d', '#e09a00', '#fff0b3', '#e0c25a'],
   ['#ff4fb3', '#ffd23f', '#8a4dff', '#ffd23f']];
-const HAT_TOP = [0, 19, 29, 31, 20, 40]; // hat height in local units (for the viewBox)
-export const HAT_NAMES = ['Nenhum', 'Boné', 'Gorro', 'Cartola', 'Coroa', 'Festa'];
-export const GLASSES_NAMES = ['Nenhum', 'Redondo', 'Quadrado', 'Escuros'];
+const HAT_TOP = [0, 19, 29, 31, 20, 40];
+export const HAT_NAMES = ['None', 'Cap', 'Beanie', 'Top Hat', 'Crown', 'Party'];
+export const GLASSES_NAMES = ['None', 'Round', 'Square', 'Sunglasses'];
 
 const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const lum = (h: string) => { const [r, g, b] = hex(h); return 0.299 * r + 0.587 * g + 0.114 * b; };
 const dist = (a: string, b: string) => { const x = hex(a), y = hex(b); return Math.abs(x[0] - y[0]) + Math.abs(x[1] - y[1]) + Math.abs(x[2] - y[2]); };
 const mix = (a: string, b: string, t: number) => { const x = hex(a), y = hex(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
-// rounded rect path; a,b,c,d = round top-left, top-right, bottom-right, bottom-left
 const rr = (x: number, y: number, w: number, h: number, r: number, a: boolean, b: boolean, c: boolean, d: boolean) => {
   const A = a ? r : 0, B = b ? r : 0, E = c ? r : 0, F = d ? r : 0;
   return `M${x + A} ${y}H${x + w - B}${B ? `A${B} ${B} 0 0 1 ${x + w} ${y + B}` : ''}V${y + h - E}${E ? `A${E} ${E} 0 0 1 ${x + w - E} ${y + h}` : ''}H${x + F}${F ? `A${F} ${F} 0 0 1 ${x} ${y + h - F}` : ''}V${y + A}${A ? `A${A} ${A} 0 0 1 ${x + A} ${y}` : ''}Z`;
@@ -70,7 +68,6 @@ function glassesSvg(g: number, c: Pair): string {
 const eyes = (x: number, y: number, k: number, g: number, c: Pair) =>
   `<g class='ey'><g transform='translate(${x},${y}) scale(${g ? k * 0.75 : k}) rotate(-8)'>${PILLS}${glassesSvg(g, c)}</g></g>`;
 
-// returns [svg, topY]; (ax, ay) = center of the hat base, aw = base width
 function hatSvg(i: number, c: Pair, ax: number, ay: number, aw: number): [string, number] {
   if (!i) return ['', 1e9];
   const p = HAT_COLORS[i]!, near = dist(p[0], c[0]) < 130, A = near ? p[2] : p[0], B = near ? p[3] : p[1], s = aw / 40;
@@ -163,7 +160,6 @@ export function renderBot({ shape, color, hat, glasses }: BotConfig, size = 48):
   return res;
 }
 
-// Picker chips (draw the accessory over the selected color)
 export const hatChip = (h: number, color: number) => {
   const c = COLORS[color] ?? COLORS[7];
   return `<svg viewBox='-26 -46 52 66' width='38' height='48' aria-hidden='true'><ellipse rx='22' ry='11' fill='${c[0]}'/>${hatSvg(h, c, 0, 0, 40)[0]}</svg>`;

@@ -132,6 +132,14 @@ export class LakebaseChatStore implements ChatStore {
   private chatToBotCache = new Map<string, string>();
   private userPreviewsByBotUser = new Map<string, string>();
 
+  private cacheSet<K, V>(map: Map<K, V>, key: K, value: V, max = 1000): void {
+    if (map.size >= max && !map.has(key)) {
+      const firstKey = map.keys().next().value;
+      if (firstKey !== undefined) map.delete(firstKey);
+    }
+    map.set(key, value);
+  }
+
   constructor(private readonly query: LakebaseQuery) {}
 
   async initSchema(): Promise<void> {
@@ -199,7 +207,7 @@ export class LakebaseChatStore implements ChatStore {
           });
         }
       }
-      this.botsCache.set(primary.id, primary);
+      this.cacheSet(this.botsCache, primary.id, primary);
       this.bootstrappedByOwner.set(ownerId, { space, primaryId: primary.id });
       return { space, primary };
     })().finally(() => {
@@ -307,7 +315,7 @@ export class LakebaseChatStore implements ChatStore {
     );
     const bots = result.rows.map(mapBot);
     for (const bot of bots) {
-      this.botsCache.set(bot.id, bot);
+      this.cacheSet(this.botsCache, bot.id, bot);
     }
     if (options?.ownerId) {
       const ownerId = options.ownerId;
@@ -322,11 +330,11 @@ export class LakebaseChatStore implements ChatStore {
         for (const row of chatsResult.rows) {
           const botId = asString(row.bot_id);
           const preview = row.last_message_preview ? asString(row.last_message_preview) : '';
-          this.userPreviewsByBotUser.set(`${botId}:${ownerId}`, preview);
+          this.cacheSet(this.userPreviewsByBotUser, `${botId}:${ownerId}`, preview);
         }
         for (const bot of bots) {
           if (bot.ownerId !== ownerId && !this.userPreviewsByBotUser.has(`${bot.id}:${ownerId}`)) {
-            this.userPreviewsByBotUser.set(`${bot.id}:${ownerId}`, '');
+            this.cacheSet(this.userPreviewsByBotUser, `${bot.id}:${ownerId}`, '');
           }
         }
       }
@@ -394,7 +402,7 @@ export class LakebaseChatStore implements ChatStore {
       ],
     );
     const bot = mapBot(inserted.rows[0]!);
-    this.botsCache.set(bot.id, bot);
+    this.cacheSet(this.botsCache, bot.id, bot);
     return bot;
   }
 
@@ -434,7 +442,7 @@ export class LakebaseChatStore implements ChatStore {
       [botId, name, avatarLabel, spaceId, sortOrder, isShared, description],
     );
     const updated = mapBot(result.rows[0]!);
-    this.botsCache.set(updated.id, updated);
+    this.cacheSet(this.botsCache, updated.id, updated);
     return updated;
   }
 
@@ -473,7 +481,7 @@ export class LakebaseChatStore implements ChatStore {
         [row.id, input.spaceId, index],
       );
       const cached = this.botsCache.get(row.id) ?? row;
-      this.botsCache.set(row.id, { ...cached, spaceId: input.spaceId, sortOrder: index });
+      this.cacheSet(this.botsCache, row.id, { ...cached, spaceId: input.spaceId, sortOrder: index });
     }
     this.botsCache.delete(botId);
     const updated = await this.getBot(botId);
@@ -492,7 +500,7 @@ export class LakebaseChatStore implements ChatStore {
       [botId],
     );
     const updated = mapBot(result.rows[0]!);
-    this.botsCache.set(updated.id, updated);
+    this.cacheSet(this.botsCache, updated.id, updated);
     return updated;
   }
 
@@ -507,7 +515,7 @@ export class LakebaseChatStore implements ChatStore {
       [botId, sortOrder],
     );
     const updated = mapBot(result.rows[0]!);
-    this.botsCache.set(updated.id, updated);
+    this.cacheSet(this.botsCache, updated.id, updated);
     return updated;
   }
 
@@ -552,7 +560,7 @@ export class LakebaseChatStore implements ChatStore {
     );
     const bot = result.rows[0] ? mapBot(result.rows[0]) : null;
     if (bot) {
-      this.botsCache.set(bot.id, bot);
+      this.cacheSet(this.botsCache, bot.id, bot);
     }
     return bot;
   }
@@ -569,7 +577,7 @@ export class LakebaseChatStore implements ChatStore {
     );
     if (!result.rows[0]) throw new Error('Bot not found');
     const updated = mapBot(result.rows[0]);
-    this.botsCache.set(updated.id, updated);
+    this.cacheSet(this.botsCache, updated.id, updated);
     return updated;
   }
 
@@ -588,10 +596,10 @@ export class LakebaseChatStore implements ChatStore {
     );
     if (existing.rows[0]) {
       const chat = mapChat(existing.rows[0]);
-      this.chatByBotCache.set(cacheKey, chat);
-      this.chatByIdCache.set(chat.id, chat);
-      this.chatToBotCache.set(chat.id, botId);
-      this.userPreviewsByBotUser.set(cacheKey, chat.lastPreview ?? '');
+      this.cacheSet(this.chatByBotCache, cacheKey, chat);
+      this.cacheSet(this.chatByIdCache, chat.id, chat);
+      this.cacheSet(this.chatToBotCache, chat.id, botId);
+      this.cacheSet(this.userPreviewsByBotUser, cacheKey, chat.lastPreview ?? '');
       return chat;
     }
 
@@ -603,10 +611,10 @@ export class LakebaseChatStore implements ChatStore {
       [id, botId, resolvedUserId, bot.name],
     );
     const chat = mapChat(inserted.rows[0]!);
-    this.chatByBotCache.set(cacheKey, chat);
-    this.chatByIdCache.set(chat.id, chat);
-    this.chatToBotCache.set(chat.id, botId);
-    this.userPreviewsByBotUser.set(cacheKey, chat.lastPreview ?? '');
+    this.cacheSet(this.chatByBotCache, cacheKey, chat);
+    this.cacheSet(this.chatByIdCache, chat.id, chat);
+    this.cacheSet(this.chatToBotCache, chat.id, botId);
+    this.cacheSet(this.userPreviewsByBotUser, cacheKey, chat.lastPreview ?? '');
     return chat;
   }
 
@@ -619,8 +627,8 @@ export class LakebaseChatStore implements ChatStore {
     );
     if (!result.rows[0]) return null;
     const chat = mapChat(result.rows[0]);
-    this.chatByIdCache.set(chat.id, chat);
-    this.chatToBotCache.set(chat.id, chat.botId);
+    this.cacheSet(this.chatByIdCache, chat.id, chat);
+    this.cacheSet(this.chatToBotCache, chat.id, chat.botId);
     return chat;
   }
 
@@ -630,7 +638,7 @@ export class LakebaseChatStore implements ChatStore {
     const result = await this.query(`SELECT bot_id FROM bricksbot.chats WHERE id = $1`, [chatId]);
     if (!result.rows[0]) return null;
     const botId = asString(result.rows[0].bot_id);
-    this.chatToBotCache.set(chatId, botId);
+    this.cacheSet(this.chatToBotCache, chatId, botId);
     return botId;
   }
 
@@ -682,11 +690,11 @@ export class LakebaseChatStore implements ChatStore {
       const cachedChat = this.chatByIdCache.get(chatId);
       if (cachedChat) {
         const updatedChat: Chat = { ...cachedChat, lastPreview: preview };
-        this.chatByIdCache.set(chatId, updatedChat);
+        this.cacheSet(this.chatByIdCache, chatId, updatedChat);
         if (updatedChat.userId) {
           const cacheKey = `${updatedChat.botId}:${updatedChat.userId}`;
-          this.chatByBotCache.set(cacheKey, updatedChat);
-          this.userPreviewsByBotUser.set(cacheKey, preview);
+          this.cacheSet(this.chatByBotCache, cacheKey, updatedChat);
+          this.cacheSet(this.userPreviewsByBotUser, cacheKey, preview);
         }
       }
       const botId = await this.findBotIdForChat(chatId);
@@ -701,7 +709,7 @@ export class LakebaseChatStore implements ChatStore {
           );
           const cachedBot = this.botsCache.get(botId);
           if (cachedBot) {
-            this.botsCache.set(botId, { ...cachedBot, lastPreview: preview });
+            this.cacheSet(this.botsCache, botId, { ...cachedBot, lastPreview: preview });
           }
         }
       }

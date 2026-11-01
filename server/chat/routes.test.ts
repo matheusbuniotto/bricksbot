@@ -96,12 +96,10 @@ describe('chat HTTP API', () => {
       };
       expect(autoApprovedTools).toEqual([]);
 
-      // Check auto list endpoint
       const listRes = await fetch(`${baseUrl}/api/chats/${chat.id}/approvals/auto`);
       expect(listRes.status).toBe(200);
       expect((await listRes.json()) as unknown).toEqual({ autoApprovedTools: [] });
 
-      // Revoke endpoint (when none exist)
       const revokeRes = await fetch(`${baseUrl}/api/chats/${chat.id}/approvals/auto/sql_query`, {
         method: 'DELETE',
       });
@@ -175,7 +173,7 @@ describe('chat HTTP API', () => {
       const botRes = await fetch(`${baseUrl}/api/bots`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-forwarded-user': 'user-a' },
-        body: JSON.stringify({ name: 'Analyst', spaceId: space.id }),
+        body: JSON.stringify({ name: 'Analyst', spaceId: space.id, isShared: true }),
       });
       const { bot } = (await botRes.json()) as { bot: { id: string } };
 
@@ -210,7 +208,6 @@ describe('chat HTTP API', () => {
       };
       expect(botsB.find((b) => b.id === bot.id)?.lastPreview).toBe('');
 
-      // Cross-tenant protection: user-b cannot post messages or read approvals on user-a's chat
       const crossPostRes = await fetch(`${baseUrl}/api/chats/${chatA.id}/messages`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-forwarded-user': 'user-b' },
@@ -340,6 +337,18 @@ describe('chat HTTP API', () => {
       expect(bobMessages).toHaveLength(1);
       expect(bobMessages[0]?.role).toBe('assistant');
       expect(bobMessages[0]?.content).toContain("Hi — I'm FinOps Guru.");
+    });
+  });
+
+  test('serves viable MCPs and supports discovery refresh and registration', async () => {
+    await withChatApp(async (baseUrl) => {
+      const getRes = await fetch(`${baseUrl}/api/mcps`);
+      expect(getRes.status).toBe(200);
+      const { mcps } = (await getRes.json()) as { mcps: Array<{ service: string; isViable?: boolean }> };
+      expect(mcps.length).toBeGreaterThan(0);
+      expect(mcps.every((m) => m.isViable !== false)).toBe(true);
+      expect(mcps.some((m) => m.service === 'system.ai.genie_one_mcp')).toBe(true);
+      expect(mcps.some((m) => m.service === 'system.ai.slack')).toBe(false);
     });
   });
 });

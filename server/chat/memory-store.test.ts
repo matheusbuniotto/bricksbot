@@ -125,6 +125,7 @@ describe('MemoryChatStore', () => {
       name: 'Analyst',
       spaceId: shared.id,
       ownerId: 'user-a',
+      isShared: true,
     });
     await store.addSpaceMember(shared.id, 'user-b', 'member');
 
@@ -161,6 +162,7 @@ describe('MemoryChatStore', () => {
       name: 'Analyst',
       spaceId: sharedSpace.id,
       ownerId: 'user-a',
+      isShared: true,
     });
 
     const chatA = await store.getOrCreateChatForBot(bot.id, 'user-a');

@@ -19,9 +19,9 @@ import { RoutinesPanel } from './RoutinesPanel';
 export type BotDetailsTab = 'details' | 'library' | 'computer';
 
 const TAB_LABELS: Record<BotDetailsTab, string> = {
-  details: 'Detalhes',
-  library: 'Biblioteca',
-  computer: 'Computador',
+  details: 'Details',
+  library: 'Library',
+  computer: 'Computer',
 };
 
 const LIBRARY_PAGE_SIZE = 6;
@@ -102,7 +102,7 @@ function LibraryFileList({
       </ul>
       {canShowMore ? (
         <button type="button" className="bot-details-show-more" onClick={onExpand}>
-          Mostrar mais
+          Show more
         </button>
       ) : null}
     </div>
@@ -186,7 +186,6 @@ export function BotDetailsSheet({
       if (Number.isFinite(ts) && now - ts <= RECENT_MS) recent.push(file);
       else older.push(file);
     }
-    // If everything is undated / older, keep a single “Mais antigos” section like Grok.
     if (recent.length === 0) return { recentFiles: [] as LibraryFile[], olderFiles: files };
     return { recentFiles: recent, olderFiles: older };
   }, [files]);
@@ -217,9 +216,7 @@ export function BotDetailsSheet({
     setResizing(false);
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch {
-      /* already released */
-    }
+    } catch {}
   }, []);
 
   return (
@@ -311,13 +308,13 @@ export function BotDetailsSheet({
 
       <div className="bot-details-scroll flex-1 min-h-0 overflow-y-auto">
         {tab === 'details' ? (
-          <div role="tabpanel" aria-label="Detalhes" className="bot-details-panel">
+          <div role="tabpanel" aria-label="Details" className="bot-details-panel">
             {!bot.isPrimary && onUpdateBotConfig ? (
               <section className="bot-details-section">
-                <h3 className="bot-details-section-label">Marketplace & Comportamento</h3>
+                <h3 className="bot-details-section-label">Marketplace & Behavior</h3>
                 <div className="bot-details-card">
                   <div className="marketplace-toggle-row">
-                    <span className="marketplace-toggle-label">Compartilhar no Marketplace</span>
+                    <span className="marketplace-toggle-label">Share in Marketplace</span>
                     <button
                       type="button"
                       role="switch"
@@ -330,19 +327,19 @@ export function BotDetailsSheet({
                   </div>
                   <p className="marketplace-toggle-status">
                     {bot.isShared
-                      ? 'Publicado no Marketplace (comportamento e skills visíveis a outros usuários)'
-                      : 'Privado (apenas você vê e usa este bot)'}
+                      ? 'Published in Marketplace (behavior and skills visible to other users)'
+                      : 'Private (only you see and use this bot)'}
                   </p>
                   <div className="bot-details-field">
                     <label htmlFor="bot-desc-input" className="bot-details-field-label">
-                      Instruções do Bot
+                      Bot Instructions
                     </label>
                     <textarea
                       id="bot-desc-input"
                       className="dialog-textarea"
                       rows={3}
                       value={descriptionDraft}
-                      placeholder="Instruções ou papel durável deste bot..."
+                      placeholder="Instructions or durable role for this bot..."
                       onChange={(e) => setDescriptionDraft(e.target.value)}
                     />
                     {descriptionDraft !== (bot.description ?? '') ? (
@@ -353,12 +350,12 @@ export function BotDetailsSheet({
                           void onUpdateBotConfig(bot.id, { description: descriptionDraft.trim() })
                         }
                       >
-                        Salvar instruções
+                        Save instructions
                       </button>
                     ) : null}
                   </div>
                   <p className="marketplace-privacy-note">
-                    Mensagens, histórico, aprovações e memórias são 100% privadas por usuário.
+                    Messages, history, approvals, and memories are 100% private per user.
                   </p>
                 </div>
               </section>
@@ -377,19 +374,19 @@ export function BotDetailsSheet({
         ) : null}
 
         {tab === 'library' ? (
-          <div role="tabpanel" aria-label="Biblioteca" className="bot-details-panel">
+          <div role="tabpanel" aria-label="Library" className="bot-details-panel">
             {files.length === 0 ? (
               <div className="bot-details-empty">
-                <p className="bot-details-empty-title">Nenhum arquivo ainda</p>
+                <p className="bot-details-empty-title">No files yet</p>
                 <p className="bot-details-empty-copy">
-                  Páginas, arquivos e apps que este bot cria aparecem aqui.
+                  Pages, files, and apps created by this bot will appear here.
                 </p>
               </div>
             ) : (
               <div className="bot-details-sections">
                 {recentFiles.length > 0 ? (
                   <section className="bot-details-section">
-                    <h3 className="bot-details-section-label">Recentes</h3>
+                    <h3 className="bot-details-section-label">Recent</h3>
                     <LibraryFileList
                       files={recentFiles}
                       expanded={libraryExpanded}
@@ -399,7 +396,7 @@ export function BotDetailsSheet({
                 ) : null}
                 {olderFiles.length > 0 ? (
                   <section className="bot-details-section">
-                    <h3 className="bot-details-section-label">Mais antigos</h3>
+                    <h3 className="bot-details-section-label">Older</h3>
                     <LibraryFileList
                       files={olderFiles}
                       expanded={libraryExpanded}
@@ -413,11 +410,11 @@ export function BotDetailsSheet({
         ) : null}
 
         {tab === 'computer' ? (
-          <div role="tabpanel" aria-label="Computador" className="bot-details-panel">
+          <div role="tabpanel" aria-label="Computer" className="bot-details-panel">
             {!sandboxStatus?.enabled ? (
               <div className="bot-details-empty">
                 <div className="bot-details-empty-art" />
-                <p className="bot-details-empty-title">Computador dormindo</p>
+                <p className="bot-details-empty-title">Computer asleep</p>
                 <p className="bot-details-empty-copy">
                   Sandbox tools are off (`SANDBOX_BACKEND=off`). Enable databricks, python_exec, or
                   e2b to run code in an isolated Linux sandbox.
@@ -521,15 +518,15 @@ export function BotDetailsSheet({
           <div
             className="dialog"
             role="dialog"
-            aria-label="Mudar visual"
+            aria-label="Change look"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="dialog-header-row">
-              <h2>Mudar visual</h2>
+              <h2>Change look</h2>
               <button
                 type="button"
                 className="dialog-close-btn"
-                aria-label="Fechar"
+                aria-label="Close"
                 onClick={() => setEditLook(null)}
               >
                 <X size={18} />
@@ -538,7 +535,7 @@ export function BotDetailsSheet({
             <BotPicker value={editLook} onChange={setEditLook} />
             <div className="dialog-actions">
               <button type="button" onClick={() => setEditLook(null)}>
-                Cancelar
+                Cancel
               </button>
               <button
                 type="button"
@@ -553,7 +550,7 @@ export function BotDetailsSheet({
                   setEditLook(null);
                 }}
               >
-                Salvar
+                Save
               </button>
             </div>
           </div>

@@ -26,6 +26,7 @@ export const handoffToolDefinition: ToolDefinition = {
 export interface HandoffTurnContext {
   chatId: string;
   bot: Bot | null;
+  userId?: string;
 }
 
 export interface HandoffPlan {

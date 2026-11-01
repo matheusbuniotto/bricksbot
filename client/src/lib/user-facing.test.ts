@@ -15,14 +15,14 @@ function msg(role: Message['role'], content: string): Message {
 }
 
 describe('user-facing', () => {
-  test('rosterPreviewForPresence prefixes Aguardando when waiting', () => {
-    expect(rosterPreviewForPresence('waiting', 'SQL query')).toBe('Aguardando: SQL query');
-    expect(rosterPreviewForPresence('waiting', '')).toBe('Aguardando:');
+  test('rosterPreviewForPresence prefixes Waiting when waiting', () => {
+    expect(rosterPreviewForPresence('waiting', 'SQL query')).toBe('Waiting: SQL query');
+    expect(rosterPreviewForPresence('waiting', '')).toBe('Waiting:');
     expect(rosterPreviewForPresence('thinking', 'hello')).toBe('Thinking…');
     expect(rosterPreviewForPresence('working', 'hello')).toBe('Running…');
-    expect(presenceTooltip('waiting')).toBe('Aguardando aprovação');
-    expect(presenceTooltip('blocked')).toBe('Precisa de você');
-    expect(presenceTooltip('working')).toBe('Executando…');
+    expect(presenceTooltip('waiting')).toBe('Waiting for approval');
+    expect(presenceTooltip('blocked')).toBe('Needs you');
+    expect(presenceTooltip('working')).toBe('Running…');
   });
 
   test('toolLabel hides snake_case ids', () => {

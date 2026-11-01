@@ -10,15 +10,16 @@ export function canViewerAccessSpace(
 }
 
 export function isBotVisibleToViewer(
-  bot: Pick<Bot, 'ownerId' | 'spaceId' | 'isPrimary'>,
+  bot: Pick<Bot, 'ownerId' | 'spaceId' | 'isPrimary'> & { isShared?: boolean },
   viewerId: string,
   accessibleSpaceIds: ReadonlySet<string>,
 ): boolean {
   if (bot.ownerId === viewerId) return true;
   if (bot.isPrimary) return false;
+  if (!bot.isShared) return false;
   return bot.spaceId !== null && accessibleSpaceIds.has(bot.spaceId);
 }
 
 export function buildBotVisibilitySqlClause(ownerParamIndex: number): string {
-  return `(owner_id = $${ownerParamIndex} OR (is_primary = FALSE AND space_id IS NOT NULL AND EXISTS (SELECT 1 FROM bricksbot.spaces s LEFT JOIN bricksbot.space_members m ON m.space_id = s.id WHERE s.id = bricksbot.bots.space_id AND (s.owner_id = $${ownerParamIndex} OR m.user_id = $${ownerParamIndex}))))`;
+  return `(owner_id = $${ownerParamIndex} OR (is_primary = FALSE AND is_shared = TRUE AND space_id IS NOT NULL AND EXISTS (SELECT 1 FROM bricksbot.spaces s LEFT JOIN bricksbot.space_members m ON m.space_id = s.id WHERE s.id = bricksbot.bots.space_id AND (s.owner_id = $${ownerParamIndex} OR m.user_id = $${ownerParamIndex}))))`;
 }

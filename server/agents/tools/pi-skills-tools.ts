@@ -189,7 +189,7 @@ export function createListMemoriesTool(memory: MemorySkillStore): RegisteredTool
     async execute(args, ctx) {
       const query = readText(args.query).toLowerCase();
       const includeContent = args.include_content !== false;
-      const memories = await memory.listMemories(ctx.bot!.id);
+      const memories = await memory.listMemories(ctx.bot!.id, ctx.userId);
       const filtered = query
         ? memories.filter(
             (row) =>

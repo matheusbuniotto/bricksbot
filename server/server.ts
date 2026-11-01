@@ -14,6 +14,7 @@ import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idem
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
 import { systemAiMcpConfigFromEnv } from './agents/tools/system-ai-mcp.js';
+import { McpDiscoveryService } from './agents/tools/mcp-discovery.js';
 import { parseAllowlist } from './agents/tools/web-fetch.js';
 import { LakebaseMemorySkillStore } from './agents/memory/lakebase-store.js';
 import { MemoryMemorySkillStore } from './agents/memory/memory-store.js';
@@ -122,9 +123,17 @@ createApp({
       sandbox: sandboxService,
       systemAiMcp,
     });
+    const mcpDiscovery = new McpDiscoveryService({
+      host: systemAiMcp?.host || sqlQuery.host,
+      getToken: systemAiMcp?.getToken || sqlQuery.getToken,
+      workspaceId: systemAiMcp?.workspaceId,
+      userSchemas: process.env.DATABRICKS_MCP_SCHEMAS
+        ? process.env.DATABRICKS_MCP_SCHEMAS.split(',').map((s) => s.trim())
+        : undefined,
+    });
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {
-      registerChatRoutes(app, chats, chatService);
+      registerChatRoutes(app, chats, chatService, { mcpDiscovery });
       registerMemoryRoutes(app, chats, memory);
       registerRoutineRoutes(app, routines, routineService, {
         provider: client.provider,

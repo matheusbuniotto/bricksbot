@@ -1,7 +1,9 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import type { ChatStore } from '../../../shared/chat/types.js';
+import type { Bot, ChatStore } from '../../../shared/chat/types.js';
 import type { MemorySkillStore } from '../../../shared/agents/memory/types.js';
+import { canViewerAccessSpace } from '../../chat/access-policy.js';
+import { resolveOwnerId } from '../../chat/identity.js';
 import type { ChatHttpApp } from '../../chat/routes.js';
 
 const upsertMemorySchema = z.object({
@@ -30,21 +32,45 @@ function isBadRequest(err: unknown): boolean {
   return err instanceof Error && /required/i.test(err.message);
 }
 
-async function requireBot(store: ChatStore, botId: string): Promise<boolean> {
-  const bot = await store.getBot(botId);
-  return Boolean(bot);
+async function assertBotAccess(
+  chats: ChatStore,
+  botId: string,
+  req: Request,
+  res: Response,
+): Promise<{ bot: Bot; callerId: string } | null> {
+  const bot = await chats.getBot(botId);
+  if (!bot) {
+    res.status(404).json({ error: 'Bot not found' });
+    return null;
+  }
+  const callerId = resolveOwnerId(req);
+  if (bot.ownerId === callerId) {
+    return { bot, callerId };
+  }
+  if (bot.isPrimary || !bot.isShared || !bot.spaceId) {
+    res.status(403).json({ error: 'Forbidden' });
+    return null;
+  }
+  const space = await chats.getSpace(bot.spaceId);
+  if (!space) {
+    res.status(403).json({ error: 'Forbidden' });
+    return null;
+  }
+  const members = await chats.listSpaceMembers(bot.spaceId);
+  if (!canViewerAccessSpace(space, members, callerId)) {
+    res.status(403).json({ error: 'Forbidden' });
+    return null;
+  }
+  return { bot, callerId };
 }
 
 /** Register per-bot memory upsert and skill CRUD on the chat app. */
 export function registerMemoryRoutes(app: ChatHttpApp, chats: ChatStore, memory: MemorySkillStore): void {
   app.get('/api/bots/:botId/memories', async (req: Request, res: Response) => {
     try {
-      const botId = String(req.params.botId);
-      if (!(await requireBot(chats, botId))) {
-        res.status(404).json({ error: 'Bot not found' });
-        return;
-      }
-      const memories = await memory.listMemories(botId);
+      const access = await assertBotAccess(chats, String(req.params.botId), req, res);
+      if (!access) return;
+      const memories = await memory.listMemories(access.bot.id, access.callerId);
       res.json({ memories });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err) });
@@ -58,12 +84,9 @@ export function registerMemoryRoutes(app: ChatHttpApp, chats: ChatStore, memory:
       return;
     }
     try {
-      const botId = String(req.params.botId);
-      if (!(await requireBot(chats, botId))) {
-        res.status(404).json({ error: 'Bot not found' });
-        return;
-      }
-      const entry = await memory.upsertMemory(botId, parsed.data.key, parsed.data.content);
+      const access = await assertBotAccess(chats, String(req.params.botId), req, res);
+      if (!access) return;
+      const entry = await memory.upsertMemory(access.bot.id, parsed.data.key, parsed.data.content, access.callerId);
       res.json({ memory: entry });
     } catch (err) {
       const status = isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500;
@@ -73,12 +96,9 @@ export function registerMemoryRoutes(app: ChatHttpApp, chats: ChatStore, memory:
 
   app.get('/api/bots/:botId/skills', async (req: Request, res: Response) => {
     try {
-      const botId = String(req.params.botId);
-      if (!(await requireBot(chats, botId))) {
-        res.status(404).json({ error: 'Bot not found' });
-        return;
-      }
-      const skills = await memory.listSkills(botId);
+      const access = await assertBotAccess(chats, String(req.params.botId), req, res);
+      if (!access) return;
+      const skills = await memory.listSkills(access.bot.id);
       res.json({ skills });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err) });
@@ -92,12 +112,13 @@ export function registerMemoryRoutes(app: ChatHttpApp, chats: ChatStore, memory:
       return;
     }
     try {
-      const botId = String(req.params.botId);
-      if (!(await requireBot(chats, botId))) {
-        res.status(404).json({ error: 'Bot not found' });
+      const access = await assertBotAccess(chats, String(req.params.botId), req, res);
+      if (!access) return;
+      if (access.bot.ownerId !== access.callerId) {
+        res.status(403).json({ error: 'Forbidden' });
         return;
       }
-      const skill = await memory.createSkill(botId, parsed.data.name, parsed.data.body);
+      const skill = await memory.createSkill(access.bot.id, parsed.data.name, parsed.data.body);
       res.status(201).json({ skill });
     } catch (err) {
       const status = isNotFound(err) ? 404 : isConflict(err) ? 409 : isBadRequest(err) ? 400 : 500;
@@ -107,12 +128,13 @@ export function registerMemoryRoutes(app: ChatHttpApp, chats: ChatStore, memory:
 
   app.delete('/api/bots/:botId/skills/:skillId', async (req: Request, res: Response) => {
     try {
-      const botId = String(req.params.botId);
-      if (!(await requireBot(chats, botId))) {
-        res.status(404).json({ error: 'Bot not found' });
+      const access = await assertBotAccess(chats, String(req.params.botId), req, res);
+      if (!access) return;
+      if (access.bot.ownerId !== access.callerId) {
+        res.status(403).json({ error: 'Forbidden' });
         return;
       }
-      await memory.deleteSkill(botId, String(req.params.skillId));
+      await memory.deleteSkill(access.bot.id, String(req.params.skillId));
       res.status(204).end();
     } catch (err) {
       const status = isNotFound(err) ? 404 : 500;

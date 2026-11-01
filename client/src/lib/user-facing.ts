@@ -9,19 +9,18 @@ function looksLikeJsonBlob(content: string): boolean {
   return trimmed.startsWith('{') || trimmed.startsWith('[');
 }
 
-/** Tooltip / title for roster and header bot faces. */
 export function presenceTooltip(presence: Presence): string {
   switch (presence) {
     case 'waiting':
-      return 'Aguardando aprovação';
+      return 'Waiting for approval';
     case 'blocked':
-      return 'Precisa de você';
+      return 'Needs you';
     case 'thinking':
-      return 'Pensando…';
+      return 'Thinking…';
     case 'working':
-      return 'Executando…';
+      return 'Running…';
     case 'away':
-      return 'Ausente';
+      return 'Away';
     case 'offline':
       return 'Offline';
     case 'online':
@@ -33,13 +32,12 @@ export function presenceTooltip(presence: Presence): string {
   }
 }
 
-/** Roster one-liner including live presence copy and optional Aguardando prefix. */
 export function rosterPreviewForPresence(presence: Presence, messagePreview: string): string {
   const base = messagePreview.replace(/\s+/g, ' ').trim();
   if (presence === 'thinking') return 'Thinking…';
   if (presence === 'working') return 'Running…';
-  if (presence === 'waiting') return base ? `Aguardando: ${base}` : 'Aguardando:';
-  if (presence === 'blocked') return base ? `Precisa de você: ${base}` : 'Precisa de você';
+  if (presence === 'waiting') return base ? `Waiting: ${base}` : 'Waiting:';
+  if (presence === 'blocked') return base ? `Needs you: ${base}` : 'Needs you';
   return base;
 }
 
@@ -47,7 +45,6 @@ export interface ToolResultView {
   summary: string;
   detail: string;
   isError: boolean;
-  /** True when detail is still mostly technical (JSON / dumps). */
   technical: boolean;
 }
 
@@ -61,7 +58,6 @@ function summarizeToolSubject(parsed: Record<string, unknown>, label: string): s
   return label;
 }
 
-/** Collapse tool rows into a short summary; keep raw payload for optional expand. */
 export function toolResultView(content: string, toolNameHint = ''): ToolResultView {
   const fallback = toolNameHint ? toolLabel(toolNameHint) : 'Tool';
   try {

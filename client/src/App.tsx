@@ -386,9 +386,7 @@ export default function App() {
       if (result.autoApprovedTools) {
         setAutoApprovedTools(result.autoApprovedTools);
       }
-      // Reload full history so handoff/tool/system rows from the turn appear.
       await loadChat(selectedBotId);
-      // Server sets waiting when approvals/choices are pending — don't force online.
       await refreshRoster();
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
@@ -407,8 +405,6 @@ export default function App() {
     setApprovalBusyId(id);
     setError(null);
 
-    // Optimistic UX: leave the approval card immediately and show “running”
-    // while the long tool request is still in flight.
     if (accepted && approval) {
       setPendingApprovals((prev) => prev.filter((item) => item.id !== id));
       setRunningTool({
@@ -432,7 +428,6 @@ export default function App() {
       if (selectedBotId) await loadChat(selectedBotId);
       await refreshRoster();
     } catch (err) {
-      // Restore the approval card if the decide call failed after optimistic remove.
       if (accepted && approval) {
         setPendingApprovals((prev) =>
           prev.some((item) => item.id === approval.id) ? prev : [approval, ...prev],

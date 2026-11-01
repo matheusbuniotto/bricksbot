@@ -21,6 +21,20 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       return { rows: [] };
     }
 
+    if (normalized.startsWith('UPDATE bricksbot.chats c SET user_id = b.owner_id')) {
+      for (const chat of chats.values()) {
+        const bot = bots.get(chat.bot_id);
+        if (bot && chat.user_id === 'workspace-user' && bot.owner_id !== 'workspace-user') {
+          chat.user_id = bot.owner_id;
+        }
+      }
+      return { rows: [] };
+    }
+
+    if (normalized.startsWith('UPDATE bricksbot.bot_memories m SET user_id = b.owner_id')) {
+      return { rows: [] };
+    }
+
     if (normalized.includes('FROM bricksbot.spaces') && normalized.includes('name =')) {
       const [ownerId, name] = params.map(String);
       const row = [...spaces.values()].find((s) => s.owner_id === ownerId && s.name === name);
@@ -46,7 +60,11 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       return { rows: [row] };
     }
 
-    if (normalized.includes('FROM bricksbot.bots') && normalized.includes('is_shared = TRUE')) {
+    if (
+      normalized.includes('FROM bricksbot.bots') &&
+      normalized.includes('ORDER BY created_at DESC') &&
+      normalized.includes('is_shared = TRUE')
+    ) {
       const rows = [...bots.values()]
         .filter((b) => b.is_shared === true && !b.is_primary && b.archived_at == null)
         .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
@@ -395,6 +413,7 @@ describe('LakebaseChatStore', () => {
       name: 'Analyst',
       spaceId: shared.id,
       ownerId: 'user-a',
+      isShared: true,
     });
     await store.addSpaceMember(shared.id, 'user-b', 'member');
 
@@ -449,6 +468,7 @@ describe('LakebaseChatStore', () => {
       name: 'Analyst',
       spaceId: sharedSpace.id,
       ownerId: 'user-a',
+      isShared: true,
     });
 
     const chatA = await store.getOrCreateChatForBot(bot.id, 'user-a');
@@ -495,5 +515,20 @@ describe('LakebaseChatStore', () => {
       description: 'Updated SQL Helper',
       lastPreview: '',
     });
+  });
+
+  test('backfill migration updates chats with workspace-user to bot owner', async () => {
+    const bot = await store.createBot({
+      name: 'ExistingBot',
+      ownerId: 'migrated-user',
+    });
+    const preMigrationChat = await store.getOrCreateChatForBot(bot.id, 'workspace-user');
+    expect(preMigrationChat.userId).toBe('workspace-user');
+
+    await store.initSchema();
+
+    const freshStore = new LakebaseChatStore(fake.query);
+    const backfilledChat = await freshStore.getChat(preMigrationChat.id);
+    expect(backfilledChat?.userId).toBe('migrated-user');
   });
 });

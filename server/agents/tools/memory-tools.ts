@@ -29,7 +29,7 @@ export function createRememberTool(memory: MemorySkillStore): RegisteredTool {
     async execute(args, ctx) {
       const key = typeof args.key === 'string' ? args.key : '';
       const content = typeof args.content === 'string' ? args.content : '';
-      const entry = await memory.upsertMemory(ctx.bot!.id, key, content);
+      const entry = await memory.upsertMemory(ctx.bot!.id, key, content, ctx.userId);
       return JSON.stringify({ ok: true, key: entry.key, content: entry.content });
     },
   };
@@ -53,7 +53,7 @@ export function createForgetTool(memory: MemorySkillStore): RegisteredTool {
     },
     async execute(args, ctx) {
       const key = typeof args.key === 'string' ? args.key : '';
-      await memory.deleteMemory(ctx.bot!.id, key);
+      await memory.deleteMemory(ctx.bot!.id, key, ctx.userId);
       return JSON.stringify({ ok: true, deleted: key });
     },
   };

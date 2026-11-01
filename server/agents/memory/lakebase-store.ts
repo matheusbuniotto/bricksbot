@@ -13,6 +13,7 @@ function mapMemory(row: Record<string, unknown>): BotMemory {
   return {
     id: asString(row.id),
     botId: asString(row.bot_id),
+    userId: asString(row.user_id) || 'workspace-user',
     key: asString(row.key),
     content: asString(row.content),
     updatedAt: asString(row.updated_at),
@@ -30,7 +31,7 @@ function mapSkill(row: Record<string, unknown>): BotSkill {
 }
 
 export class LakebaseMemorySkillStore implements MemorySkillStore {
-  private memoriesByBot = new Map<string, BotMemory[]>();
+  private memoriesCache = new Map<string, BotMemory[]>();
   private skillsByBot = new Map<string, BotSkill[]>();
   private verifiedBots = new Set<string>();
 
@@ -43,38 +44,42 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
     this.verifiedBots.add(botId);
   }
 
-  async listMemories(botId: string): Promise<BotMemory[]> {
+  async listMemories(botId: string, userId?: string): Promise<BotMemory[]> {
     const id = requireBotId(botId);
-    const cached = this.memoriesByBot.get(id);
+    const resolvedUserId = userId ?? 'workspace-user';
+    const cacheKey = `${id}:${resolvedUserId}`;
+    const cached = this.memoriesCache.get(cacheKey);
     if (cached) return [...cached];
     const result = await this.query(
-      `SELECT id, bot_id, key, content, updated_at
+      `SELECT id, bot_id, user_id, key, content, updated_at
        FROM bricksbot.bot_memories
-       WHERE bot_id = $1
+       WHERE bot_id = $1 AND user_id = $2
        ORDER BY key ASC`,
-      [id]
+      [id, resolvedUserId]
     );
     const memories = result.rows.map(mapMemory);
-    this.memoriesByBot.set(id, memories);
+    this.memoriesCache.set(cacheKey, memories);
     return [...memories];
   }
 
-  async upsertMemory(botId: string, key: string, content: string): Promise<BotMemory> {
+  async upsertMemory(botId: string, key: string, content: string, userId?: string): Promise<BotMemory> {
     const id = requireBotId(botId);
     const normalized = normalizeMemory(key, content);
+    const resolvedUserId = userId ?? 'workspace-user';
     await this.requireBot(id);
     const result = await this.query(
-      `INSERT INTO bricksbot.bot_memories (id, bot_id, key, content)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (bot_id, key) DO UPDATE
+      `INSERT INTO bricksbot.bot_memories (id, bot_id, user_id, key, content)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (bot_id, user_id, key) DO UPDATE
        SET content = EXCLUDED.content, updated_at = NOW()
-       RETURNING id, bot_id, key, content, updated_at`,
-      [randomUUID(), id, normalized.key, normalized.content]
+       RETURNING id, bot_id, user_id, key, content, updated_at`,
+      [randomUUID(), id, resolvedUserId, normalized.key, normalized.content]
     );
     const row = result.rows[0];
     if (!row) throw new Error('Memory upsert failed');
     const memory = mapMemory(row);
-    const cached = this.memoriesByBot.get(id);
+    const cacheKey = `${id}:${resolvedUserId}`;
+    const cached = this.memoriesCache.get(cacheKey);
     if (cached) {
       const idx = cached.findIndex((m) => m.key === memory.key);
       if (idx >= 0) {
@@ -87,18 +92,20 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
     return memory;
   }
 
-  async deleteMemory(botId: string, key: string): Promise<void> {
+  async deleteMemory(botId: string, key: string, userId?: string): Promise<void> {
     const id = requireBotId(botId);
     const trimmedKey = key.trim();
     if (!trimmedKey) throw new Error('Memory key is required');
+    const resolvedUserId = userId ?? 'workspace-user';
     const result = await this.query(
       `DELETE FROM bricksbot.bot_memories
-       WHERE bot_id = $1 AND key = $2
+       WHERE bot_id = $1 AND user_id = $2 AND key = $3
        RETURNING id`,
-      [id, trimmedKey],
+      [id, resolvedUserId, trimmedKey],
     );
     if (!result.rows[0]) throw new Error('Memory not found');
-    const cached = this.memoriesByBot.get(id);
+    const cacheKey = `${id}:${resolvedUserId}`;
+    const cached = this.memoriesCache.get(cacheKey);
     if (cached) {
       const idx = cached.findIndex((m) => m.key === trimmedKey);
       if (idx >= 0) cached.splice(idx, 1);
@@ -191,4 +198,51 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
       if (idx >= 0) cached.splice(idx, 1);
     }
   }
+
+  async listSkillNamesForBots(botIds: string[]): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    for (const botId of botIds) map.set(botId, []);
+    if (botIds.length === 0) return map;
+    const result = await this.query(
+      `SELECT bot_id, name
+       FROM bricksbot.bot_skills
+       WHERE bot_id = ANY($1)
+       ORDER BY name ASC`,
+      [botIds]
+    );
+    for (const row of result.rows) {
+      const bId = asString(row.bot_id);
+      const name = asString(row.name);
+      if (map.has(bId)) {
+        map.get(bId)!.push(name);
+      }
+    }
+    return map;
+  }
+
+  async cloneSkills(sourceBotId: string, targetBotId: string): Promise<void> {
+    const src = requireBotId(sourceBotId);
+    const tgt = requireBotId(targetBotId);
+    await this.requireBot(tgt);
+    await this.query(
+      `INSERT INTO bricksbot.bot_skills (id, bot_id, name, body)
+       SELECT gen_random_uuid(), $2, name, body
+       FROM bricksbot.bot_skills
+       WHERE bot_id = $1
+       ON CONFLICT (bot_id, name) DO NOTHING`,
+      [src, tgt]
+    );
+    this.skillsByBot.delete(tgt);
+  }
+
+  evictBot(botId: string): void {
+    this.verifiedBots.delete(botId);
+    this.skillsByBot.delete(botId);
+    for (const key of this.memoriesCache.keys()) {
+      if (key.startsWith(`${botId}:`)) {
+        this.memoriesCache.delete(key);
+      }
+    }
+  }
 }
+
