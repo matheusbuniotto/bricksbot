@@ -24,18 +24,18 @@ describe('ConnectorsDialog Component', () => {
     const html = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
-    expect(html).toContain('Connect Applications (MCPs)');
+    expect(html).toContain('Connect Applications');
     expect(html).toContain('id="connectors-dialog-title"');
     expect(html).toContain('class="connectors-badge"');
     expect(html).toContain('connected');
   });
 
-  test('renders search input bar with placeholder and autofocus', () => {
+  test('renders search input bar with placeholder', () => {
     const html = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
     expect(html).toContain('class="connectors-search-input"');
-    expect(html).toContain('placeholder="Search MCPs, tools, and Databricks connectors..."');
+    expect(html).toContain('placeholder="Search apps and skills"');
     expect(html).not.toContain('class="connectors-search-clear"');
   });
 
@@ -50,7 +50,6 @@ describe('ConnectorsDialog Component', () => {
     );
     expect(withMarketplace).toContain('Bot Templates');
     expect(withMarketplace).toContain('class="connectors-marketplace-btn"');
-    expect(withMarketplace).toContain('class="connectors-marketplace-dot"');
   });
 
   test('renders category filter pills in English', () => {
@@ -59,60 +58,48 @@ describe('ConnectorsDialog Component', () => {
     );
     const expectedCategories = [
       'All',
-      'Lakehouse &amp; Analytics',
-      'Communication',
+      'Lakehouse',
       'Productivity',
-      'Code &amp; Execution',
-      'Web Search',
+      'Communication',
+      'Code',
+      'Search',
       'Custom',
     ];
     for (const label of expectedCategories) {
-      expect(html).toContain(label);
+      expect(html).toContain(`>${label}<`);
     }
     expect(html).toContain('class="connectors-pill is-active"');
   });
 
-  test('renders only viable Databricks MCPs and excludes non-viable mockup MCPs', () => {
+  test('renders only viable Databricks MCPs with clean recommended section', () => {
     const html = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
-    expect(html).toContain('System MCPs (Unity AI Gateway)');
+    expect(html).toContain('Recommended for you');
     expect(html).toContain('Databricks One (Genie)');
     expect(html).toContain('Databricks SQL');
     expect(html).toContain('Databricks Web Search');
     expect(html).toContain('Databricks Code Sandbox');
 
-    expect(html).toContain('system.ai.genie_one_mcp');
-    expect(html).toContain('system.ai.dbsql');
-    expect(html).toContain('system.ai.web_search');
-    expect(html).toContain('system.ai.sandbox');
-
-    expect(html).not.toContain('system.ai.confluence');
-    expect(html).not.toContain('system.ai.jira');
+    expect(html).not.toContain('System MCPs');
+    expect(html).not.toContain('Details');
+    expect(html).not.toContain('Expand all');
+    expect(html).not.toContain('AI Gateway MCP');
+    expect(html).not.toContain('connector-expand-btn');
+    expect(html).not.toContain('connector-source-badge');
 
     expect(html).toContain('class="connector-action-btn is-connected"');
     expect(html).toContain('Connected');
   });
 
-  test('renders close button with accessibility label in English', () => {
+  test('renders close and utility controls with accessibility labels', () => {
     const html = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
     expect(html).toContain('aria-label="Close"');
     expect(html).toContain('class="dialog-close-btn"');
-  });
-
-  test('renders progressive disclosure elements: card details buttons, expand all, and pill count badges', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
-    );
-    expect(html).toContain('class="connector-expand-btn"');
-    expect(html).toContain('aria-expanded="false"');
-    expect(html).toContain('Details');
-    expect(html).toContain('Expand all');
-    expect(html).toContain('class="connectors-pill-count"');
-    expect(html).toContain('class="connector-source-badge is-system"');
-    expect(html).toContain('System');
+    expect(html).toContain('aria-label="Refresh connectors"');
+    expect(html).toContain('aria-label="Add MCP"');
   });
 
   test('validates CONNECTOR_APPS catalog structure integrity', () => {

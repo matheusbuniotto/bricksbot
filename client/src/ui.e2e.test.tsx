@@ -38,29 +38,31 @@ describe('UI End-to-End Tests', () => {
       <ConnectorsDialog isOpen={true} onClose={() => {}} onOpenMarketplace={() => {}} />,
     );
 
-    expect(html).toContain('Connect Applications (MCPs)');
+    expect(html).toContain('Connect Applications');
     expect(html).toContain('connected');
 
-    expect(html).toContain('placeholder="Search MCPs, tools, and Databricks connectors..."');
-    expect(html).toContain('Refresh');
-    expect(html).toContain('Add MCP');
-    expect(html).toContain('AI Gateway MCP');
+    expect(html).toContain('placeholder="Search apps and skills"');
+    expect(html).toContain('aria-label="Refresh connectors"');
+    expect(html).toContain('aria-label="Add MCP"');
     expect(html).toContain('Bot Templates');
+    expect(html).not.toContain('AI Gateway MCP');
 
-    expect(html).toContain('All');
-    expect(html).toContain('Lakehouse &amp; Analytics');
-    expect(html).toContain('Communication');
-    expect(html).toContain('Productivity');
-    expect(html).toContain('Code &amp; Execution');
-    expect(html).toContain('Web Search');
-    expect(html).toContain('Custom');
+    expect(html).toContain('>All<');
+    expect(html).toContain('>Lakehouse<');
+    expect(html).toContain('>Communication<');
+    expect(html).toContain('>Productivity<');
+    expect(html).toContain('>Code<');
+    expect(html).toContain('>Search<');
+    expect(html).toContain('>Custom<');
 
-    expect(html).toContain('System MCPs (Unity AI Gateway)');
+    expect(html).toContain('Recommended for you');
     expect(html).toContain('Databricks One (Genie)');
     expect(html).toContain('Databricks SQL');
     expect(html).toContain('Databricks Web Search');
     expect(html).toContain('Databricks Code Sandbox');
 
+    expect(html).not.toContain('System MCPs');
+    expect(html).not.toContain('Details');
     expect(html).not.toContain('system.ai.slack');
     expect(html).not.toContain('system.ai.confluence');
     expect(html).not.toContain('system.ai.jira');
