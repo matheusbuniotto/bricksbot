@@ -406,7 +406,12 @@ export default function App() {
     setError(null);
 
     if (accepted && approval) {
-      setPendingApprovals((prev) => prev.filter((item) => item.id !== id));
+      // Always allow clears the whole same-tool wave on the server — mirror that locally.
+      setPendingApprovals((prev) =>
+        decision === 'all_the_time'
+          ? prev.filter((item) => item.toolCall.name !== approval.toolCall.name)
+          : prev.filter((item) => item.id !== id),
+      );
       setRunningTool({
         label: toolLabel(approval.toolCall.name),
         startedAt: new Date().toISOString(),
@@ -613,25 +618,6 @@ export default function App() {
               )}
             </button>
 
-            {autoApprovedTools.length > 0 ? (
-              <div className="auto-approvals-bar" role="status" aria-label="Active auto-approvals">
-                <span className="auto-approvals-title">Auto-approved:</span>
-                <div className="auto-approvals-chips">
-                  {autoApprovedTools.map((tool) => (
-                    <span key={tool} className="auto-tool-chip">
-                      <span>{toolLabel(tool)}</span>
-                      <button
-                        type="button"
-                        aria-label={`Revoke auto-approval for ${toolLabel(tool)}`}
-                        onClick={() => void handleRevokeAutoApproval(tool)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </div>
         ) : null}
 
@@ -701,6 +687,8 @@ export default function App() {
           lastWebhookSecret={lastWebhookSecret}
           sandboxStatus={sandboxStatus}
           sandboxBusy={sandboxBusy}
+          autoApprovedTools={autoApprovedTools}
+          onRevokeAutoApproval={handleRevokeAutoApproval}
           width={detailsWidth}
           minWidth={DETAILS_WIDTH_MIN}
           maxWidth={DETAILS_WIDTH_MAX}

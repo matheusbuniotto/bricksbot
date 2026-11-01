@@ -55,7 +55,8 @@ describe('ChatService', () => {
     const result = await service.sendUserMessage(chat.id, 'fetch example');
     expect(result.pendingApprovals).toHaveLength(1);
     expect(result.pendingApprovals[0]?.toolCall.name).toBe('web_fetch');
-    expect(result.assistant?.content).toMatch(/waiting for your approval/i);
+    // Wait state lives on the approval card / presence — not a chat bubble.
+    expect(result.assistant?.content ?? '').toBe('');
     const updatedBot = await store.getBot(bot.id);
     expect(updatedBot?.presence).toBe('waiting');
   });
@@ -119,6 +120,8 @@ describe('ChatService', () => {
     const pending = await service.sendUserMessage(chat.id, 'fetch both');
     expect(pending.pendingApprovals).toHaveLength(2);
     expect((await store.getBot(bot.id))?.presence).toBe('waiting');
+    // Approval cards own the wait UX — do not spam the transcript.
+    expect(pending.assistant?.content ?? '').toBe('');
 
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () => new Response('ok', { status: 200 })) as typeof fetch;
@@ -133,6 +136,48 @@ describe('ChatService', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  test('all_the_time clears sibling pending approvals for the same tool', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const catalogCalls: string[] = [];
+    const service = new ChatService({
+      store,
+      client: new ScriptedClient([
+        {
+          content: null,
+          toolCalls: [
+            { id: 'call_a', name: 'lakehouse_catalog', arguments: { action: 'list_catalogs' } },
+            { id: 'call_b', name: 'lakehouse_catalog', arguments: { action: 'list_schemas', catalog: 'main' } },
+            { id: 'call_c', name: 'lakehouse_catalog', arguments: { action: 'list_tables', catalog: 'main', schema: 'default' } },
+          ],
+        },
+        { content: 'catalogs ready', toolCalls: [] },
+      ]),
+      sqlQuery: {
+        warehouseId: 'wh-1',
+        executeImpl: async (req) => {
+          catalogCalls.push(req.statement);
+          return 'ok';
+        },
+      },
+    });
+
+    const pending = await service.sendUserMessage(chat.id, 'browse catalogs');
+    expect(pending.pendingApprovals).toHaveLength(3);
+
+    const done = await service.decideApproval(pending.pendingApprovals[0]!.id, 'all_the_time');
+    expect(done.pendingApprovals).toHaveLength(0);
+    expect(done.assistant?.content).toBe('catalogs ready');
+    expect(done.autoApprovedTools).toContain('lakehouse_catalog');
+    expect(catalogCalls).toHaveLength(3);
+
+    // Double-decide must not throw / re-run tools.
+    const again = await service.decideApproval(pending.pendingApprovals[0]!.id, 'all_the_time');
+    expect(again.pendingApprovals).toHaveLength(0);
+    expect(catalogCalls).toHaveLength(3);
   });
 
   test('remember tool auto-runs and writes durable memory', async () => {

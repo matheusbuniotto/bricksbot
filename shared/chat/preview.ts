@@ -42,7 +42,10 @@ export function messagePreviewLine(
   }
 
   const plain = message.content.replace(/\s+/g, ' ').trim();
-  return plain || null;
+  if (!plain) return null;
+  // Legacy synthetic wait copy — approval cards own that state.
+  if (/^Waiting for your approval:/i.test(plain)) return null;
+  return plain;
 }
 
 export function lastUserFacingPreview(

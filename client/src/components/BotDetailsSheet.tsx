@@ -5,6 +5,7 @@ import type { Bot, Message } from '../../../shared/chat/types';
 import type { Routine } from '../../../shared/routines/types';
 import type { SandboxUiStatus } from '../../../shared/sandbox/types';
 import { listArtifactPinsFromMessages } from '../lib/artifact-pins';
+import { toolLabel } from '../lib/user-facing';
 import {
   BotFace,
   botColor,
@@ -117,6 +118,8 @@ export function BotDetailsSheet({
   lastWebhookSecret,
   sandboxStatus,
   sandboxBusy,
+  autoApprovedTools = [],
+  onRevokeAutoApproval,
   width,
   minWidth,
   maxWidth,
@@ -138,6 +141,9 @@ export function BotDetailsSheet({
   lastWebhookSecret: string | null;
   sandboxStatus?: SandboxUiStatus | null;
   sandboxBusy?: boolean;
+  /** Tools the user chose “Always allow” for in this chat. */
+  autoApprovedTools?: string[];
+  onRevokeAutoApproval?: (toolName?: string) => void | Promise<void>;
   width: number;
   minWidth: number;
   maxWidth: number;
@@ -360,6 +366,50 @@ export function BotDetailsSheet({
                 </div>
               </section>
             ) : null}
+
+            <section className="bot-details-section" aria-label="Auto-approved tools">
+              <div className="bot-details-section-heading">
+                <h3 className="bot-details-section-label">Auto-approved tools</h3>
+                {autoApprovedTools.length > 1 && onRevokeAutoApproval ? (
+                  <button
+                    type="button"
+                    className="bot-details-section-action"
+                    onClick={() => void onRevokeAutoApproval()}
+                  >
+                    Clear all
+                  </button>
+                ) : null}
+              </div>
+              {autoApprovedTools.length === 0 ? (
+                <div className="bot-details-card">
+                  <p className="bot-details-muted-copy">
+                    When you choose Always allow on an approval, that tool skips asking in this chat.
+                    Nothing is auto-approved yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="bot-details-card">
+                  <ul className="bot-details-file-list">
+                    {autoApprovedTools.map((tool) => (
+                      <li key={tool} className="bot-details-approval-row">
+                        <span className="bot-details-approval-name">{toolLabel(tool)}</span>
+                        {onRevokeAutoApproval ? (
+                          <button
+                            type="button"
+                            className="bot-details-approval-revoke"
+                            aria-label={`Revoke auto-approval for ${toolLabel(tool)}`}
+                            onClick={() => void onRevokeAutoApproval(tool)}
+                          >
+                            Revoke
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+
             <RoutinesPanel
               bots={[bot]}
               routines={routines}

@@ -172,19 +172,27 @@ export class ApprovalStore {
     return set ? [...set].sort() : [];
   }
 
-  async decide(id: string, decision: ApprovalDecision): Promise<ApprovalRequest> {
+  /**
+   * Settle a pending approval. Idempotent for races/double-clicks: returns
+   * `{ applied: false }` when the row was already decided.
+   */
+  async decide(
+    id: string,
+    decision: ApprovalDecision,
+  ): Promise<{ request: ApprovalRequest; applied: boolean }> {
     const existing = (await this.get(id)) ?? this.byId.get(id);
     if (!existing) {
       throw new Error('Approval not found');
-    }
-    if (existing.status !== 'pending') {
-      throw new Error('Approval already decided');
     }
 
     const isDenial = decision === 'denied' || decision === 'not_approved';
     const isAlways = decision === 'all_the_time' || decision === 'always';
     const status: ApprovalStatus = isDenial ? 'denied' : 'approved';
     const decisionKind = isDenial ? 'denied' : isAlways ? 'all_the_time' : 'once';
+
+    if (existing.status !== 'pending') {
+      return { request: existing, applied: false };
+    }
 
     if (isAlways) {
       await this.setAutoApproved(existing.chatId, existing.toolCall.name);
@@ -201,10 +209,10 @@ export class ApprovalStore {
       await this.query(
         `UPDATE bricksbot.approvals
          SET status = $2, decision = $3, decided_at = NOW()
-         WHERE id = $1`,
+         WHERE id = $1 AND status = 'pending'`,
         [id, status, decisionKind],
       );
     }
-    return updated;
+    return { request: updated, applied: true };
   }
 }

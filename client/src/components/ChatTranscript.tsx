@@ -67,6 +67,48 @@ function isRawSystemBlob(content: string): boolean {
   return trimmed.startsWith('{') || trimmed.startsWith('[');
 }
 
+/** Legacy synthetic wait copy — approval cards own that state now. */
+function isApprovalWaitBubble(content: string): boolean {
+  return /^Waiting for your approval:/i.test(content.trim());
+}
+
+type TranscriptRow =
+  | { kind: 'message'; message: Message }
+  | {
+      kind: 'tool_group';
+      id: string;
+      messages: Message[];
+      toolName: string;
+    };
+
+function buildTranscriptRows(
+  messages: Message[],
+  toolNameByCallId: Map<string, string>,
+): TranscriptRow[] {
+  const rows: TranscriptRow[] = [];
+  for (const message of messages) {
+    if (message.role === 'tool') {
+      const toolName = message.toolCallId
+        ? (toolNameByCallId.get(message.toolCallId) ?? '')
+        : '';
+      const prev = rows[rows.length - 1];
+      if (prev?.kind === 'tool_group' && prev.toolName === toolName && toolName) {
+        prev.messages.push(message);
+        continue;
+      }
+      rows.push({
+        kind: 'tool_group',
+        id: message.id,
+        messages: [message],
+        toolName,
+      });
+      continue;
+    }
+    rows.push({ kind: 'message', message });
+  }
+  return rows;
+}
+
 export function ChatTranscript({
   messages,
   botName: _botName,
@@ -108,6 +150,10 @@ export function ChatTranscript({
       collapseHandoffNotices(
         messages.filter((message) => {
           if (message.role === 'system' && isRawSystemBlob(message.content)) return false;
+          if (message.role === 'assistant') {
+            const trimmed = message.content.trim();
+            if (!trimmed || isApprovalWaitBubble(trimmed)) return false;
+          }
           if (message.role !== 'tool') return true;
           const toolName = message.toolCallId
             ? (toolNameByCallId.get(message.toolCallId) ?? '')
@@ -120,6 +166,10 @@ export function ChatTranscript({
           ) {
             return false;
           }
+          // Successful tool chips are noise in the transcript (assistant already narrates).
+          // Keep failures visible so the user can see what blocked.
+          const view = toolResultView(message.content, toolName);
+          if (!view.isError) return false;
           return true;
         }),
         (message) => message.role === 'system',
@@ -127,20 +177,28 @@ export function ChatTranscript({
     [messages, toolNameByCallId],
   );
 
+  const rows = useMemo(
+    () => buildTranscriptRows(visible, toolNameByCallId),
+    [visible, toolNameByCallId],
+  );
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [visible.length, thinking, thinkingLabel]);
+  }, [rows.length, thinking, thinkingLabel]);
 
   return (
     <div className="transcript">
       <div className="transcript-column">
-        {visible.map((message, index) => {
-          const isUser = message.role === 'user';
-          const isSystem = message.role === 'system';
-          const isTool = message.role === 'tool';
-          const prev = index > 0 ? visible[index - 1] : undefined;
+        {rows.map((row, index) => {
+          const message = row.kind === 'message' ? row.message : row.messages[0]!;
+          const prevRow = index > 0 ? rows[index - 1] : undefined;
+          const prevMessage = prevRow
+            ? prevRow.kind === 'message'
+              ? prevRow.message
+              : prevRow.messages[0]
+            : undefined;
           const timeLabel =
-            prev && shouldShowChatTimeSeparator(prev.createdAt, message.createdAt)
+            prevMessage && shouldShowChatTimeSeparator(prevMessage.createdAt, message.createdAt)
               ? formatChatTimeSeparator(message.createdAt)
               : null;
           const timeSep = timeLabel ? (
@@ -148,6 +206,65 @@ export function ChatTranscript({
               {timeLabel}
             </div>
           ) : null;
+
+          if (row.kind === 'tool_group') {
+            const primary = row.messages[0]!;
+            const view = toolResultView(primary.content, row.toolName);
+            const count = row.messages.length;
+            const summary =
+              count > 1 ? `${view.summary} · ${count}` : view.summary;
+            return (
+              <Fragment key={row.id}>
+                {timeSep}
+                <div className="message message-tool message-enter">
+                  <details className="tool-accordion">
+                    <summary className="tool-summary">
+                      <span className="tool-summary-text">{summary}</span>
+                    </summary>
+                    {count === 1 ? (
+                      view.technical ? (
+                        <details className="tool-tech">
+                          <summary className="tool-tech-summary">Technical details</summary>
+                          <pre className="tool-output">
+                            <code>{view.detail}</code>
+                          </pre>
+                        </details>
+                      ) : (
+                        <div className="tool-output tool-output-plain">
+                          <ChatMarkdown content={view.detail} />
+                        </div>
+                      )
+                    ) : (
+                      <div className="tool-group-list">
+                        {row.messages.map((item, i) => {
+                          const itemView = toolResultView(item.content, row.toolName);
+                          return (
+                            <details key={item.id} className="tool-tech">
+                              <summary className="tool-tech-summary">
+                                {i + 1}. {itemView.summary}
+                              </summary>
+                              {itemView.technical ? (
+                                <pre className="tool-output">
+                                  <code>{itemView.detail}</code>
+                                </pre>
+                              ) : (
+                                <div className="tool-output tool-output-plain">
+                                  <ChatMarkdown content={itemView.detail} />
+                                </div>
+                              )}
+                            </details>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </details>
+                </div>
+              </Fragment>
+            );
+          }
+
+          const isUser = message.role === 'user';
+          const isSystem = message.role === 'system';
 
           if (isSystem) {
             const handoff = parseHandoffNotice(message.content);
@@ -202,37 +319,6 @@ export function ChatTranscript({
                 </Fragment>
               );
             }
-          }
-
-          if (isTool) {
-            const toolName = message.toolCallId
-              ? (toolNameByCallId.get(message.toolCallId) ?? '')
-              : '';
-            const view = toolResultView(message.content, toolName);
-            return (
-              <Fragment key={message.id}>
-                {timeSep}
-                <div className="message message-tool message-enter">
-                  <details className="tool-accordion">
-                    <summary className="tool-summary">
-                      <span className="tool-summary-text">{view.summary}</span>
-                    </summary>
-                    {view.technical ? (
-                      <details className="tool-tech">
-                        <summary className="tool-tech-summary">Technical details</summary>
-                        <pre className="tool-output">
-                          <code>{view.detail}</code>
-                        </pre>
-                      </details>
-                    ) : (
-                      <div className="tool-output tool-output-plain">
-                        <ChatMarkdown content={view.detail} />
-                      </div>
-                    )}
-                  </details>
-                </div>
-              </Fragment>
-            );
           }
 
           const className = isSystem

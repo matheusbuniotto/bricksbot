@@ -282,66 +282,90 @@ export function ApprovalCards({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [firstApproval, busyId, onDecide]);
 
-  if (approvals.length === 0) return null;
+  if (!firstApproval || approvals.length === 0) return null;
+
+  const sameToolPending = approvals.filter(
+    (item) => item.toolCall.name === firstApproval.toolCall.name,
+  ).length;
+  const otherPending = approvals.length - 1;
+  const onceOnly = isOnceOnlyApproval(firstApproval.toolCall.name);
 
   return (
     <div className="approvals" role="region" aria-label="Approval requests">
-      {approvals.map((approval) => (
-        <article key={approval.id} className="approval-card" aria-busy={busyId === approval.id}>
-          <div className="approval-header">
-            <span className="approval-tag">Approval needed</span>
-            <p className="approval-title">{approvalTitle(approval.toolCall.name)}</p>
-          </div>
+      <article
+        key={firstApproval.id}
+        className="approval-card"
+        aria-busy={busyId === firstApproval.id}
+      >
+        <div className="approval-header">
+          <span className="approval-tag">Approval needed</span>
+          <p className="approval-title">{approvalTitle(firstApproval.toolCall.name)}</p>
+          {sameToolPending > 1 ? (
+            <p className="approval-queue">
+              {sameToolPending} similar requests in this turn
+              {onceOnly
+                ? ' — Once applies to this one'
+                : ' — Always allow clears all of them'}
+            </p>
+          ) : otherPending > 0 ? (
+            <p className="approval-queue">
+              {otherPending} more approval{otherPending === 1 ? '' : 's'} waiting after this
+            </p>
+          ) : null}
+        </div>
 
-          {renderToolDetails(approval.toolCall)}
+        {renderToolDetails(firstApproval.toolCall)}
 
-          <div className="approval-actions">
-            {!isOnceOnlyApproval(approval.toolCall.name) ? (
-              <button
-                type="button"
-                className="approval-btn approval-btn-always"
-                disabled={busyId === approval.id}
-                onClick={() => void onDecide(approval.id, 'all_the_time')}
-                title="Approve this execution and future calls for this tool in this chat"
-              >
-                <span className="approval-key">A</span>
-                <div className="approval-btn-labels">
-                  <span className="approval-main-label">Always allow</span>
-                  <span className="approval-sub-label">All the time (auto-approve upcoming)</span>
-                </div>
-              </button>
-            ) : null}
-
+        <div className="approval-actions">
+          {!onceOnly ? (
             <button
               type="button"
-              className="approval-btn approval-btn-once"
-              disabled={busyId === approval.id}
-              onClick={() => void onDecide(approval.id, 'once')}
-              title="Approve only this execution"
+              className="approval-btn approval-btn-always"
+              disabled={busyId === firstApproval.id}
+              onClick={() => void onDecide(firstApproval.id, 'all_the_time')}
+              title="Approve this execution and future calls for this tool in this chat"
             >
-              <span className="approval-key">{isOnceOnlyApproval(approval.toolCall.name) ? 'A' : 'B'}</span>
+              <span className="approval-key">A</span>
               <div className="approval-btn-labels">
-                <span className="approval-main-label">Once</span>
-                <span className="approval-sub-label">Just this once (ask again next time)</span>
+                <span className="approval-main-label">Always allow</span>
+                <span className="approval-sub-label">
+                  {sameToolPending > 1
+                    ? `All ${sameToolPending} now + auto-approve upcoming`
+                    : 'All the time (auto-approve upcoming)'}
+                </span>
               </div>
             </button>
+          ) : null}
 
-            <button
-              type="button"
-              className="approval-btn approval-btn-deny"
-              disabled={busyId === approval.id}
-              onClick={() => void onDecide(approval.id, 'denied')}
-              title="Deny tool execution"
-            >
-              <span className="approval-key">{isOnceOnlyApproval(approval.toolCall.name) ? 'B' : 'C'}</span>
-              <div className="approval-btn-labels">
-                <span className="approval-main-label">Not approve</span>
-                <span className="approval-sub-label">Cancel action</span>
-              </div>
-            </button>
-          </div>
-        </article>
-      ))}
+          <button
+            type="button"
+            className="approval-btn approval-btn-once"
+            disabled={busyId === firstApproval.id}
+            onClick={() => void onDecide(firstApproval.id, 'once')}
+            title="Approve only this execution"
+          >
+            <span className="approval-key">{onceOnly ? 'A' : 'B'}</span>
+            <div className="approval-btn-labels">
+              <span className="approval-main-label">Once</span>
+              <span className="approval-sub-label">Just this once (ask again next time)</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className="approval-btn approval-btn-deny"
+            disabled={busyId === firstApproval.id}
+            onClick={() => void onDecide(firstApproval.id, 'denied')}
+            title="Deny tool execution"
+          >
+            <span className="approval-key">{onceOnly ? 'B' : 'C'}</span>
+            <div className="approval-btn-labels">
+              <span className="approval-main-label">Not approve</span>
+              <span className="approval-sub-label">Cancel action</span>
+            </div>
+          </button>
+        </div>
+      </article>
     </div>
   );
 }

@@ -25,6 +25,17 @@ describe('user-facing', () => {
     expect(presenceTooltip('working')).toBe('Running…');
   });
 
+  test('lastUserFacingPreview skips empty and legacy approval-wait bubbles', () => {
+    expect(
+      lastUserFacingPreview([
+        msg('user', 'explore'),
+        msg('assistant', ''),
+        msg('assistant', 'Waiting for your approval: Catalog browse.'),
+        msg('assistant', 'Found bakehouse.'),
+      ]),
+    ).toBe('Found bakehouse.');
+  });
+
   test('toolLabel hides snake_case ids', () => {
     expect(toolLabel('handoff_to_bot')).toBe('Message another bot');
     expect(toolLabel('sql_query')).toBe('SQL query');

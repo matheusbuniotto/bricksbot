@@ -214,6 +214,8 @@ describe('UI End-to-End Tests', () => {
         routines={[]}
         routineBusyId={null}
         lastWebhookSecret={null}
+        autoApprovedTools={[]}
+        onRevokeAutoApproval={async () => {}}
         width={360}
         minWidth={280}
         maxWidth={720}
@@ -237,6 +239,35 @@ describe('UI End-to-End Tests', () => {
     expect(htmlDetails).toContain('Bot Instructions');
     expect(htmlDetails).toContain('placeholder="Instructions or durable role for this bot..."');
     expect(htmlDetails).toContain('Messages, history, approvals, and memories are 100% private per user.');
+    expect(htmlDetails).toContain('Auto-approved tools');
+    expect(htmlDetails).toContain('Nothing is auto-approved yet.');
+
+    const htmlApprovals = renderToString(
+      <BotDetailsSheet
+        bot={dummyBot}
+        messages={[]}
+        routines={[]}
+        routineBusyId={null}
+        lastWebhookSecret={null}
+        autoApprovedTools={['lakehouse_catalog', 'sql_query']}
+        onRevokeAutoApproval={async () => {}}
+        width={360}
+        minWidth={280}
+        maxWidth={720}
+        onWidthChange={() => {}}
+        onCreateRoutine={async () => {}}
+        onUpdateRoutine={async () => {}}
+        onRunRoutine={async () => {}}
+        onDeleteRoutine={async () => {}}
+        onClose={() => {}}
+        onChangeLook={() => {}}
+        onUpdateBotConfig={async () => {}}
+      />,
+    );
+    expect(htmlApprovals).toContain('Catalog browse');
+    expect(htmlApprovals).toContain('SQL query');
+    expect(htmlApprovals).toContain('Clear all');
+    expect(htmlApprovals).toContain('Revoke');
 
     const htmlLibrary = renderToString(
       <BotDetailsSheet

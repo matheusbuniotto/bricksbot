@@ -1441,59 +1441,69 @@ textarea.field {
   transform: translateX(0);
 }
 
-.auto-approvals-bar {
+.bot-details-section-heading {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-soft);
-  font-size: 12px;
-  pointer-events: auto;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.auto-approvals-title {
-  color: var(--muted-foreground);
-  font-weight: 500;
-  font-size: 11.5px;
-}
-
-.auto-approvals-chips {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.auto-tool-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border-radius: 6px;
-  background: var(--muted);
-  font-size: 11.5px;
-}
-
-.auto-tool-chip code {
-  font-family: ui-monospace, 'SFMono-Regular', monospace;
-  font-weight: 600;
-}
-
-.auto-tool-chip button {
+.bot-details-section-action {
   border: 0;
   background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--muted-foreground);
-  font-size: 13px;
-  line-height: 1;
-  padding: 0 2px;
   cursor: pointer;
-  border-radius: 4px;
 }
 
-.auto-tool-chip button:hover {
-  background: var(--accent);
+.bot-details-section-action:hover {
+  color: var(--foreground);
+}
+
+.bot-details-muted-copy {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+
+.bot-details-approval-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+}
+
+.bot-details-approval-row + .bot-details-approval-row {
+  border-top: 1px solid var(--border);
+}
+
+.bot-details-approval-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bot-details-approval-revoke {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.bot-details-approval-revoke:hover {
   color: var(--foreground);
 }
 
@@ -1983,6 +1993,13 @@ textarea.field {
   line-height: 1.4;
 }
 
+.approval-queue {
+  margin: -2px 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
 .approval-title code {
   font-family: ui-monospace, 'SFMono-Regular', monospace;
   font-weight: 600;
@@ -2275,6 +2292,11 @@ textarea.field {
 .tool-tech {
   margin: 0;
   border-top: 1px solid var(--border);
+}
+
+.tool-group-list {
+  display: flex;
+  flex-direction: column;
 }
 
 .tool-tech-summary {

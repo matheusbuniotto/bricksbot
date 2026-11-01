@@ -21,7 +21,6 @@ import {
 } from '../../shared/agents/capability-catalog.js';
 import { mergeEffectiveSkills } from '../../shared/agents/effective-skills.js';
 import { isDefaultMetaTool } from '../../shared/agents/meta-tools.js';
-import { toolLabel } from '../../shared/agents/tool-labels.js';
 import type {
   ApprovalDecision,
   ApprovalRequest,
@@ -284,46 +283,56 @@ export class ChatService {
     return result;
   }
 
+  private async decidedPauseResult(chatId: string): Promise<SendMessageResult> {
+    const history = await this.options.store.listMessages(chatId);
+    const pause = await this.pauseSnapshot(chatId);
+    return {
+      user: [...history].reverse().find((m) => m.role === 'user')!,
+      assistant: [...history].reverse().find((m) => m.role === 'assistant') ?? null,
+      ...pause,
+      provider: this.options.client.provider,
+    };
+  }
+
   async decideApproval(approvalId: string, decision: ApprovalDecision): Promise<SendMessageResult> {
     const pending = await this.approvals.get(approvalId);
+    if (!pending) {
+      throw new Error('Approval not found');
+    }
+
     const effectiveDecision: ApprovalDecision =
-      decision === 'all_the_time' && pending && requiresAlwaysAsk(pending.toolCall.name)
+      decision === 'all_the_time' && requiresAlwaysAsk(pending.toolCall.name)
         ? 'once'
         : decision;
+    const isAlways =
+      effectiveDecision === 'all_the_time' || effectiveDecision === 'always';
     const isDenial = effectiveDecision === 'denied' || effectiveDecision === 'not_approved';
-    const approval = await this.approvals.decide(approvalId, effectiveDecision);
-    const chatId = approval.chatId;
 
-    if (isDenial) {
-      await this.options.store.addMessage(
-        chatId,
-        'tool',
-        JSON.stringify({ error: 'User denied tool call', tool: approval.toolCall.name }),
-        { toolCallId: approval.toolCall.id },
+    const { request: approval, applied } = await this.approvals.decide(
+      approvalId,
+      effectiveDecision,
+    );
+    const chatId = approval.chatId;
+    // Double-click / race: already settled — return current pause without re-running tools.
+    if (!applied) {
+      return this.decidedPauseResult(chatId);
+    }
+    await this.applyDecidedApproval(approval, isDenial);
+
+    // "Always allow" should clear the whole same-tool wave in this turn, not leave
+    // N-1 sibling cards that still need clicks (and race into "already decided").
+    if (isAlways) {
+      const siblings = (await this.approvals.listPending(chatId)).filter(
+        (item) => item.id !== approval.id && item.toolCall.name === approval.toolCall.name,
       );
-    } else if (approval.toolCall.name === ASK_CHOICE_TOOL_NAME) {
-      const botId = await this.options.store.findBotIdForChat(chatId);
-      const bot = botId ? await this.options.store.getBot(botId) : null;
-      const error = await this.beginPendingChoice(chatId, approval.toolCall, bot);
-      if (error) {
-        await this.options.store.addMessage(
-          chatId,
-          'tool',
-          JSON.stringify({ error, tool: approval.toolCall.name }),
-          { toolCallId: approval.toolCall.id },
+      for (const sibling of siblings) {
+        const { request: decided, applied: siblingApplied } = await this.approvals.decide(
+          sibling.id,
+          'once',
         );
+        if (!siblingApplied) continue;
+        await this.applyDecidedApproval(decided, false);
       }
-    } else {
-      const chat = await this.options.store.getChat(chatId);
-      const botId = chat?.botId ?? (await this.options.store.findBotIdForChat(chatId));
-      const bot = botId ? await this.options.store.getBot(botId) : null;
-      if (botId) {
-        await this.options.store.setBotPresence(botId, 'working');
-      }
-      const toolResult = await this.executeTool(approval.toolCall, { chatId, bot, userId: chat?.userId });
-      await this.options.store.addMessage(chatId, 'tool', toolResult, {
-        toolCallId: approval.toolCall.id,
-      });
     }
 
     // OpenAI requires every tool_call id from the assistant turn to have a tool
@@ -346,6 +355,52 @@ export class ChatService {
     }
 
     return this.continueTurn(chatId);
+  }
+
+  private async applyDecidedApproval(
+    approval: ApprovalRequest,
+    isDenial: boolean,
+  ): Promise<void> {
+    const chatId = approval.chatId;
+    if (isDenial) {
+      await this.options.store.addMessage(
+        chatId,
+        'tool',
+        JSON.stringify({ error: 'User denied tool call', tool: approval.toolCall.name }),
+        { toolCallId: approval.toolCall.id },
+      );
+      return;
+    }
+
+    if (approval.toolCall.name === ASK_CHOICE_TOOL_NAME) {
+      const botId = await this.options.store.findBotIdForChat(chatId);
+      const bot = botId ? await this.options.store.getBot(botId) : null;
+      const error = await this.beginPendingChoice(chatId, approval.toolCall, bot);
+      if (error) {
+        await this.options.store.addMessage(
+          chatId,
+          'tool',
+          JSON.stringify({ error, tool: approval.toolCall.name }),
+          { toolCallId: approval.toolCall.id },
+        );
+      }
+      return;
+    }
+
+    const chat = await this.options.store.getChat(chatId);
+    const botId = chat?.botId ?? (await this.options.store.findBotIdForChat(chatId));
+    const bot = botId ? await this.options.store.getBot(botId) : null;
+    if (botId) {
+      await this.options.store.setBotPresence(botId, 'working');
+    }
+    const toolResult = await this.executeTool(approval.toolCall, {
+      chatId,
+      bot,
+      userId: chat?.userId,
+    });
+    await this.options.store.addMessage(chatId, 'tool', toolResult, {
+      toolCallId: approval.toolCall.id,
+    });
   }
 
   async submitChoice(choiceId: string, selectedOption: string): Promise<SendMessageResult> {
@@ -569,13 +624,9 @@ export class ChatService {
           }
         }
 
-        const assistantContent =
-          completion.content?.trim() ||
-          (needsApproval.length > 0
-            ? `Waiting for your approval: ${needsApproval
-                .map((call) => toolLabel(call.name))
-                .join(', ')}.`
-            : '');
+        // Keep transcript clean: approval cards carry the wait state. Empty content is
+        // fine for tool-only assistant rows (and the UI hides empty bubbles).
+        const assistantContent = completion.content?.trim() || '';
 
         // Persist the assistant tool_calls before any tool results so replay is valid.
         const assistant = await this.options.store.addMessage(chatId, 'assistant', assistantContent, {
