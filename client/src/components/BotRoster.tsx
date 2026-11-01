@@ -5,6 +5,7 @@ import {
   Copy,
   EyeOff,
   FolderInput,
+  Grid2x2Plus,
   MoreHorizontal,
   Moon,
   Pencil,
@@ -21,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Bot, MarketplaceBot, Space } from '../../../shared/chat/types';
 import type { Theme } from '../lib/theme';
 import { presenceTooltip, rosterPreviewForPresence } from '../lib/user-facing';
+import { ConnectorsDialog } from './ConnectorsDialog';
 import {
   BotFace,
   botColor,
@@ -124,6 +126,7 @@ export function BotRoster({
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [pendingDropBotId, setPendingDropBotId] = useState<string | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
   const renameRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -615,6 +618,24 @@ export function BotRoster({
         ) : null}
       </div>
 
+      <div className="roster-user-footer">
+        <div className="roster-user-info">
+          <div className="roster-user-avatar" aria-hidden="true">
+            <span className="roster-user-initials">MB</span>
+          </div>
+          <span className="roster-user-name">Matheus Buniotto</span>
+        </div>
+        <button
+          type="button"
+          className="roster-connectors-btn"
+          aria-label="Conectar aplicativos"
+          title="Conectar aplicativos"
+          onClick={() => setConnectorsOpen(true)}
+        >
+          <Grid2x2Plus size={19} strokeWidth={1.9} />
+        </button>
+      </div>
+
       {menu && menuBot ? (
         <div
           ref={menuRef}
@@ -1004,6 +1025,12 @@ export function BotRoster({
           </div>
         </div>
       ) : null}
+
+      <ConnectorsDialog
+        isOpen={connectorsOpen}
+        onClose={() => setConnectorsOpen(false)}
+        onOpenMarketplace={() => onMarketplaceOpenChange?.(true)}
+      />
 
     </aside>
   );
