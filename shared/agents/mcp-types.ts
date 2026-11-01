@@ -128,6 +128,28 @@ export interface DatabricksMcpApp {
     | 'm365';
 }
 
+export const DEFAULT_DATABRICKS_WORKSPACE_HOST = 'https://dbc-562d9321-2592.cloud.databricks.com';
+export const DEFAULT_DATABRICKS_ORG_ID = '3020310945116198';
+
+/**
+ * Direct Databricks AI Gateway MCP configuration URL.
+ */
+export const DATABRICKS_AI_GATEWAY_MCP_URL = `${DEFAULT_DATABRICKS_WORKSPACE_HOST}/ml/ai-gateway/mcp?o=${DEFAULT_DATABRICKS_ORG_ID}`;
+
+/**
+ * Builds direct URL to an MCP service in Databricks Unity Catalog Explorer.
+ * Example: system.ai.slack -> https://dbc-562d9321-2592.cloud.databricks.com/explore/mcp-services/system/ai/slack?o=3020310945116198&activeTab=overview
+ */
+export function buildDatabricksMcpServiceUrl(
+  servicePath: string,
+  options?: { host?: string; orgId?: string },
+): string {
+  const host = (options?.host || DEFAULT_DATABRICKS_WORKSPACE_HOST).replace(/\/+$/, '');
+  const orgId = options?.orgId || DEFAULT_DATABRICKS_ORG_ID;
+  const cleanPath = servicePath.replace(/^\/+/, '').replace(/\./g, '/');
+  return `${host}/explore/mcp-services/${cleanPath}?o=${orgId}&activeTab=overview`;
+}
+
 export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
   // Active Databricks MCPs (Live on Unity Gateway)
   {
@@ -140,6 +162,7 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     tools: ['genie_ask', 'genie_poll_response', 'genie_get_query_result', 'genie_cancel_response'],
     status: 'active',
     recommended: true,
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.genie_one_mcp'),
     iconBg: '#1b1b1d',
     iconColor: '#ff3621',
     iconType: 'genie',
@@ -154,6 +177,7 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     tools: ['execute_sql', 'poll_sql_result'],
     status: 'active',
     recommended: true,
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.dbsql'),
     iconBg: '#ff3621',
     iconColor: '#ffffff',
     iconType: 'databricks',
@@ -168,6 +192,7 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     tools: ['web_search'],
     status: 'active',
     recommended: true,
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.web_search'),
     iconBg: '#00a2ff',
     iconColor: '#ffffff',
     iconType: 'search',
@@ -182,22 +207,23 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
     tools: ['create_sandbox', 'run_code', 'delete_sandbox'],
     status: 'active',
     recommended: true,
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.sandbox'),
     iconBg: '#0f766e',
     iconColor: '#ffffff',
     iconType: 'code',
   },
 
-  // Inactive Corporate Connectors (Configured & connected via Databricks One / Genie Knowledge Sources)
+  // Inactive Corporate Connectors (Configured & connected via Databricks One / Unity Catalog Explorer)
   {
     id: 'slack',
     name: 'Slack',
-    service: 'genie.connectors.slack',
+    service: 'system.ai.slack',
     category: 'communication',
     categoryLabel: 'Comunicação',
     description: 'Canais, mensagens e histórico de equipes integrados ao Databricks One',
     tools: ['search_messages', 'read_channel'],
     status: 'inactive',
-    connectUrl: 'https://dbc-562d9321-2592.cloud.databricks.com/genie',
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.slack'),
     iconBg: '#4a154b',
     iconColor: '#ffffff',
     iconType: 'slack',
@@ -205,13 +231,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
   {
     id: 'confluence',
     name: 'Confluence',
-    service: 'genie.connectors.confluence',
+    service: 'system.ai.confluence',
     category: 'productivity',
     categoryLabel: 'Produtividade',
     description: 'Espaços de documentação, wikis e especificações de produto via Genie',
     tools: ['search_pages', 'read_page'],
     status: 'inactive',
-    connectUrl: 'https://dbc-562d9321-2592.cloud.databricks.com/genie',
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.confluence'),
     iconBg: '#0052cc',
     iconColor: '#ffffff',
     iconType: 'confluence',
@@ -219,13 +245,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
   {
     id: 'jira',
     name: 'Jira Software',
-    service: 'genie.connectors.jira',
+    service: 'system.ai.jira',
     category: 'productivity',
     categoryLabel: 'Produtividade',
     description: 'Sprints, backlog de tickets e tarefas de engenharia indexados na Ontologia',
     tools: ['search_issues', 'get_issue'],
     status: 'inactive',
-    connectUrl: 'https://dbc-562d9321-2592.cloud.databricks.com/genie',
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.jira'),
     iconBg: '#0052cc',
     iconColor: '#ffffff',
     iconType: 'jira',
@@ -233,13 +259,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
   {
     id: 'github',
     name: 'GitHub',
-    service: 'genie.connectors.github',
+    service: 'system.ai.github',
     category: 'compute',
     categoryLabel: 'Código & Execução',
     description: 'Repositórios de código, pull requests e documentação técnica Git',
     tools: ['search_code', 'get_pr'],
     status: 'inactive',
-    connectUrl: 'https://dbc-562d9321-2592.cloud.databricks.com/genie',
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.github'),
     iconBg: '#24292e',
     iconColor: '#ffffff',
     iconType: 'github',
@@ -247,13 +273,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
   {
     id: 'notion',
     name: 'Notion',
-    service: 'genie.connectors.notion',
+    service: 'system.ai.notion',
     category: 'productivity',
     categoryLabel: 'Produtividade',
     description: 'Bases de conhecimento, páginas e projetos colaborativos integrados ao Genie',
     tools: ['search_pages', 'get_block'],
     status: 'inactive',
-    connectUrl: 'https://dbc-562d9321-2592.cloud.databricks.com/genie',
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.notion'),
     iconBg: '#000000',
     iconColor: '#ffffff',
     iconType: 'notion',
@@ -261,13 +287,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
   {
     id: 'google-drive',
     name: 'Google Drive',
-    service: 'genie.connectors.google_drive',
+    service: 'system.ai.google_drive',
     category: 'productivity',
     categoryLabel: 'Produtividade',
     description: 'Documentos, planilhas e relatórios compartilhados indexados via Databricks One',
     tools: ['search_files', 'read_doc'],
     status: 'inactive',
-    connectUrl: 'https://dbc-562d9321-2592.cloud.databricks.com/genie',
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.google_drive'),
     iconBg: '#f1f3f4',
     iconColor: '#0f9d58',
     iconType: 'google-drive',
@@ -275,13 +301,13 @@ export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
   {
     id: 'm365',
     name: 'Microsoft 365',
-    service: 'genie.connectors.m365',
+    service: 'system.ai.m365',
     category: 'communication',
     categoryLabel: 'Comunicação',
     description: 'SharePoint, emails do Outlook e documentos empresariais no Databricks One',
     tools: ['search_sharepoint', 'search_emails'],
     status: 'inactive',
-    connectUrl: 'https://dbc-562d9321-2592.cloud.databricks.com/genie',
+    connectUrl: buildDatabricksMcpServiceUrl('system.ai.m365'),
     iconBg: '#0078d4',
     iconColor: '#ffffff',
     iconType: 'm365',

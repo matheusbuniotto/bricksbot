@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import {
   AVAILABLE_DATABRICKS_MCPS,
+  DATABRICKS_AI_GATEWAY_MCP_URL,
   type DatabricksMcpApp,
 } from '../../../shared/agents/mcp-types.js';
 
@@ -208,7 +209,7 @@ export function ConnectorsDialog({
   const renderCard = (app: ConnectorApp) => {
     const isConnected = connectedIds.has(app.id);
     const isActiveMcp = app.status === 'active';
-    const genieUrl = app.connectUrl || 'https://dbc-562d9321-2592.cloud.databricks.com/genie';
+    const connectUrl = app.connectUrl || DATABRICKS_AI_GATEWAY_MCP_URL;
 
     return (
       <div key={app.id} className="connector-card">
@@ -217,15 +218,32 @@ export function ConnectorsDialog({
           <div className="connector-card-details">
             <div className="connector-card-header-line">
               <span className="connector-card-name">{app.name}</span>
-              <span
-                className={
-                  isActiveMcp
-                    ? 'connector-service-badge'
-                    : 'connector-service-badge is-inactive'
-                }
-              >
-                {isActiveMcp ? app.service : 'Requer Databricks One'}
-              </span>
+              {connectUrl ? (
+                <a
+                  href={connectUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={
+                    isActiveMcp
+                      ? 'connector-service-badge is-link'
+                      : 'connector-service-badge is-inactive is-link'
+                  }
+                  title={`Abrir ${app.service} no Databricks`}
+                >
+                  <span>{isActiveMcp ? app.service : 'Requer Databricks One'}</span>
+                  <ExternalLink size={9} strokeWidth={2.2} />
+                </a>
+              ) : (
+                <span
+                  className={
+                    isActiveMcp
+                      ? 'connector-service-badge'
+                      : 'connector-service-badge is-inactive'
+                  }
+                >
+                  {isActiveMcp ? app.service : 'Requer Databricks One'}
+                </span>
+              )}
             </div>
             <span className="connector-card-desc">{app.description}</span>
             <div className="connector-tools-pill">
@@ -258,11 +276,11 @@ export function ConnectorsDialog({
           </button>
         ) : (
           <a
-            href={genieUrl}
+            href={connectUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="connector-action-btn is-genie-link"
-            title={`Conectar ${app.name} no Databricks One (Genie)`}
+            title={`Abrir ${app.service} no Unity Catalog Explorer`}
           >
             <span>Conectar via Genie</span>
             <ExternalLink size={12} strokeWidth={2.2} />
@@ -336,6 +354,17 @@ export function ConnectorsDialog({
               </button>
             ) : null}
           </div>
+          <a
+            href={DATABRICKS_AI_GATEWAY_MCP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="connectors-gateway-btn"
+            title="Abrir configurações de MCP no Databricks AI Gateway"
+          >
+            <Sparkles size={14} />
+            <span>AI Gateway MCP</span>
+            <ExternalLink size={13} />
+          </a>
           {onOpenMarketplace ? (
             <button
               type="button"
@@ -421,13 +450,25 @@ export function ConnectorsDialog({
                     <span className="connectors-section-title">
                       Conectores Corporativos (via Databricks One)
                     </span>
-                    <button
-                      type="button"
-                      className="connectors-section-link"
-                      onClick={() => setActiveCategory('communication')}
-                    >
-                      Ver todos
-                    </button>
+                    <div className="connectors-section-actions">
+                      <a
+                        href={DATABRICKS_AI_GATEWAY_MCP_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="connectors-section-config-link"
+                        title="Configurações gerais de MCP no Databricks AI Gateway"
+                      >
+                        <span>Configurar no AI Gateway</span>
+                        <ExternalLink size={12} strokeWidth={2.2} />
+                      </a>
+                      <button
+                        type="button"
+                        className="connectors-section-link"
+                        onClick={() => setActiveCategory('communication')}
+                      >
+                        Ver todos
+                      </button>
+                    </div>
                   </div>
                   <p className="connectors-section-subtitle">
                     Fontes de dados e wikis empresariais integradas na Ontologia do Genie One

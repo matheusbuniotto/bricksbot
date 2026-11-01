@@ -90,7 +90,7 @@ describe('ConnectorsDialog Component', () => {
     expect(html).toContain('Conectado');
   });
 
-  test('renders inactive corporate connectors directed to Databricks One (Genie)', () => {
+  test('renders inactive corporate connectors directed to Databricks One and AI Gateway MCP', () => {
     const html = renderToString(
       <ConnectorsDialog isOpen={true} onClose={() => {}} />,
     );
@@ -107,7 +107,17 @@ describe('ConnectorsDialog Component', () => {
     expect(html).toContain('Requer Databricks One');
     expect(html).toContain('is-genie-link');
     expect(html).toContain('Conectar via Genie');
-    expect(html).toContain('https://dbc-562d9321-2592.cloud.databricks.com/genie');
+
+    // Direct Unity Catalog MCP service redirect URL (e.g. for Slack)
+    expect(html).toContain(
+      'https://dbc-562d9321-2592.cloud.databricks.com/explore/mcp-services/system/ai/slack?o=3020310945116198&amp;activeTab=overview',
+    );
+
+    // Direct AI Gateway MCP configuration URL
+    expect(html).toContain(
+      'https://dbc-562d9321-2592.cloud.databricks.com/ml/ai-gateway/mcp?o=3020310945116198',
+    );
+    expect(html).toContain('Configurar no AI Gateway');
   });
 
   test('renders close button with accessibility label', () => {

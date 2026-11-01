@@ -3141,6 +3141,30 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   border-color: var(--muted-foreground);
 }
 
+.connectors-gateway-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.connectors-gateway-btn:hover {
+  background: var(--muted);
+  border-color: var(--muted-foreground);
+  color: var(--foreground);
+}
+
 .connectors-marketplace-dot {
   width: 8px;
   height: 8px;
@@ -3216,6 +3240,28 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
 .connectors-section-count {
   font-size: 12px;
   color: var(--muted-foreground);
+}
+
+.connectors-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.connectors-section-config-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.connectors-section-config-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
 }
 
 .connectors-section-link {
@@ -3322,6 +3368,20 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
 [data-theme='dark'] .connector-service-badge.is-inactive {
   background: color-mix(in srgb, #f59e0b 22%, transparent);
   color: #fbbf24;
+}
+
+.connector-service-badge.is-link {
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: opacity 0.15s;
+}
+
+.connector-service-badge.is-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
 }
 
 .connectors-section-subtitle {
