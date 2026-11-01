@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { ChatStore, MarketplaceBot } from '../../shared/chat/types.js';
+import { AVAILABLE_DATABRICKS_MCPS } from '../../shared/agents/mcp-types.js';
 import { resolveOwnerId } from './identity.js';
 import type { ChatService } from './service.js';
 
@@ -144,6 +145,10 @@ export function registerChatRoutes(app: ChatHttpApp, store: ChatStore, service: 
     } catch (err) {
       res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
     }
+  });
+
+  app.get('/api/mcps', (_req: Request, res: Response) => {
+    res.json({ mcps: AVAILABLE_DATABRICKS_MCPS });
   });
 
   app.get('/api/bots', async (req: Request, res: Response) => {

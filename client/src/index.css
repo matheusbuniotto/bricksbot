@@ -3262,13 +3262,30 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   min-width: 0;
 }
 
+.connector-card-header-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+  min-width: 0;
+  margin-bottom: 2px;
+}
+
 .connector-card-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--foreground);
+  line-height: 1.25;
+}
+
+.connector-service-badge {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--muted-foreground);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .connector-card-desc {
@@ -3277,7 +3294,18 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 190px;
+  max-width: 260px;
+}
+
+.connector-tools-pill {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+  opacity: 0.85;
 }
 
 .connector-action-btn {
