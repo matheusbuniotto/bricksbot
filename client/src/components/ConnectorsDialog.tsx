@@ -325,6 +325,16 @@ export function ConnectorsDialog({
               onChange={(e) => setSearchQuery(e.target.value)}
               autoFocus
             />
+            {searchQuery ? (
+              <button
+                type="button"
+                className="connectors-search-clear"
+                aria-label="Limpar busca"
+                onClick={() => setSearchQuery('')}
+              >
+                <X size={14} />
+              </button>
+            ) : null}
           </div>
           {onOpenMarketplace ? (
             <button

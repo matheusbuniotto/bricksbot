@@ -2981,6 +2981,11 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   border-color: var(--muted-foreground);
 }
 
+.roster-connectors-btn:focus-visible {
+  outline: 2px solid var(--ring, currentColor);
+  outline-offset: 2px;
+}
+
 .roster-connectors-btn:active {
   transform: scale(0.96);
 }
@@ -3081,11 +3086,32 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   border-radius: 20px;
   border: 1px solid var(--border);
   background: var(--card);
-  padding: 0 16px 0 40px;
+  padding: 0 38px 0 40px;
   font-size: 13.5px;
   color: var(--foreground);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.connectors-search-clear {
+  position: absolute;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.connectors-search-clear:hover {
+  background: color-mix(in srgb, var(--foreground) 15%, transparent);
+  color: var(--foreground);
 }
 
 .connectors-search-input:focus {

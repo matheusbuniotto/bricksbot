@@ -176,8 +176,9 @@ export function BotDetailsSheet({
   const files = listArtifactPinsFromMessages(messages);
   const accent = botColor(bot.id, bot.isPrimary);
 
+  const [renderEpoch] = useState(() => Date.now());
   const { recentFiles, olderFiles } = useMemo(() => {
-    const now = Date.now();
+    const now = renderEpoch;
     const recent: LibraryFile[] = [];
     const older: LibraryFile[] = [];
     for (const file of files) {

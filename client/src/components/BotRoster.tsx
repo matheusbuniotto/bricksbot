@@ -630,6 +630,8 @@ export function BotRoster({
           className="roster-connectors-btn"
           aria-label="Conectar aplicativos"
           title="Conectar aplicativos"
+          aria-haspopup="dialog"
+          aria-expanded={connectorsOpen}
           onClick={() => setConnectorsOpen(true)}
         >
           <Grid2x2Plus size={19} strokeWidth={1.9} />
@@ -1004,13 +1006,13 @@ export function BotRoster({
                         type="button"
                         className="marketplace-install-btn"
                         aria-label={`Usar ${mBot.name}`}
-                        onClick={async () => {
+                        onClick={() => {
                           const targetSpace =
                             (botSpaceId || defaultSpaceId) === NO_SECTION
                               ? null
                               : botSpaceId || defaultSpaceId;
                           if (onInstallMarketplaceBot) {
-                            await onInstallMarketplaceBot(mBot.id, targetSpace);
+                            void onInstallMarketplaceBot(mBot.id, targetSpace);
                           }
                           onMarketplaceOpenChange(false);
                         }}

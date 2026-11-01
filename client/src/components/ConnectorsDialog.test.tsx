@@ -36,6 +36,7 @@ describe('ConnectorsDialog Component', () => {
     );
     expect(html).toContain('class="connectors-search-input"');
     expect(html).toContain('placeholder="Buscar em MCPs, ferramentas e conectores do Databricks"');
+    expect(html).not.toContain('class="connectors-search-clear"');
   });
 
   test('renders Modelos de Bots button only when onOpenMarketplace is passed', () => {

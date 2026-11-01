@@ -96,7 +96,7 @@ describe('handoff-notice', () => {
       (m) => m.role === 'system',
     );
     expect(collapsed).toHaveLength(3);
-    const parsedNotice = parseHandoffNotice(collapsed[1]!.content);
+    const parsedNotice = parseHandoffNotice(collapsed[1]?.content ?? '');
     expect(parsedNotice?.direction).toBe('thread');
     expect(parsedNotice?.messageCount).toBe(4);
   });
