@@ -13,6 +13,7 @@ import { LakebaseCompactionStore, MemoryCompactionStore } from './durable/compac
 import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idempotency-store.js';
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
+import { systemAiMcpConfigFromEnv } from './agents/tools/system-ai-mcp.js';
 import { parseAllowlist } from './agents/tools/web-fetch.js';
 import { LakebaseMemorySkillStore } from './agents/memory/lakebase-store.js';
 import { MemoryMemorySkillStore } from './agents/memory/memory-store.js';
@@ -99,6 +100,15 @@ createApp({
       await reaper.reconcileAtStartup();
       reaper.start();
     }
+    const systemAiMcp = systemAiMcpConfigFromEnv(process.env);
+    if (systemAiMcp) {
+      if (!systemAiMcp.getToken && sqlQuery.getToken) {
+        systemAiMcp.getToken = sqlQuery.getToken;
+      }
+      if (!systemAiMcp.host && sqlQuery.host) {
+        systemAiMcp.host = sqlQuery.host;
+      }
+    }
     const chatService = new ChatService({
       store: chats,
       client,
@@ -110,6 +120,7 @@ createApp({
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
       sqlQuery,
       sandbox: sandboxService,
+      systemAiMcp,
     });
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {

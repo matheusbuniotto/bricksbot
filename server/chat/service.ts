@@ -63,6 +63,11 @@ import {
   SANDBOX_DELETE_TOOL_NAME,
 } from '../agents/tools/sandbox-tools.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
+import {
+  createSystemAiMcpTools,
+  GENIE_ASK_TOOL_NAME,
+} from '../agents/tools/system-ai-mcp.js';
+import type { SystemAiMcpOptions } from '../../shared/agents/mcp-types.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
@@ -77,7 +82,8 @@ function requiresAlwaysAsk(toolName: string): boolean {
     toolName === CREATE_BOT_TOOL_NAME ||
     toolName === ASK_CHOICE_TOOL_NAME ||
     toolName === DELETE_ROUTINE_TOOL_NAME ||
-    toolName === SANDBOX_DELETE_TOOL_NAME
+    toolName === SANDBOX_DELETE_TOOL_NAME ||
+    toolName === GENIE_ASK_TOOL_NAME
   );
 }
 
@@ -100,9 +106,11 @@ export interface ChatServiceOptions {
   /** Optional Phase 5 sandbox execution service (tools registered only when enabled). */
   sandbox?: SandboxSessionService;
   sandboxArtifactSync?: ArtifactSyncService;
+  /** Optional Databricks One (Genie) and system.ai MCP tools. */
+  systemAiMcp?: SystemAiMcpOptions | RegisteredTool[];
 }
 
-type RegisteredTool = {
+export type RegisteredTool = {
   definition: ToolDefinition;
   preflight?: (args: Record<string, unknown>, ctx: HandoffTurnContext) => string | null | Promise<string | null>;
   execute(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string>;
@@ -222,6 +230,12 @@ export class ChatService {
           getToken: sqlOptions.getToken,
         }),
       );
+    }
+    if (options.systemAiMcp) {
+      const mcpTools = Array.isArray(options.systemAiMcp)
+        ? options.systemAiMcp
+        : createSystemAiMcpTools(options.systemAiMcp);
+      tools.push(...mcpTools);
     }
     this.tools = tools;
   }

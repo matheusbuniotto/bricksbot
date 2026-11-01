@@ -27,6 +27,12 @@ const TOOL_LABELS: Record<string, string> = {
   sandbox_save_artifact: 'Save sandbox artifact',
   sandbox_stop: 'Stop sandbox',
   sandbox_delete: 'Delete sandbox',
+  genie_ask: 'Ask Genie',
+  genie_poll_response: 'Poll Genie response',
+  genie_get_query_result: 'Get Genie query result',
+  genie_cancel_response: 'Cancel Genie response',
+  system_ai_dbsql: 'Databricks SQL query (system.ai)',
+  system_ai_web_search: 'Web search (system.ai)',
 };
 
 export function toolLabel(name: string): string {
@@ -91,6 +97,18 @@ export function approvalTitle(toolName: string): string {
       return 'Allow this bot to stop the sandbox?';
     case 'sandbox_delete':
       return 'Allow this bot to permanently delete the sandbox?';
+    case 'genie_ask':
+      return 'Allow this bot to ask Genie a question? (incurs AI warehouse compute)';
+    case 'genie_poll_response':
+      return 'Allow this bot to poll a Genie response?';
+    case 'genie_get_query_result':
+      return 'Allow this bot to retrieve Genie query results?';
+    case 'genie_cancel_response':
+      return 'Allow this bot to cancel a Genie response?';
+    case 'system_ai_dbsql':
+      return 'Allow this bot to run a query via system.ai.dbsql?';
+    case 'system_ai_web_search':
+      return 'Allow this bot to search the web via system.ai.web_search?';
     default:
       return `Allow this bot to run “${toolLabel(toolName)}”?`;
   }

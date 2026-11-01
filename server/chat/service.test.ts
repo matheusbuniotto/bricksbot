@@ -953,4 +953,64 @@ describe('ChatService', () => {
     const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
     expect(continued.assistant?.content).toBe('DataWizard reports shared metrics are green.');
   });
+
+  test('genie_ask is Ask-first and coerces all_the_time to once', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const client = new ScriptedClient([
+      {
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_genie',
+            name: 'genie_ask',
+            arguments: { question: 'What is churn rate?' },
+          },
+        ],
+      },
+      { content: 'Genie reports churn is 2%.', toolCalls: [] },
+    ]);
+
+    const service = new ChatService({
+      store,
+      client,
+      systemAiMcp: {
+        host: 'https://test.databricks.com',
+        fetchImpl: (async () =>
+          new Response(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              result: {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      status: 'completed',
+                      conversation_id: 'c1',
+                      response_id: 'r1',
+                      answer: 'Churn is 2%',
+                    }),
+                  },
+                ],
+              },
+            }),
+          )) as typeof fetch,
+      },
+    });
+
+    const pending = await service.sendUserMessage(chat.id, 'check churn');
+    expect(client.requests[0]?.tools?.some((tool) => tool.name === 'genie_ask')).toBe(true);
+    expect(pending.pendingApprovals).toHaveLength(1);
+    expect(pending.pendingApprovals[0]?.toolCall.name).toBe('genie_ask');
+
+    // Selecting all_the_time is coerced to once; genie_ask never persists auto-approval.
+    const continued = await service.decideApproval(
+      pending.pendingApprovals[0]!.id,
+      'all_the_time',
+    );
+    expect(continued.assistant?.content).toBe('Genie reports churn is 2%.');
+    expect(await service.getApprovals().isAutoApproved(chat.id, 'genie_ask')).toBe(false);
+  });
 });

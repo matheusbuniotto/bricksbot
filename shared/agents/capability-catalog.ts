@@ -159,6 +159,11 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
       ' Sandbox tools: python_exec / sandbox_exec / sandbox_upload / sandbox_download / sandbox_save_artifact (Ask-first), sandbox_stop (auto), sandbox_delete (Ask every time). Prefer python_exec for self-contained Python calculations or data scripts.';
   }
 
+  if (catalog.tools.some((tool) => tool.name === 'genie_ask')) {
+    blocks[0] +=
+      ' Genie (Databricks One via genie_ask) is available for natural-language analytics grounded in the Genie Ontology. Prefer cheap tools (sql_query, lakehouse_catalog) for direct exploration; escalate to genie_ask for business metrics and definitions. genie_ask always requires approval.';
+  }
+
   const creatable: string[] = [];
   if (catalog.tools.some((tool) => tool.name === 'schedule_routine')) {
     creatable.push('routines (schedule_routine)');
