@@ -286,6 +286,12 @@ export function ConnectorsDialog({
     return CONNECTOR_APPS.filter((app) => app.category === 'code' && !app.recommended);
   }, [activeCategory, searchQuery]);
 
+  const designApps = useMemo(() => {
+    if (activeCategory !== 'all' && activeCategory !== 'design') return [];
+    if (searchQuery.trim()) return [];
+    return CONNECTOR_APPS.filter((app) => app.category === 'design' && !app.recommended);
+  }, [activeCategory, searchQuery]);
+
   const connectedList = useMemo(() => {
     return CONNECTOR_APPS.filter((app) => connectedIds.has(app.id));
   }, [connectedIds]);
@@ -557,6 +563,23 @@ export function ConnectorsDialog({
                     </button>
                   </div>
                   <div className="connectors-grid">{codeApps.map(renderCard)}</div>
+                </div>
+              ) : null}
+
+              {/* Design Section */}
+              {designApps.length > 0 ? (
+                <div className="connectors-section">
+                  <div className="connectors-section-header">
+                    <span className="connectors-section-title">Design</span>
+                    <button
+                      type="button"
+                      className="connectors-section-link"
+                      onClick={() => setActiveCategory('design')}
+                    >
+                      Ver tudo
+                    </button>
+                  </div>
+                  <div className="connectors-grid">{designApps.map(renderCard)}</div>
                 </div>
               ) : null}
             </>
