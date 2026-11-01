@@ -8,6 +8,13 @@ import {
   Flame,
   Globe,
   Terminal,
+  MessageSquare,
+  BookOpen,
+  Layers,
+  GitBranch,
+  FileText,
+  HardDrive,
+  Mail,
 } from 'lucide-react';
 import {
   AVAILABLE_DATABRICKS_MCPS,
@@ -81,8 +88,10 @@ export function ConnectorsDialog({
   const categories = [
     { id: 'all', label: 'Todos' },
     { id: 'lakehouse', label: 'Lakehouse & Análise' },
-    { id: 'search', label: 'Busca Web' },
+    { id: 'communication', label: 'Comunicação' },
+    { id: 'productivity', label: 'Produtividade' },
     { id: 'compute', label: 'Código & Execução' },
+    { id: 'search', label: 'Busca Web' },
   ];
 
   const filteredApps = useMemo(() => {
@@ -104,23 +113,13 @@ export function ConnectorsDialog({
     return list;
   }, [activeCategory, searchQuery]);
 
-  const lakehouseApps = useMemo(() => {
-    if (activeCategory !== 'all' && activeCategory !== 'lakehouse') return [];
-    if (searchQuery.trim()) return [];
-    return CONNECTOR_APPS.filter((app) => app.category === 'lakehouse');
-  }, [activeCategory, searchQuery]);
+  const activeDatabricksMcps = useMemo(() => {
+    return CONNECTOR_APPS.filter((app) => app.status === 'active');
+  }, []);
 
-  const searchApps = useMemo(() => {
-    if (activeCategory !== 'all' && activeCategory !== 'search') return [];
-    if (searchQuery.trim()) return [];
-    return CONNECTOR_APPS.filter((app) => app.category === 'search');
-  }, [activeCategory, searchQuery]);
-
-  const computeApps = useMemo(() => {
-    if (activeCategory !== 'all' && activeCategory !== 'compute') return [];
-    if (searchQuery.trim()) return [];
-    return CONNECTOR_APPS.filter((app) => app.category === 'compute');
-  }, [activeCategory, searchQuery]);
+  const inactiveGenieConnectors = useMemo(() => {
+    return CONNECTOR_APPS.filter((app) => app.status === 'inactive');
+  }, []);
 
   const connectedList = useMemo(() => {
     return CONNECTOR_APPS.filter((app) => connectedIds.has(app.id));
@@ -129,47 +128,88 @@ export function ConnectorsDialog({
   if (!isOpen) return null;
 
   const renderIcon = (app: ConnectorApp) => {
-    if (app.iconType === 'databricks') {
-      return (
-        <div className="connector-card-icon" style={{ background: app.iconBg, color: app.iconColor }}>
-          <Flame size={18} strokeWidth={2.2} />
-        </div>
-      );
+    const iconStyle = { background: app.iconBg, color: app.iconColor };
+    switch (app.iconType) {
+      case 'databricks':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <Flame size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'genie':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <Sparkles size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'search':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <Globe size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'code':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <Terminal size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'slack':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <MessageSquare size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'confluence':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <BookOpen size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'jira':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <Layers size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'github':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <GitBranch size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'notion':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <FileText size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'google-drive':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <HardDrive size={18} strokeWidth={2.2} />
+          </div>
+        );
+      case 'm365':
+        return (
+          <div className="connector-card-icon" style={iconStyle}>
+            <Mail size={18} strokeWidth={2.2} />
+          </div>
+        );
+      default:
+        return (
+          <div className="connector-card-icon connector-card-icon-letter" style={iconStyle}>
+            <span>{app.name.charAt(0)}</span>
+          </div>
+        );
     }
-    if (app.iconType === 'genie') {
-      return (
-        <div className="connector-card-icon" style={{ background: app.iconBg, color: app.iconColor }}>
-          <Sparkles size={18} strokeWidth={2.2} />
-        </div>
-      );
-    }
-    if (app.iconType === 'search') {
-      return (
-        <div className="connector-card-icon" style={{ background: app.iconBg, color: app.iconColor }}>
-          <Globe size={18} strokeWidth={2.2} />
-        </div>
-      );
-    }
-    if (app.iconType === 'code') {
-      return (
-        <div className="connector-card-icon" style={{ background: app.iconBg, color: app.iconColor }}>
-          <Terminal size={18} strokeWidth={2.2} />
-        </div>
-      );
-    }
-
-    return (
-      <div
-        className="connector-card-icon connector-card-icon-letter"
-        style={{ background: app.iconBg, color: app.iconColor }}
-      >
-        <span>{app.name.charAt(0)}</span>
-      </div>
-    );
   };
 
   const renderCard = (app: ConnectorApp) => {
     const isConnected = connectedIds.has(app.id);
+    const isActiveMcp = app.status === 'active';
+    const genieUrl = app.connectUrl || 'https://dbc-562d9321-2592.cloud.databricks.com/genie';
+
     return (
       <div key={app.id} className="connector-card">
         <div className="connector-card-main">
@@ -177,33 +217,57 @@ export function ConnectorsDialog({
           <div className="connector-card-details">
             <div className="connector-card-header-line">
               <span className="connector-card-name">{app.name}</span>
-              <span className="connector-service-badge">{app.service}</span>
+              <span
+                className={
+                  isActiveMcp
+                    ? 'connector-service-badge'
+                    : 'connector-service-badge is-inactive'
+                }
+              >
+                {isActiveMcp ? app.service : 'Requer Databricks One'}
+              </span>
             </div>
             <span className="connector-card-desc">{app.description}</span>
             <div className="connector-tools-pill">
-              {app.tools.length} {app.tools.length === 1 ? 'ferramenta' : 'ferramentas'}: {app.tools.join(', ')}
+              {isActiveMcp
+                ? `${app.tools.length} ${app.tools.length === 1 ? 'ferramenta' : 'ferramentas'}: ${app.tools.join(', ')}`
+                : `Disponível para indexação no Genie One (${app.service})`}
             </div>
           </div>
         </div>
-        <button
-          type="button"
-          className={
-            isConnected
-              ? 'connector-action-btn is-connected'
-              : 'connector-action-btn'
-          }
-          onClick={() => toggleConnect(app.id)}
-          aria-label={isConnected ? `Desconectar ${app.name}` : `Conectar ${app.name}`}
-        >
-          {isConnected ? (
-            <>
-              <Check size={14} strokeWidth={2.5} />
-              <span>Conectado</span>
-            </>
-          ) : (
-            <span>Conectar</span>
-          )}
-        </button>
+
+        {isActiveMcp ? (
+          <button
+            type="button"
+            className={
+              isConnected
+                ? 'connector-action-btn is-connected'
+                : 'connector-action-btn'
+            }
+            onClick={() => toggleConnect(app.id)}
+            aria-label={isConnected ? `Desconectar ${app.name}` : `Conectar ${app.name}`}
+          >
+            {isConnected ? (
+              <>
+                <Check size={14} strokeWidth={2.5} />
+                <span>Conectado</span>
+              </>
+            ) : (
+              <span>Conectar</span>
+            )}
+          </button>
+        ) : (
+          <a
+            href={genieUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="connector-action-btn is-genie-link"
+            title={`Conectar ${app.name} no Databricks One (Genie)`}
+          >
+            <span>Conectar via Genie</span>
+            <ExternalLink size={12} strokeWidth={2.2} />
+          </a>
+        )}
       </div>
     );
   };
@@ -256,7 +320,7 @@ export function ConnectorsDialog({
             <input
               type="text"
               className="connectors-search-input"
-              placeholder="Buscar em MCPs e ferramentas do Databricks"
+              placeholder="Buscar em MCPs, ferramentas e conectores do Databricks"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               autoFocus
@@ -307,12 +371,12 @@ export function ConnectorsDialog({
                     : categories.find((c) => c.id === activeCategory)?.label}
                 </span>
                 <span className="connectors-section-count">
-                  {filteredApps.length} {filteredApps.length === 1 ? 'MCP' : 'MCPs'}
+                  {filteredApps.length} {filteredApps.length === 1 ? 'conector' : 'conectores'}
                 </span>
               </div>
               {filteredApps.length === 0 ? (
                 <div className="connectors-empty">
-                  <p>Nenhum MCP encontrado.</p>
+                  <p>Nenhum conector encontrado.</p>
                 </div>
               ) : (
                 <div className="connectors-grid">{filteredApps.map(renderCard)}</div>
@@ -320,54 +384,45 @@ export function ConnectorsDialog({
             </div>
           ) : (
             <>
-              {/* Lakehouse & Analytics */}
-              {lakehouseApps.length > 0 ? (
+              {/* Active MCPs Section */}
+              {activeDatabricksMcps.length > 0 ? (
                 <div className="connectors-section">
                   <div className="connectors-section-header">
-                    <span className="connectors-section-title">Lakehouse & Análise</span>
+                    <span className="connectors-section-title">MCPs Ativos no Databricks</span>
                     <button
                       type="button"
                       className="connectors-section-link"
                       onClick={() => setActiveCategory('lakehouse')}
                     >
-                      Ver tudo
+                      Ver todos
                     </button>
                   </div>
-                  <div className="connectors-grid">{lakehouseApps.map(renderCard)}</div>
+                  <p className="connectors-section-subtitle">
+                    Ferramentas nativas do Unity Gateway prontas para execução nos chats
+                  </p>
+                  <div className="connectors-grid">{activeDatabricksMcps.map(renderCard)}</div>
                 </div>
               ) : null}
 
-              {/* Web Search */}
-              {searchApps.length > 0 ? (
+              {/* Inactive Connectors Section (Direct to Genie One) */}
+              {inactiveGenieConnectors.length > 0 ? (
                 <div className="connectors-section">
                   <div className="connectors-section-header">
-                    <span className="connectors-section-title">Busca Web</span>
+                    <span className="connectors-section-title">
+                      Conectores Corporativos (via Databricks One)
+                    </span>
                     <button
                       type="button"
                       className="connectors-section-link"
-                      onClick={() => setActiveCategory('search')}
+                      onClick={() => setActiveCategory('communication')}
                     >
-                      Ver tudo
+                      Ver todos
                     </button>
                   </div>
-                  <div className="connectors-grid">{searchApps.map(renderCard)}</div>
-                </div>
-              ) : null}
-
-              {/* Code & Execution */}
-              {computeApps.length > 0 ? (
-                <div className="connectors-section">
-                  <div className="connectors-section-header">
-                    <span className="connectors-section-title">Código & Execução</span>
-                    <button
-                      type="button"
-                      className="connectors-section-link"
-                      onClick={() => setActiveCategory('compute')}
-                    >
-                      Ver tudo
-                    </button>
-                  </div>
-                  <div className="connectors-grid">{computeApps.map(renderCard)}</div>
+                  <p className="connectors-section-subtitle">
+                    Fontes de dados e wikis empresariais integradas na Ontologia do Genie One
+                  </p>
+                  <div className="connectors-grid">{inactiveGenieConnectors.map(renderCard)}</div>
                 </div>
               ) : null}
             </>
