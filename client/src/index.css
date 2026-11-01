@@ -2990,7 +2990,7 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   transform: scale(0.96);
 }
 
-/* Connectors (Conectar aplicativos) Modal Dialog */
+/* Connectors Modal Dialog */
 .connectors-dialog {
   width: min(780px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);

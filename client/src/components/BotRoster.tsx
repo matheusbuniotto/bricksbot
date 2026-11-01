@@ -627,8 +627,8 @@ export function BotRoster({
         <button
           type="button"
           className="roster-connectors-btn"
-          aria-label="Conectar aplicativos"
-          title="Conectar aplicativos"
+          aria-label="Connect apps"
+          title="Connect apps"
           aria-haspopup="dialog"
           aria-expanded={connectorsOpen}
           onClick={() => setConnectorsOpen(true)}
