@@ -51,6 +51,19 @@ describe('buildCatalogStatement', () => {
     const res = buildCatalogStatement({ action: 'list_schemas', catalog: 'cat; DROP TABLE t' });
     expect(res.error).toMatch(/invalid catalog name/i);
   });
+
+  test('supports identifiers with hyphens and strips/escapes backticks', () => {
+    expect(
+      buildCatalogStatement({
+        action: 'describe_table',
+        catalog: 'dev-catalog',
+        schema: 'sales-2024',
+        table: '`trips-data`',
+      }),
+    ).toEqual({
+      statement: 'DESCRIBE TABLE `dev-catalog`.`sales-2024`.`trips-data`',
+    });
+  });
 });
 
 describe('createLakehouseCatalogTool', () => {
@@ -81,9 +94,19 @@ describe('createLakehouseCatalogTool', () => {
     });
   });
 
-  test('returns error when warehouse_id is missing', async () => {
+  test('returns config error when workspace is not configured (MCP fallback needs host)', async () => {
     const tool = createLakehouseCatalogTool();
     const result = await tool.execute({ action: 'list_catalogs' });
-    expect(result).toMatch(/warehouse_id is required/);
+    expect(result).toMatch(/Databricks workspace is not configured/i);
+  });
+
+  test('falls back to executeImpl without a warehouse', async () => {
+    const executeImpl = vi.fn(async (req: { statement: string; warehouseId: string }) => {
+      return `executed: ${req.statement} on ${req.warehouseId}`;
+    });
+    const tool = createLakehouseCatalogTool({ executeImpl });
+    await expect(tool.execute({ action: 'list_catalogs' })).resolves.toBe(
+      'executed: SHOW CATALOGS on mcp',
+    );
   });
 });

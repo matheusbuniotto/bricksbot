@@ -73,8 +73,8 @@ Approval cards have keyboard shortcuts: `A` or `1` (all the time), `B` or `2` (o
 
 Lakehouse tools:
 
-- `sql_query` runs one read-only SQL statement (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN) on a Databricks SQL Warehouse.
-- `lakehouse_catalog` lists Unity Catalog catalogs, schemas, tables, and column metadata.
+- `sql_query` runs one read-only SQL statement (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN) on a Databricks SQL Warehouse, as the signed-in user when Apps user authorization is enabled.
+- `lakehouse_catalog` lists Unity Catalog catalogs, schemas, tables, and column metadata (same warehouse + OBO auth).
 - `volume_read` reads a file or lists a directory in a Unity Catalog Volume (`/Volumes/...`).
 - `web_fetch` fetches allowlisted HTTPS URLs, extracts the HTML text, and strips scripts.
 - `handoff_to_bot` lets the Primary bot delegate to teammates in the same Space.
@@ -220,7 +220,7 @@ Beta caveats: Databricks Sandboxes is in Public Beta. It is regional, and a work
 
 ## Out of scope
 
-The project has no desktop or browser "computer" UI, no `volume_write` or Vector Search yet, and no Genie by default (opt-in later). The OSS release does not require a PartnerOps Marketplace Apps listing. `sql_query` is read-only and needs `DATABRICKS_WAREHOUSE_ID` plus `DATABRICKS_HOST` and `DATABRICKS_TOKEN`. `volume_read` is available when UC Volumes are reachable.
+The project has no desktop or browser "computer" UI, no `volume_write` or Vector Search yet, and no Genie by default (opt-in later). The OSS release does not require a PartnerOps Marketplace Apps listing. `sql_query` is read-only: bind a `sql-warehouse` resource (injects `DATABRICKS_WAREHOUSE_ID`) and declare `user_api_scopes: [sql:restricted-query, ai-gateway]` so interactive queries run as the signed-in user (UC grants apply). If no warehouse is bound, it falls back to governed `system.ai.dbsql`. Locally set `DATABRICKS_WAREHOUSE_ID` plus `DATABRICKS_HOST` and a PAT or app SP credentials. `volume_read` is available when UC Volumes are reachable.
 
 ## License and contributing
 

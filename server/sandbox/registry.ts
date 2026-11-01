@@ -1,4 +1,5 @@
 import type { BackendId, SandboxBackendSetting } from '../../shared/sandbox/types.js';
+import { createM2mTokenProvider } from '../chat/databricks-auth.js';
 import type { ExecutionBackend } from './backend.js';
 import { DatabricksSandboxBackend } from './databricks-backend.js';
 import { E2BSandboxBackend } from './e2b-backend.js';
@@ -140,50 +141,6 @@ export class SandboxRegistry {
     }
     return impl;
   }
-}
-
-function normalizeHostUrl(rawHost: string): string {
-  const trimmed = rawHost.trim().replace(/\/+$/, '');
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-}
-
-function createM2mTokenProvider(
-  host: string,
-  clientId: string,
-  clientSecret: string,
-  fetchImpl: typeof fetch = globalThis.fetch,
-): () => Promise<string> {
-  let cached: { token: string; expiresAtMs: number } | null = null;
-  const baseUrl = normalizeHostUrl(host);
-
-  return async () => {
-    if (cached && Date.now() < cached.expiresAtMs - 60_000) {
-      return cached.token;
-    }
-    const basic = Buffer.from(`${clientId}:${clientSecret}`, 'utf8').toString('base64');
-    const res = await fetchImpl(`${baseUrl}/oidc/v1/token`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${basic}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: 'grant_type=client_credentials&scope=all-apis',
-    });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      throw new Error(`Databricks OAuth token request failed (${res.status}): ${detail || res.statusText}`);
-    }
-    const data = (await res.json()) as { access_token?: string; expires_in?: number };
-    if (!data.access_token) {
-      throw new Error('Databricks OAuth token response missing access_token');
-    }
-    const ttlSec = typeof data.expires_in === 'number' ? data.expires_in : 3600;
-    cached = {
-      token: data.access_token,
-      expiresAtMs: Date.now() + ttlSec * 1000,
-    };
-    return cached.token;
-  };
 }
 
 export function createSandboxRegistryFromEnv(

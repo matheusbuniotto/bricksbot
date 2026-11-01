@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ToolDefinition } from '../../../shared/agents/types.js';
-import type { SqlQueryToolOptions } from './sql-query.js';
+import { executeReadOnlySql, type SqlQueryToolOptions } from './sql-query.js';
 
 export const lakehouseCatalogArgsSchema = z.object({
   action: z.enum(['list_catalogs', 'list_schemas', 'list_tables', 'describe_table']),
@@ -50,15 +50,13 @@ export const lakehouseCatalogToolDefinition: ToolDefinition = {
   },
 };
 
-const SAFE_IDENTIFIER = /^[A-Za-z0-9_]+$/;
-
 function sanitizeIdentifier(ident: string | undefined): string | null {
   if (!ident) return null;
-  const trimmed = ident.trim();
-  if (!trimmed || !SAFE_IDENTIFIER.test(trimmed)) {
+  const trimmed = ident.trim().replace(/^`+|`+$/g, '');
+  if (!trimmed || /[\0\r\n\t;]/.test(trimmed)) {
     return null;
   }
-  return `\`${trimmed}\``;
+  return `\`${trimmed.replace(/`/g, '``')}\``;
 }
 
 export function buildCatalogStatement(args: LakehouseCatalogArgs): CatalogStatementResult {
@@ -139,70 +137,24 @@ export function createLakehouseCatalogTool(options: SqlQueryToolOptions = {}) {
         return `lakehouse_catalog error: ${parsed.error ?? 'invalid request'}`;
       }
       const statement = parsed.statement;
-
       const fromArgs = typeof args.warehouse_id === 'string' ? args.warehouse_id.trim() : '';
-      const warehouseId = fromArgs || options.warehouseId?.trim() || '';
-      if (!warehouseId) {
-        return 'lakehouse_catalog error: warehouse_id is required. Pass warehouse_id or set DATABRICKS_WAREHOUSE_ID.';
+      const result = await executeReadOnlySql(
+        { ...options, maxChars: options.maxChars ?? maxChars },
+        statement,
+        fromArgs,
+      );
+      // Keep lakehouse_catalog label on shared executor errors.
+      if (result.startsWith('sql_query ')) {
+        return result.replace(/^sql_query /, 'lakehouse_catalog ');
       }
-
-      if (options.executeImpl) {
-        return options.executeImpl({ statement, warehouseId });
+      if (rowsEmptyPlaceholder(result) && statement) {
+        return `${statement}\n(no results found)`;
       }
-
-      const host = options.host?.trim();
-      if (!host || !options.getToken) {
-        return 'lakehouse_catalog error: Databricks workspace is not configured. Set DATABRICKS_HOST and DATABRICKS_TOKEN.';
-      }
-
-      const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-      const token = await options.getToken();
-      const cleanHost = host.replace(/\/+$/, '');
-
-      try {
-        const response = await fetchImpl(`${cleanHost}/api/2.0/sql/statements`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            warehouse_id: warehouseId,
-            statement: parsed.statement,
-            wait_timeout: '30s',
-            disposition: 'INLINE',
-            format: 'JSON_ARRAY',
-          }),
-        });
-
-        const text = await response.text();
-        if (!response.ok) {
-          return `lakehouse_catalog failed (${response.status}): ${text.slice(0, maxChars)}`;
-        }
-
-        const body = JSON.parse(text) as {
-          status?: { state?: string; error?: { message?: string } };
-          manifest?: { schema?: { columns?: Array<{ name?: string }> } };
-          result?: { data_array?: unknown[][] };
-        };
-
-        if (body.status?.state !== 'SUCCEEDED') {
-          return `lakehouse_catalog ${body.status?.state ?? 'FAILED'}: ${body.status?.error?.message ?? 'statement did not finish'}`;
-        }
-
-        const columns = (body.manifest?.schema?.columns ?? []).map((col) => col.name ?? '');
-        const rows = body.result?.data_array ?? [];
-        if (rows.length === 0) {
-          return `${parsed.statement}\n(no results found)`;
-        }
-
-        const lines = [columns.join('\t'), ...rows.map((r) => r.map((c) => String(c ?? '')).join('\t'))];
-        const resultText = lines.join('\n');
-        return resultText.length > maxChars ? `${resultText.slice(0, maxChars)}\n…[truncated]` : resultText;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'unknown error';
-        return `lakehouse_catalog error: ${msg}`;
-      }
+      return result;
     },
   };
+}
+
+function rowsEmptyPlaceholder(result: string): boolean {
+  return result.trim() === '(no rows)';
 }

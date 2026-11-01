@@ -4,6 +4,10 @@ env:
   - name: LAKEBASE_ENDPOINT
     valueFrom: postgres
 
+  # SQL warehouse for sql_query / lakehouse_catalog (id injected from app resource)
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+
   # OpenAI-compatible LLM (scope `claw`, key `openrouter-api-key`)
   - name: OPENROUTER_API_KEY
     valueFrom: openrouter-api-key

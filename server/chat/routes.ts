@@ -4,6 +4,7 @@ import type { Bot, ChatStore, MarketplaceBot } from '../../shared/chat/types.js'
 import { AVAILABLE_DATABRICKS_MCPS } from '../../shared/agents/mcp-types.js';
 import type { McpDiscoveryService } from '../agents/tools/mcp-discovery.js';
 import { canViewerAccessSpace } from './access-policy.js';
+import { runWithDatabricksRequestAuth } from './databricks-auth.js';
 import { resolveOwnerId } from './identity.js';
 import type { ChatService } from './service.js';
 
@@ -621,9 +622,11 @@ export function registerChatRoutes(
       const chatId = String(req.params.chatId);
       const chat = await assertChatOwnership(chatId, req, res);
       if (!chat) return;
-      const result = await service.sendUserMessage(chatId, parsed.data.content, {
-        requestId: parsed.data.requestId,
-      });
+      const result = await runWithDatabricksRequestAuth(req, () =>
+        service.sendUserMessage(chatId, parsed.data.content, {
+          requestId: parsed.data.requestId,
+        }),
+      );
       res.status(201).json(result);
     } catch (err) {
       if (isBadRequest(err)) {
@@ -658,7 +661,9 @@ export function registerChatRoutes(
         res.status(403).json({ error: 'Forbidden' });
         return;
       }
-      const result = await service.decideApproval(approvalId, parsed.data.decision);
+      const result = await runWithDatabricksRequestAuth(req, () =>
+        service.decideApproval(approvalId, parsed.data.decision),
+      );
       res.json(result);
     } catch (err) {
       if (isBadRequest(err)) {
@@ -686,7 +691,9 @@ export function registerChatRoutes(
         res.status(404).json({ error: 'Choice not found' });
         return;
       }
-      const result = await service.submitChoice(choiceId, parsed.data.selectedOption);
+      const result = await runWithDatabricksRequestAuth(req, () =>
+        service.submitChoice(choiceId, parsed.data.selectedOption),
+      );
       res.json(result);
     } catch (err) {
       if (isBadRequest(err)) {

@@ -9,6 +9,8 @@ variables:
     description: Lakebase branch resource name for BricksBot durable chat
   lakebase_database:
     description: Lakebase database resource name for BricksBot durable chat
+  sql_warehouse_id:
+    description: SQL warehouse id for sql_query / lakehouse_catalog (user OBO + SP CAN_USE)
   provider_secret_scope:
     description: Secret scope holding the OpenRouter API key
     default: claw
@@ -47,12 +49,23 @@ resources:
       lifecycle:
         started: true
 
+      # Interactive sql_query / lakehouse_catalog / volume_read use the signed-in
+      # user's token (OBO). sql:restricted-query matches read-only tool policy.
+      user_api_scopes:
+        - sql:restricted-query
+        - files.files
+        - ai-gateway
+
       resources:
         - name: postgres
           postgres:
             branch: ${var.lakebase_branch}
             database: ${var.lakebase_database}
             permission: CAN_CONNECT_AND_CREATE
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.sql_warehouse_id}
+            permission: CAN_USE
         - name: openrouter-api-key
           secret:
             scope: ${var.provider_secret_scope}
@@ -74,5 +87,7 @@ targets:
     variables:
       lakebase_branch: projects/clawhouse/branches/bricksbot
       lakebase_database: projects/clawhouse/branches/bricksbot/databases/databricks-postgres
+      # Serverless Starter Warehouse (dev workspace)
+      sql_warehouse_id: 95a46431cf830347
       provider_secret_scope: claw
       app_secret_scope: bricksbot

@@ -44,7 +44,8 @@ export class DatabricksServingChatClient implements ChatClient {
   }
 
   async complete(request: ChatCompletionRequest): Promise<ChatCompletionResult> {
-    const host = this.config.host.replace(/\/+$/, '');
+    const rawHost = this.config.host.trim().replace(/\/+$/, '');
+    const host = /^https?:\/\//i.test(rawHost) ? rawHost : `https://${rawHost}`;
     const url = `${host}/serving-endpoints/${encodeURIComponent(this.config.endpointName)}/invocations`;
     const token = await this.config.getToken();
 

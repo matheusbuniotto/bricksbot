@@ -21,6 +21,10 @@ describe('readOnlySqlError', () => {
     ['', 'requires a statement'],
     ['   ', 'requires a statement'],
     ['-- hi\nDELETE FROM t', 'only allows'],
+    ['WITH t AS (DELETE FROM foo) SELECT * FROM t', 'mutating keywords inside WITH are blocked'],
+    ['WITH t AS (SELECT 1) INSERT INTO foo SELECT * FROM t', 'mutating keywords inside WITH are blocked'],
+    ['WITH t AS (UPDATE foo SET bar = 1) SELECT 1', 'mutating keywords inside WITH are blocked'],
+    ['WITH t AS (SELECT 1 AS col) SELECT * FROM t', null],
   ])('classifies %j', (statement, pattern) => {
     const error = readOnlySqlError(statement);
     if (pattern === null) {
@@ -43,20 +47,60 @@ describe('createSqlQueryTool', () => {
     expect(executeImpl).not.toHaveBeenCalled();
   });
 
-  test('returns a warehouse error instead of throwing when warehouse_id is missing', async () => {
-    const executeImpl = vi.fn(async () => 'should not run');
+  test('falls back to executeImpl without a warehouse (MCP path uses warehouseId mcp)', async () => {
+    const executeImpl = vi.fn(async (input: { statement: string; warehouseId: string }) => {
+      return `${input.warehouseId}:${input.statement}`;
+    });
     const tool = createSqlQueryTool({ executeImpl });
 
-    const result = await tool.execute({ statement: 'SELECT 1' });
-
-    expect(result).toMatch(/warehouse_id is required/);
-    expect(executeImpl).not.toHaveBeenCalled();
+    await expect(tool.execute({ statement: 'SELECT 1' })).resolves.toBe('mcp:SELECT 1');
+    expect(executeImpl).toHaveBeenCalledWith({ statement: 'SELECT 1', warehouseId: 'mcp' });
   });
 
   test('returns a config error when the workspace host or token is missing', async () => {
     const tool = createSqlQueryTool({ warehouseId: 'wh' });
     const result = await tool.execute({ statement: 'SELECT 1' });
-    expect(result).toMatch(/DATABRICKS_HOST and DATABRICKS_TOKEN/);
+    expect(result).toMatch(/Databricks workspace is not configured/i);
+  });
+
+  test('falls back to system.ai.dbsql when no warehouse is configured', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url);
+      expect(href).toContain('/ai-gateway/mcp-services/system.ai.dbsql');
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        method: 'tools/call',
+        params: { name: 'execute_sql', arguments: { query: 'SELECT 1' } },
+      });
+      return new Response(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          result: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  status: { state: 'SUCCEEDED' },
+                  manifest: { schema: { columns: [{ name: 'n' }] } },
+                  result: { data_typed_array: [{ values: [{ str: '1' }] }] },
+                }),
+              },
+            ],
+            isError: false,
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+    const tool = createSqlQueryTool({
+      host: 'https://dbc.example.cloud.databricks.com',
+      workspaceId: '123',
+      getToken: async () => 'tok',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await expect(tool.execute({ statement: 'SELECT 1' })).resolves.toBe('n\n1');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   test('passes the statement and warehouse to the stub executor', async () => {
@@ -131,6 +175,112 @@ describe('createSqlQueryTool', () => {
 
     await expect(tool.execute({ statement: 'SELECT 1' })).resolves.toMatch(/sql_query failed \(400\)/);
   });
+
+  test('polls statement until SUCCEEDED when initial state is PENDING', async () => {
+    let callCount = 0;
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      callCount += 1;
+      const href = String(url);
+      if (callCount === 1) {
+        expect(href).toContain('/api/2.0/sql/statements');
+        return new Response(
+          JSON.stringify({
+            statement_id: 'stmt_123',
+            status: { state: 'PENDING' },
+          }),
+          { status: 200 },
+        );
+      }
+      expect(href).toContain('/api/2.0/sql/statements/stmt_123');
+      return new Response(
+        JSON.stringify({
+          statement_id: 'stmt_123',
+          status: { state: 'SUCCEEDED' },
+          manifest: { schema: { columns: [{ name: 'val' }] } },
+          result: { data_array: [['hello world']] },
+        }),
+        { status: 200 },
+      );
+    });
+
+    const tool = createSqlQueryTool({
+      warehouseId: 'wh',
+      host: 'https://dbc.example.cloud.databricks.com',
+      getToken: async () => 'tok',
+      fetchImpl: fetchImpl as typeof fetch,
+      mcpPollIntervalMs: 5,
+    });
+
+    const result = await tool.execute({ statement: 'SELECT "hello world"' });
+    expect(result).toBe('val\nhello world');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  test('decodes typed cell formats and sanitizes newlines and tabs', async () => {
+    const fetchImpl = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          status: { state: 'SUCCEEDED' },
+          manifest: {
+            schema: {
+              columns: [{ name: 'dt' }, { name: 'ts' }, { name: 'amt' }, { name: 'notes' }],
+            },
+          },
+          result: {
+            data_typed_array: [
+              {
+                values: [
+                  { date_value: '2026-11-01' },
+                  { timestamp_value: '2026-11-01T12:00:00Z' },
+                  { decimal_value: '123.45' },
+                  { str: 'line1\nline2\titem' },
+                ],
+              },
+            ],
+          },
+        }),
+        { status: 200 },
+      );
+    });
+
+    const tool = createSqlQueryTool({
+      warehouseId: 'wh',
+      host: 'https://dbc.example.cloud.databricks.com',
+      getToken: async () => 'tok',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    const result = await tool.execute({ statement: 'SELECT * FROM metrics' });
+    expect(result).toBe('dt\tts\tamt\tnotes\n2026-11-01\t2026-11-01T18:34:00Z\t123.45\tline1 line2 item'.replace('18:34:00Z', '12:00:00Z'));
+  });
+
+  test('normalizes bare host without scheme to https URL', async () => {
+    let requestedUrl = '';
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      requestedUrl = String(url);
+      return new Response(
+        JSON.stringify({
+          status: { state: 'SUCCEEDED' },
+          manifest: { schema: { columns: [{ name: 'test' }] } },
+          result: { data_array: [['1']] },
+        }),
+        { status: 200 },
+      );
+    });
+
+    const tool = createSqlQueryTool({
+      warehouseId: 'wh',
+      host: 'dbc-562d9321-2592.cloud.databricks.com',
+      getToken: async () => 'tok',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    const result = await tool.execute({ statement: 'SELECT 1 AS test' });
+    expect(result).toBe('test\n1');
+    expect(requestedUrl).toBe(
+      'https://dbc-562d9321-2592.cloud.databricks.com/api/2.0/sql/statements',
+    );
+  });
 });
 
 describe('sqlQueryConfigFromEnv', () => {
@@ -147,8 +297,19 @@ describe('sqlQueryConfigFromEnv', () => {
     await expect(config.getToken?.()).resolves.toBe('tok');
   });
 
-  test('omits getToken when no token is configured', () => {
-    expect(sqlQueryConfigFromEnv({}).getToken).toBeUndefined();
-    expect(sqlQueryConfigFromEnv({ DATABRICKS_TOKEN: '__UNSET__' }).getToken).toBeUndefined();
+  test('normalizes bare DATABRICKS_HOST without protocol to https', () => {
+    const config = sqlQueryConfigFromEnv({
+      DATABRICKS_HOST: 'dbc-562d9321-2592.cloud.databricks.com',
+    });
+    expect(config.host).toBe('https://dbc-562d9321-2592.cloud.databricks.com');
+  });
+
+  test('still provides getToken so request OBO can authenticate without a PAT', async () => {
+    const config = sqlQueryConfigFromEnv({
+      DATABRICKS_HOST: 'https://dbc.example.cloud.databricks.com',
+      DATABRICKS_TOKEN: '__UNSET__',
+    });
+    expect(config.getToken).toBeTypeOf('function');
+    await expect(config.getToken?.()).rejects.toThrow(/No Databricks credentials/i);
   });
 });

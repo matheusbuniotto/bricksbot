@@ -89,7 +89,8 @@ export class ArtifactSyncService {
     // Try workspace REST API /api/2.0/fs/files first when host + token are configured,
     // or local /Volumes mount if running in a container with Volume FUSE mount.
     if (this.options.host && this.options.getToken) {
-      const host = this.options.host.replace(/\/+$/, '');
+      const rawHost = this.options.host.trim().replace(/\/+$/, '');
+      const host = /^https?:\/\//i.test(rawHost) ? rawHost : `https://${rawHost}`;
       const token = await this.options.getToken();
       const url = `${host}/api/2.0/fs/files${volumePath}?overwrite=true`;
       const res = await this.fetchImpl(url, {

@@ -86,6 +86,13 @@ createApp({
     const client = createChatClientFromEnv(process.env);
     console.info(`[bricksbot] ChatClient provider=${client.provider}`);
     const sqlQuery = sqlQueryConfigFromEnv(process.env);
+    if (sqlQuery.warehouseId) {
+      console.info(`[bricksbot] SQL warehouse configured (id=${sqlQuery.warehouseId.slice(0, 8)}…); lakehouse tools prefer user OBO token`);
+    } else {
+      console.warn(
+        '[bricksbot] DATABRICKS_WAREHOUSE_ID not set — sql_query / lakehouse_catalog will ask for a warehouse. Bind sql-warehouse in databricks.yml or set the env var.',
+      );
+    }
     const { config: sandboxConfig, registry: sandboxRegistry } = createSandboxRegistryFromEnv(
       process.env,
       { getDatabricksToken: sqlQuery.getToken },

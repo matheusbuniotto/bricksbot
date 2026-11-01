@@ -326,7 +326,7 @@ describe('ChatService', () => {
     expect(messages.some((m) => m.role === 'tool' && /only allows/i.test(m.content))).toBe(true);
   });
 
-  test('returns a warehouse error after approval without throwing', async () => {
+  test('returns a SQL config error after approval without throwing', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
     const chat = await store.getOrCreateChatForBot(bot.id);
@@ -343,7 +343,11 @@ describe('ChatService', () => {
     const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'approved');
     expect(continued.assistant?.content).toBe('no warehouse');
     const messages = await store.listMessages(chat.id);
-    expect(messages.some((m) => m.role === 'tool' && /warehouse_id is required/i.test(m.content))).toBe(true);
+    expect(
+      messages.some(
+        (m) => m.role === 'tool' && /Databricks workspace is not configured/i.test(m.content),
+      ),
+    ).toBe(true);
   });
 
   test('does not execute sql_query when the approval is denied', async () => {

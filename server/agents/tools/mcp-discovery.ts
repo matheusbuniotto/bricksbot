@@ -118,8 +118,9 @@ export class McpDiscoveryService {
   private async fetchUnityCatalogMcpServices(
     schema: string,
   ): Promise<UnityCatalogMcpServiceItem[]> {
-    const host = (this.config.host ?? '').trim().replace(/\/+$/, '');
-    if (!host || !this.config.getToken) {
+    const rawHost = (this.config.host ?? '').trim().replace(/\/+$/, '');
+    const host = /^https?:\/\//i.test(rawHost) ? rawHost : `https://${rawHost}`;
+    if (!rawHost || !this.config.getToken) {
       return [];
     }
 

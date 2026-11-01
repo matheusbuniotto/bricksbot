@@ -108,7 +108,8 @@ export function createVolumeReadTool(options: VolumeReadToolOptions = {}) {
         if (options.host && options.getToken) {
           try {
             const token = await options.getToken();
-            const host = options.host.replace(/\/+$/, '');
+            const rawHost = options.host.trim().replace(/\/+$/, '');
+            const host = /^https?:\/\//i.test(rawHost) ? rawHost : `https://${rawHost}`;
             const fetchImpl = options.fetchImpl ?? globalThis.fetch;
 
             if (action === 'read') {
