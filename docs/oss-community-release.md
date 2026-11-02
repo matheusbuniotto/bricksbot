@@ -65,8 +65,8 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 
 | Item | Why |
 | --- | --- |
-| Space invite / members UI (API already exists) | Team story without curling APIs |
-| `volume_write` (Ask-first) | Biblioteca / pin-to-Volume without leaving chat |
+| ~~Space invite / members UI~~ | **Done** (roster share + dialog) |
+| `volume_write` + per-bot Volume namespaces | Plan: [specs/2026-11-02-volume-write-bot-namespaces.md](specs/2026-11-02-volume-write-bot-namespaces.md) |
 | Deny-until-new-message semantics | Trust polish Grok-shaped |
 | Audit trail of tool approvals → UC table or log | Enterprise community ask |
 

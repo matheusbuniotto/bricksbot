@@ -20,8 +20,8 @@ Remaining before announce: run the smoke path once on a **fresh** workspace (or 
 
 | Priority | Item | Notes |
 | --- | --- | --- |
-| 1 | Space members UI | API exists; roster/share UX missing |
-| 2 | `volume_write` Ask-first | Biblioteca / Volume pins |
+| 1 | ~~Space members UI~~ | **Done** — roster share control + members dialog; GET/POST ACL |
+| 2 | `volume_write` + bot namespaces | **Plan:** [specs/2026-11-02-volume-write-bot-namespaces.md](specs/2026-11-02-volume-write-bot-namespaces.md) — UC only; per-user / per-bot folders; app quotas |
 | 3 | Deny-until-new-message | Track B trust |
 | 4 | Approval trail | Approvals → UC or structured log |
 
