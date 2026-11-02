@@ -1,20 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import type { Message } from '../../shared/chat/types.js';
 import type { ChatClient } from '../../shared/agents/types.js';
-import {
-  applyCompactionToHistory,
-  pickKeepFromMessage,
-  runCompaction,
-  shouldCompact,
-} from './compaction.js';
+import { applyCompactionToHistory, pickKeepFromMessage, runCompaction, shouldCompact } from './compaction.js';
 import { MemoryCompactionStore } from './compaction-store.js';
 
-function msg(
-  id: string,
-  role: Message['role'],
-  content: string,
-  extra?: Partial<Message>,
-): Message {
+function msg(id: string, role: Message['role'], content: string, extra?: Partial<Message>): Message {
   return {
     id,
     chatId: 'c1',
@@ -33,14 +23,14 @@ describe('compaction', () => {
         contextWindow: 10_000,
         reserveTokens: 1_000,
         keepRecentMessages: 4,
-      }),
+      })
     ).toBe(true);
     expect(
       shouldCompact([msg('1', 'user', 'hi')], 'sys', {
         contextWindow: 128_000,
         reserveTokens: 16_384,
         keepRecentMessages: 24,
-      }),
+      })
     ).toBe(false);
   });
 
@@ -67,7 +57,7 @@ describe('compaction', () => {
 
   test('runCompaction stores summary and keeps recent user turn', async () => {
     const history = Array.from({ length: 10 }, (_, i) =>
-      msg(String(i + 1), i % 2 === 0 ? 'user' : 'assistant', `turn ${i + 1}`),
+      msg(String(i + 1), i % 2 === 0 ? 'user' : 'assistant', `turn ${i + 1}`)
     );
     const client: ChatClient = {
       provider: 'stub',

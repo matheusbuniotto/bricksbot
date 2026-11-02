@@ -8,11 +8,7 @@ import {
   sliceHandoffThread,
 } from './handoff-notice.js';
 
-function msg(
-  role: Message['role'],
-  content: string,
-  id = Math.random().toString(36).slice(2),
-): Message {
+function msg(role: Message['role'], content: string, id = Math.random().toString(36).slice(2)): Message {
   return {
     id,
     chatId: 'c',
@@ -58,7 +54,7 @@ describe('handoff-notice', () => {
         direction: 'sent',
         targetName: 'JH',
         targetBotId: '',
-      }),
+      })
     );
   });
 
@@ -93,7 +89,7 @@ describe('handoff-notice', () => {
         { role: 'system', content: thread },
         { role: 'assistant', content: 'summary' },
       ],
-      (m) => m.role === 'system',
+      (m) => m.role === 'system'
     );
     expect(collapsed).toHaveLength(3);
     const parsedNotice = parseHandoffNotice(collapsed[1]?.content ?? '');
@@ -119,21 +115,21 @@ describe('handoff-notice', () => {
         brief: 'research Tallinn',
         messageCount: 2,
         threadBotId: 'jh',
-      }),
+      })
     );
     const next = msg('user', 'From Primary: another handoff');
 
-    const sliced = sliceHandoffThread(
-      [older, olderReply, brief, reply, chip, next],
-      { senderName: 'Primary', brief: 'research Tallinn' },
-    );
+    const sliced = sliceHandoffThread([older, olderReply, brief, reply, chip, next], {
+      senderName: 'Primary',
+      brief: 'research Tallinn',
+    });
     expect(sliced).toEqual([brief, reply]);
 
     // Teammate chip swaps display names; still finds the Primary brief line.
-    const fromTeammateChip = sliceHandoffThread(
-      [older, olderReply, brief, reply, chip, next],
-      { senderName: 'JH', brief: 'research Tallinn' },
-    );
+    const fromTeammateChip = sliceHandoffThread([older, olderReply, brief, reply, chip, next], {
+      senderName: 'JH',
+      brief: 'research Tallinn',
+    });
     expect(fromTeammateChip).toEqual([brief, reply]);
   });
 
@@ -149,7 +145,7 @@ describe('handoff-notice', () => {
         senderName: 'JH',
         brief: 'x',
         threadBotId: 'jh',
-      }),
+      })
     ).toBe('jh');
     expect(
       handoffPeekBotId({
@@ -161,7 +157,7 @@ describe('handoff-notice', () => {
         senderBotId: 'p',
         senderName: 'Primary',
         brief: 'x',
-      }),
+      })
     ).toBe('jh');
   });
 });

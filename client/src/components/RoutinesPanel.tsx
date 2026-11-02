@@ -160,8 +160,7 @@ export function RoutinesPanel({
     }
   }
 
-  const trustWebhookUrl =
-    trustRoutineId && appOrigin ? `${appOrigin}${routineWebhookPath(trustRoutineId)}` : null;
+  const trustWebhookUrl = trustRoutineId && appOrigin ? `${appOrigin}${routineWebhookPath(trustRoutineId)}` : null;
 
   const editCronHint = describeCronExpression(cron.trim() || '0 9 * * *', cronLocale);
   const editQuartzHint = unixCronToQuartzHint(cron.trim() || '0 9 * * *');
@@ -187,9 +186,7 @@ export function RoutinesPanel({
 
       {lastWebhookSecret ? (
         <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2.5 space-y-2">
-          <p className="text-xs text-foreground font-medium">
-            Webhook secret (shown once — copy now)
-          </p>
+          <p className="text-xs text-foreground font-medium">Webhook secret (shown once — copy now)</p>
           <CopyableField label="Secret" value={lastWebhookSecret} />
           {trustWebhookUrl ? (
             <CopyableField label="Webhook URL (POST)" value={trustWebhookUrl} />
@@ -200,13 +197,9 @@ export function RoutinesPanel({
             label={`Header (${ROUTINE_WEBHOOK_HEADER})`}
             value={`${ROUTINE_WEBHOOK_HEADER}: ${lastWebhookSecret}`}
           />
-          <CopyableField
-            label="Or Authorization"
-            value={`Authorization: Bearer ${lastWebhookSecret}`}
-          />
+          <CopyableField label="Or Authorization" value={`Authorization: Bearer ${lastWebhookSecret}`} />
           <p className="text-[11px] text-muted-foreground leading-snug">
-            For scheduled runs, store this secret in scope{' '}
-            <span className="font-mono">bricksbot</span> / key{' '}
+            For scheduled runs, store this secret in scope <span className="font-mono">bricksbot</span> / key{' '}
             <span className="font-mono">routine-webhook-key</span>, set bundle variables{' '}
             <span className="font-mono">routine_webhook_app_base_url</span> and{' '}
             <span className="font-mono">routine_webhook_routine_id</span>, then{' '}
@@ -235,8 +228,7 @@ export function RoutinesPanel({
           <p className="text-[11px] text-muted-foreground">{createCronHint}</p>
           {createQuartzHint ? (
             <p className="text-[11px] text-muted-foreground">
-              Job schedule (Quartz):{' '}
-              <span className="font-mono">{createQuartzHint}</span>
+              Job schedule (Quartz): <span className="font-mono">{createQuartzHint}</span>
             </p>
           ) : null}
           {showBotSelect ? (
@@ -254,11 +246,7 @@ export function RoutinesPanel({
             rows={2}
             className="field"
           />
-          <button
-            type="submit"
-            className="pane-btn pane-btn-solid"
-            disabled={creating || !bots.length}
-          >
+          <button type="submit" className="pane-btn pane-btn-solid" disabled={creating || !bots.length}>
             Create
           </button>
         </form>
@@ -267,9 +255,7 @@ export function RoutinesPanel({
       {routines.length === 0 && !open ? (
         <div className="rounded-lg border border-dashed border-border/70 px-4 py-8 text-center">
           <p className="text-sm text-muted-foreground">No routines yet</p>
-          <p className="mt-1 text-xs text-muted-foreground/80">
-            Ask the bot in chat to add one, or tap Add.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground/80">Ask the bot in chat to add one, or tap Add.</p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -280,10 +266,7 @@ export function RoutinesPanel({
 
             if (isEditing) {
               return (
-                <li
-                  key={routine.id}
-                  className="rounded-lg border border-border/60 px-3 py-2.5 space-y-2"
-                >
+                <li key={routine.id} className="rounded-lg border border-border/60 px-3 py-2.5 space-y-2">
                   <form className="space-y-2" onSubmit={handleSaveEdit}>
                     <p className="text-xs font-medium text-foreground">Edit routine</p>
                     <input
@@ -302,8 +285,7 @@ export function RoutinesPanel({
                     <p className="text-[11px] text-muted-foreground">{editCronHint}</p>
                     {editQuartzHint ? (
                       <p className="text-[11px] text-muted-foreground">
-                        Job schedule (Quartz):{' '}
-                        <span className="font-mono">{editQuartzHint}</span>
+                        Job schedule (Quartz): <span className="font-mono">{editQuartzHint}</span>
                       </p>
                     ) : null}
                     <textarea
@@ -321,12 +303,7 @@ export function RoutinesPanel({
                       >
                         {saving ? 'Saving…' : 'Save'}
                       </button>
-                      <button
-                        type="button"
-                        className="pane-btn pane-btn-ghost"
-                        disabled={saving}
-                        onClick={cancelForms}
-                      >
+                      <button type="button" className="pane-btn pane-btn-ghost" disabled={saving} onClick={cancelForms}>
                         Cancel
                       </button>
                     </div>
@@ -336,23 +313,16 @@ export function RoutinesPanel({
             }
 
             return (
-              <li
-                key={routine.id}
-                className="rounded-lg border border-border/60 px-3 py-2.5 space-y-2"
-              >
+              <li key={routine.id} className="rounded-lg border border-border/60 px-3 py-2.5 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{routine.name}</p>
                     <p className="text-xs text-muted-foreground">{scheduleLabel}</p>
                     {quartzHint ? (
-                      <p className="text-[11px] text-muted-foreground/90 font-mono">
-                        Quartz: {quartzHint}
-                      </p>
+                      <p className="text-[11px] text-muted-foreground/90 font-mono">Quartz: {quartzHint}</p>
                     ) : null}
                     {routine.prompt ? (
-                      <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">
-                        {routine.prompt}
-                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{routine.prompt}</p>
                     ) : null}
                   </div>
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 pt-0.5">

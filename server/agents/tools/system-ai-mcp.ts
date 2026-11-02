@@ -38,8 +38,7 @@ export const genieAskToolDefinition: ToolDefinition = {
       },
       auto_poll: {
         type: 'boolean',
-        description:
-          'Whether to poll until completion (default true). Set false to return in_progress immediately.',
+        description: 'Whether to poll until completion (default true). Set false to return in_progress immediately.',
       },
     },
     required: ['question'],
@@ -123,9 +122,7 @@ interface GeniePollPayload {
   error?: string | { message?: string };
 }
 
-export function systemAiMcpConfigFromEnv(
-  env: Record<string, string | undefined>,
-): SystemAiMcpOptions | undefined {
+export function systemAiMcpConfigFromEnv(env: Record<string, string | undefined>): SystemAiMcpOptions | undefined {
   const isEnabled =
     env.DATABRICKS_GENIE_ENABLED?.trim().toLowerCase() === 'true' ||
     env.DATABRICKS_ONE_ENABLED?.trim().toLowerCase() === 'true' ||
@@ -139,9 +136,7 @@ export function systemAiMcpConfigFromEnv(
   const host = env.DATABRICKS_HOST?.trim() || env.DATABRICKS_WORKSPACE_URL?.trim() || '';
   const token = env.DATABRICKS_TOKEN?.trim();
   const workspaceId = env.DATABRICKS_WORKSPACE_ID?.trim();
-  const maxPollSeconds = env.GENIE_MAX_POLL_SECONDS
-    ? Number.parseInt(env.GENIE_MAX_POLL_SECONDS, 10)
-    : undefined;
+  const maxPollSeconds = env.GENIE_MAX_POLL_SECONDS ? Number.parseInt(env.GENIE_MAX_POLL_SECONDS, 10) : undefined;
 
   return {
     enabled: true,
@@ -209,17 +204,11 @@ export function createSystemAiMcpTools(options: SystemAiMcpOptions = {}): Regist
       const parsedInitial = safeParseJson(initialText);
 
       const conversationId =
-        typeof parsedInitial?.conversation_id === 'string'
-          ? parsedInitial.conversation_id
-          : conversationIdArg ?? '';
-      const responseId =
-        typeof parsedInitial?.response_id === 'string' ? parsedInitial.response_id : '';
+        typeof parsedInitial?.conversation_id === 'string' ? parsedInitial.conversation_id : (conversationIdArg ?? '');
+      const responseId = typeof parsedInitial?.response_id === 'string' ? parsedInitial.response_id : '';
 
       if (!autoPoll || !conversationId || !responseId) {
-        return (
-          initialText ||
-          JSON.stringify({ conversation_id: conversationId, response_id: responseId })
-        );
+        return initialText || JSON.stringify({ conversation_id: conversationId, response_id: responseId });
       }
 
       // Auto-polling loop
@@ -243,9 +232,9 @@ export function createSystemAiMcpTools(options: SystemAiMcpOptions = {}): Regist
         const pollText = pollRes.content[0]?.text ?? '';
         const pollPayload = safeParseJson(pollText) as GeniePollPayload | null;
 
-        const status = (typeof pollPayload?.status === 'string'
-          ? pollPayload.status.toLowerCase()
-          : '') as GenieStatus | '';
+        const status = (typeof pollPayload?.status === 'string' ? pollPayload.status.toLowerCase() : '') as
+          | GenieStatus
+          | '';
 
         if (status === 'completed') {
           const result: GenieAskResult = {
@@ -263,7 +252,7 @@ export function createSystemAiMcpTools(options: SystemAiMcpOptions = {}): Regist
           const errorMsg =
             typeof pollPayload?.error === 'object' && pollPayload.error !== null
               ? (pollPayload.error as { message?: string }).message
-              : pollPayload?.error ?? 'Genie response failed';
+              : (pollPayload?.error ?? 'Genie response failed');
           const result: GenieAskResult = {
             conversation_id: conversationId,
             response_id: responseId,

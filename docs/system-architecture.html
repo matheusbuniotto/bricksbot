@@ -1,801 +1,911 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BricksBot — Complete System Architecture & Reference</title>
-  <style>
-    :root {
-      --bg: #090d16;
-      --surface: #111827;
-      --surface-elevated: #1f2937;
-      --surface-hover: #374151;
-      --border: #1e293b;
-      --border-accent: #334155;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --primary: #38bdf8;
-      --primary-glow: rgba(56, 189, 248, 0.15);
-      --accent: #818cf8;
-      --success: #34d399;
-      --warning: #fbbf24;
-      --danger: #f87171;
-      --code-bg: #030712;
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BricksBot — Complete System Architecture & Reference</title>
+    <style>
+      :root {
+        --bg: #090d16;
+        --surface: #111827;
+        --surface-elevated: #1f2937;
+        --surface-hover: #374151;
+        --border: #1e293b;
+        --border-accent: #334155;
+        --text: #f8fafc;
+        --text-muted: #94a3b8;
+        --primary: #38bdf8;
+        --primary-glow: rgba(56, 189, 248, 0.15);
+        --accent: #818cf8;
+        --success: #34d399;
+        --warning: #fbbf24;
+        --danger: #f87171;
+        --code-bg: #030712;
+        --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    body {
-      background-color: var(--bg);
-      color: var(--text);
-      font-family: var(--font-sans);
-      line-height: 1.6;
-      display: flex;
-      min-height: 100vh;
-    }
+      body {
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+        display: flex;
+        min-height: 100vh;
+      }
 
-    /* Sidebar Navigation */
-    nav.toc {
-      width: 280px;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      overflow-y: auto;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      padding: 2rem 1.25rem;
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
+      /* Sidebar Navigation */
+      nav.toc {
+        width: 280px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow-y: auto;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        padding: 2rem 1.25rem;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
 
-    .brand-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #0284c7, #6366f1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 1rem;
-      color: #fff;
-    }
+      .brand-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #0284c7, #6366f1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1rem;
+        color: #fff;
+      }
 
-    .brand-text h1 {
-      font-size: 1.15rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
+      .brand-text h1 {
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
 
-    .brand-text span {
-      font-size: 0.75rem;
-      color: var(--primary);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      font-weight: 600;
-    }
+      .brand-text span {
+        font-size: 0.75rem;
+        color: var(--primary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+      }
 
-    .nav-links {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
+      .nav-links {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
 
-    .nav-links a {
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 0.875rem;
-      padding: 0.5rem 0.75rem;
-      border-radius: 6px;
-      transition: all 0.15s ease;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
+      .nav-links a {
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        transition: all 0.15s ease;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
 
-    .nav-links a:hover {
-      background: var(--surface-elevated);
-      color: var(--text);
-    }
+      .nav-links a:hover {
+        background: var(--surface-elevated);
+        color: var(--text);
+      }
 
-    .nav-links a.active {
-      background: var(--primary-glow);
-      color: var(--primary);
-      font-weight: 600;
-      border-left: 3px solid var(--primary);
-    }
+      .nav-links a.active {
+        background: var(--primary-glow);
+        color: var(--primary);
+        font-weight: 600;
+        border-left: 3px solid var(--primary);
+      }
 
-    /* Main Content Area */
-    main.content {
-      flex: 1;
-      max-width: 1040px;
-      padding: 3rem 4rem;
-      overflow-x: hidden;
-    }
+      /* Main Content Area */
+      main.content {
+        flex: 1;
+        max-width: 1040px;
+        padding: 3rem 4rem;
+        overflow-x: hidden;
+      }
 
-    header.doc-header {
-      margin-bottom: 3.5rem;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 2rem;
-    }
+      header.doc-header {
+        margin-bottom: 3.5rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 2rem;
+      }
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 0.25rem 0.65rem;
-      background: var(--primary-glow);
-      color: var(--primary);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      margin-bottom: 1rem;
-    }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.65rem;
+        background: var(--primary-glow);
+        color: var(--primary);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+      }
 
-    h1.doc-title {
-      font-size: 2.75rem;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.15;
-      margin-bottom: 1rem;
-      background: linear-gradient(to right, #f8fafc, #94a3b8);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
+      h1.doc-title {
+        font-size: 2.75rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+        margin-bottom: 1rem;
+        background: linear-gradient(to right, #f8fafc, #94a3b8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
 
-    p.lead {
-      font-size: 1.15rem;
-      color: var(--text-muted);
-      max-width: 800px;
-      line-height: 1.7;
-    }
+      p.lead {
+        font-size: 1.15rem;
+        color: var(--text-muted);
+        max-width: 800px;
+        line-height: 1.7;
+      }
 
-    section {
-      margin-bottom: 4rem;
-      scroll-margin-top: 2rem;
-    }
+      section {
+        margin-bottom: 4rem;
+        scroll-margin-top: 2rem;
+      }
 
-    h2 {
-      font-size: 1.75rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 1.25rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 0.75rem;
-    }
+      h2 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.75rem;
+      }
 
-    h3 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-top: 1.75rem;
-      margin-bottom: 0.75rem;
-      color: var(--primary);
-    }
+      h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-top: 1.75rem;
+        margin-bottom: 0.75rem;
+        color: var(--primary);
+      }
 
-    p {
-      margin-bottom: 1rem;
-      color: #cbd5e1;
-    }
+      p {
+        margin-bottom: 1rem;
+        color: #cbd5e1;
+      }
 
-    /* Architecture Diagrams (Visual HTML/CSS Boxes) */
-    .arch-diagram {
-      background: var(--surface);
-      border: 1px solid var(--border-accent);
-      border-radius: 12px;
-      padding: 2rem;
-      margin: 1.5rem 0;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
+      /* Architecture Diagrams (Visual HTML/CSS Boxes) */
+      .arch-diagram {
+        background: var(--surface);
+        border: 1px solid var(--border-accent);
+        border-radius: 12px;
+        padding: 2rem;
+        margin: 1.5rem 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
 
-    .arch-layer {
-      background: var(--surface-elevated);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1.25rem;
-    }
+      .arch-layer {
+        background: var(--surface-elevated);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1.25rem;
+      }
 
-    .layer-title {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      color: var(--primary);
-      margin-bottom: 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
+      .layer-title {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        color: var(--primary);
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
 
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 0.85rem;
-    }
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.85rem;
+      }
 
-    .card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.85rem 1rem;
-      font-size: 0.875rem;
-    }
+      .card {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.85rem 1rem;
+        font-size: 0.875rem;
+      }
 
-    .card strong {
-      display: block;
-      color: var(--text);
-      font-size: 0.9rem;
-      margin-bottom: 0.25rem;
-    }
+      .card strong {
+        display: block;
+        color: var(--text);
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+      }
 
-    .card p {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-bottom: 0;
-    }
+      .card p {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-bottom: 0;
+      }
 
-    .connector-flow {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      color: var(--primary);
-      font-weight: bold;
-      font-size: 1.25rem;
-    }
+      .connector-flow {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: var(--primary);
+        font-weight: bold;
+        font-size: 1.25rem;
+      }
 
-    /* Tables */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 1.5rem 0;
-      font-size: 0.875rem;
-      background: var(--surface);
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-    }
+      /* Tables */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        font-size: 0.875rem;
+        background: var(--surface);
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
 
-    th, td {
-      padding: 0.85rem 1.15rem;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
+      th,
+      td {
+        padding: 0.85rem 1.15rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
 
-    th {
-      background: var(--surface-elevated);
-      color: var(--primary);
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.75rem;
-      letter-spacing: 0.05em;
-    }
+      th {
+        background: var(--surface-elevated);
+        color: var(--primary);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+      }
 
-    tr:last-child td {
-      border-bottom: none;
-    }
+      tr:last-child td {
+        border-bottom: none;
+      }
 
-    tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
-    }
+      tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+      }
 
-    /* Code & Technical callouts */
-    code {
-      font-family: var(--font-mono);
-      background: var(--code-bg);
-      color: #38bdf8;
-      padding: 0.15rem 0.4rem;
-      border-radius: 4px;
-      font-size: 0.85em;
-      border: 1px solid var(--border);
-    }
+      /* Code & Technical callouts */
+      code {
+        font-family: var(--font-mono);
+        background: var(--code-bg);
+        color: #38bdf8;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.85em;
+        border: 1px solid var(--border);
+      }
 
-    pre {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1.25rem;
-      overflow-x: auto;
-      margin: 1.25rem 0;
-    }
+      pre {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1.25rem;
+        overflow-x: auto;
+        margin: 1.25rem 0;
+      }
 
-    pre code {
-      background: transparent;
-      padding: 0;
-      border: none;
-      font-size: 0.85rem;
-      color: #e2e8f0;
-      line-height: 1.5;
-    }
+      pre code {
+        background: transparent;
+        padding: 0;
+        border: none;
+        font-size: 0.85rem;
+        color: #e2e8f0;
+        line-height: 1.5;
+      }
 
-    .callout {
-      border-left: 4px solid var(--primary);
-      background: var(--surface);
-      border-radius: 0 8px 8px 0;
-      padding: 1rem 1.25rem;
-      margin: 1.25rem 0;
-      font-size: 0.9rem;
-    }
+      .callout {
+        border-left: 4px solid var(--primary);
+        background: var(--surface);
+        border-radius: 0 8px 8px 0;
+        padding: 1rem 1.25rem;
+        margin: 1.25rem 0;
+        font-size: 0.9rem;
+      }
 
-    .callout.success {
-      border-left-color: var(--success);
-    }
+      .callout.success {
+        border-left-color: var(--success);
+      }
 
-    .callout.warning {
-      border-left-color: var(--warning);
-    }
+      .callout.warning {
+        border-left-color: var(--warning);
+      }
 
-    .callout strong {
-      color: #fff;
-    }
+      .callout strong {
+        color: #fff;
+      }
 
-    /* Status Pills */
-    .pill {
-      display: inline-block;
-      font-size: 0.75rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 9999px;
-      font-weight: 600;
-    }
-    .pill-green { background: rgba(52, 211, 153, 0.15); color: #34d399; }
-    .pill-blue { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
-    .pill-yellow { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+      /* Status Pills */
+      .pill {
+        display: inline-block;
+        font-size: 0.75rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 9999px;
+        font-weight: 600;
+      }
+      .pill-green {
+        background: rgba(52, 211, 153, 0.15);
+        color: #34d399;
+      }
+      .pill-blue {
+        background: rgba(56, 189, 248, 0.15);
+        color: #38bdf8;
+      }
+      .pill-yellow {
+        background: rgba(251, 191, 36, 0.15);
+        color: #fbbf24;
+      }
 
-    /* Footer */
-    footer {
-      border-top: 1px solid var(--border);
-      padding-top: 2rem;
-      margin-top: 4rem;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      display: flex;
-      justify-content: space-between;
-    }
-  </style>
-</head>
-<body>
-
-  <!-- Sidebar TOC -->
-  <nav class="toc">
-    <div class="brand">
-      <div class="brand-icon">B</div>
-      <div class="brand-text">
-        <h1>BricksBot</h1>
-        <span>System Reference</span>
-      </div>
-    </div>
-    <div class="nav-links">
-      <a href="#overview">1. System Overview</a>
-      <a href="#architecture">2. Full Architecture</a>
-      <a href="#tenancy">3. Multi-User Tenancy</a>
-      <a href="#agent-loop">4. Pi-Compatible Harness</a>
-      <a href="#tools">5. Tool & Capability Catalog</a>
-      <a href="#approvals">6. Approvals & Choices</a>
-      <a href="#routines">7. Routines & Automation</a>
-      <a href="#sandbox">8. Sandbox Execution</a>
-      <a href="#storage">9. Lakebase Storage Schema</a>
-      <a href="#deployment">10. Bundle & Deployment</a>
-    </div>
-  </nav>
-
-  <!-- Main Content -->
-  <main class="content">
-
-    <header class="doc-header">
-      <div class="badge">Production Architecture • v1.0.0</div>
-      <h1 class="doc-title">BricksBot System Architecture</h1>
-      <p class="lead">
-        A greenfield, enterprise-grade Databricks App designed in the Grok Bot product shape: multi-bot team spaces, durable conversational agent harnesses, lakehouse-native tools, 3-way approvals, autonomous routines, and secure compute execution.
-      </p>
-    </header>
-
-    <!-- SECTION 1: SYSTEM OVERVIEW -->
-    <section id="overview">
-      <h2>1. System Overview</h2>
-      <p>
-        BricksBot is built directly on top of <strong>Databricks AppKit</strong> (Express + React 19). It runs directly inside a Databricks workspace as an isolated containerized service, authenticating users via Databricks OAuth reverse proxy, and using Databricks PostgreSQL (Lakebase) for ACID persistence.
-      </p>
-      
-      <div class="card-grid">
-        <div class="card">
-          <strong>Lakehouse Native</strong>
-          <p>Runs ANSI SQL against SQL Warehouses, inspects catalogs via Unity Catalog, and reads volumes without data leaving the perimeter.</p>
-        </div>
-        <div class="card">
-          <strong>Multi-Agent Roster</strong>
-          <p>Primary router bot bootstrapped on first login, with durable handoffs to domain bots created on-demand, by Primary, or installed from the Marketplace.</p>
-        </div>
-        <div class="card">
-          <strong>Human-in-the-Loop Trust</strong>
-          <p>Ask-first tool approvals (Once / Always / Deny), choice prompts, and automated routine audit logs.</p>
-        </div>
-        <div class="card">
-          <strong>Isolated Multi-User Tenancy</strong>
-          <p>Personal bot spaces, shared team spaces with strictly private per-user chat sessions, and a company-wide bot marketplace.</p>
+      /* Footer */
+      footer {
+        border-top: 1px solid var(--border);
+        padding-top: 2rem;
+        margin-top: 4rem;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        display: flex;
+        justify-content: space-between;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Sidebar TOC -->
+    <nav class="toc">
+      <div class="brand">
+        <div class="brand-icon">B</div>
+        <div class="brand-text">
+          <h1>BricksBot</h1>
+          <span>System Reference</span>
         </div>
       </div>
-    </section>
+      <div class="nav-links">
+        <a href="#overview">1. System Overview</a>
+        <a href="#architecture">2. Full Architecture</a>
+        <a href="#tenancy">3. Multi-User Tenancy</a>
+        <a href="#agent-loop">4. Pi-Compatible Harness</a>
+        <a href="#tools">5. Tool & Capability Catalog</a>
+        <a href="#approvals">6. Approvals & Choices</a>
+        <a href="#routines">7. Routines & Automation</a>
+        <a href="#sandbox">8. Sandbox Execution</a>
+        <a href="#storage">9. Lakebase Storage Schema</a>
+        <a href="#deployment">10. Bundle & Deployment</a>
+      </div>
+    </nav>
 
-    <!-- SECTION 2: ARCHITECTURE -->
-    <section id="architecture">
-      <h2>2. High-Level System Architecture</h2>
-      <p>
-        The system is decomposed into three distinct tiers: client presentation, the durable Express server harness, and Databricks platform integrations.
-      </p>
+    <!-- Main Content -->
+    <main class="content">
+      <header class="doc-header">
+        <div class="badge">Production Architecture • v1.0.0</div>
+        <h1 class="doc-title">BricksBot System Architecture</h1>
+        <p class="lead">
+          A greenfield, enterprise-grade Databricks App designed in the Grok Bot product shape: multi-bot team spaces,
+          durable conversational agent harnesses, lakehouse-native tools, 3-way approvals, autonomous routines, and
+          secure compute execution.
+        </p>
+      </header>
 
-      <div class="arch-diagram">
-        <div class="arch-layer">
-          <div class="layer-title">Client Tier (React 19 + Vite + Tailwind + AppKit UI)</div>
-          <div class="card-grid">
-            <div class="card">
-              <strong>Sidebar & Roster</strong>
-              <p>Spaces, bot roster, presence badges (working, waiting, blocked), unread previews.</p>
+      <!-- SECTION 1: SYSTEM OVERVIEW -->
+      <section id="overview">
+        <h2>1. System Overview</h2>
+        <p>
+          BricksBot is built directly on top of <strong>Databricks AppKit</strong> (Express + React 19). It runs
+          directly inside a Databricks workspace as an isolated containerized service, authenticating users via
+          Databricks OAuth reverse proxy, and using Databricks PostgreSQL (Lakebase) for ACID persistence.
+        </p>
+
+        <div class="card-grid">
+          <div class="card">
+            <strong>Lakehouse Native</strong>
+            <p>
+              Runs ANSI SQL against SQL Warehouses, inspects catalogs via Unity Catalog, and reads volumes without data
+              leaving the perimeter.
+            </p>
+          </div>
+          <div class="card">
+            <strong>Multi-Agent Roster</strong>
+            <p>
+              Primary router bot bootstrapped on first login, with durable handoffs to domain bots created on-demand, by
+              Primary, or installed from the Marketplace.
+            </p>
+          </div>
+          <div class="card">
+            <strong>Human-in-the-Loop Trust</strong>
+            <p>Ask-first tool approvals (Once / Always / Deny), choice prompts, and automated routine audit logs.</p>
+          </div>
+          <div class="card">
+            <strong>Isolated Multi-User Tenancy</strong>
+            <p>
+              Personal bot spaces, shared team spaces with strictly private per-user chat sessions, and a company-wide
+              bot marketplace.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 2: ARCHITECTURE -->
+      <section id="architecture">
+        <h2>2. High-Level System Architecture</h2>
+        <p>
+          The system is decomposed into three distinct tiers: client presentation, the durable Express server harness,
+          and Databricks platform integrations.
+        </p>
+
+        <div class="arch-diagram">
+          <div class="arch-layer">
+            <div class="layer-title">Client Tier (React 19 + Vite + Tailwind + AppKit UI)</div>
+            <div class="card-grid">
+              <div class="card">
+                <strong>Sidebar & Roster</strong>
+                <p>Spaces, bot roster, presence badges (working, waiting, blocked), unread previews.</p>
+              </div>
+              <div class="card">
+                <strong>Transcript & Composer</strong>
+                <p>Optimistic streaming, markdown renderer, Vega visualizations, pinned artifacts.</p>
+              </div>
+              <div class="card">
+                <strong>Interaction Cards</strong>
+                <p>Inline 3-way tool approval cards, choice option buttons, handoff peek overlays.</p>
+              </div>
+              <div class="card">
+                <strong>Control Sheets</strong>
+                <p>Bot details, skill library editor, routine manager, sandbox terminal view.</p>
+              </div>
             </div>
-            <div class="card">
-              <strong>Transcript & Composer</strong>
-              <p>Optimistic streaming, markdown renderer, Vega visualizations, pinned artifacts.</p>
+          </div>
+
+          <div class="connector-flow">↕ HTTP / REST + OAuth Forwarding</div>
+
+          <div class="arch-layer">
+            <div class="layer-title">Server Tier (Node.js Express + AppKit Engine)</div>
+            <div class="card-grid">
+              <div class="card">
+                <strong>Auth & Identity</strong>
+                <p><code>resolveOwnerId</code> extracts OAuth headers (<code>x-forwarded-user</code>, email).</p>
+              </div>
+              <div class="card">
+                <strong>ChatService & Harness</strong>
+                <p>Pi-compatible loop, tool replay validator, compaction store, idempotency cache.</p>
+              </div>
+              <div class="card">
+                <strong>Multi-Agent Handoff</strong>
+                <p>Primary router bot evaluates intent, runs teammate turn, and links conversation chips.</p>
+              </div>
+              <div class="card">
+                <strong>Routines & Sandboxes</strong>
+                <p>Cron scheduler, SHA-256 webhook dispatcher, container execution sessions.</p>
+              </div>
             </div>
-            <div class="card">
-              <strong>Interaction Cards</strong>
-              <p>Inline 3-way tool approval cards, choice option buttons, handoff peek overlays.</p>
-            </div>
-            <div class="card">
-              <strong>Control Sheets</strong>
-              <p>Bot details, skill library editor, routine manager, sandbox terminal view.</p>
+          </div>
+
+          <div class="connector-flow">↕ Lakehouse APIs & Storage</div>
+
+          <div class="arch-layer">
+            <div class="layer-title">Databricks Platform Tier (Lakehouse & Infrastructure)</div>
+            <div class="card-grid">
+              <div class="card">
+                <strong>Lakebase (PostgreSQL)</strong>
+                <p>ACID store in schema <code>bricksbot</code>: spaces, bots, chats, messages, approvals, routines.</p>
+              </div>
+              <div class="card">
+                <strong>Databricks SQL & UC</strong>
+                <p>Statement Execution API, Unity Catalog metadata, Volume file reads.</p>
+              </div>
+              <div class="card">
+                <strong>Model Serving / OpenRouter</strong>
+                <p>
+                  OpenAI-compatible LLM backends (OpenRouter <code>gpt-6-luna</code>, Databricks Serving endpoints).
+                </p>
+              </div>
+              <div class="card">
+                <strong>Execution Sandboxes</strong>
+                <p>Databricks Sandboxes Preview, <code>system.ai.python_exec</code>, or isolated E2B containers.</p>
+              </div>
             </div>
           </div>
         </div>
+      </section>
 
-        <div class="connector-flow">↕ HTTP / REST + OAuth Forwarding</div>
+      <!-- SECTION 3: MULTI-USER TENANCY -->
+      <section id="tenancy">
+        <h2>3. Multi-User Tenancy & Data Governance</h2>
+        <p>
+          BricksBot enforces complete user-level multi-tenancy. Multiple users can share the same Databricks App
+          deployment without cross-contaminating private chats, credentials, or prompts.
+        </p>
 
-        <div class="arch-layer">
-          <div class="layer-title">Server Tier (Node.js Express + AppKit Engine)</div>
-          <div class="card-grid">
-            <div class="card">
-              <strong>Auth & Identity</strong>
-              <p><code>resolveOwnerId</code> extracts OAuth headers (<code>x-forwarded-user</code>, email).</p>
-            </div>
-            <div class="card">
-              <strong>ChatService & Harness</strong>
-              <p>Pi-compatible loop, tool replay validator, compaction store, idempotency cache.</p>
-            </div>
-            <div class="card">
-              <strong>Multi-Agent Handoff</strong>
-              <p>Primary router bot evaluates intent, runs teammate turn, and links conversation chips.</p>
-            </div>
-            <div class="card">
-              <strong>Routines & Sandboxes</strong>
-              <p>Cron scheduler, SHA-256 webhook dispatcher, container execution sessions.</p>
-            </div>
+        <h3>Tenancy Model Overview</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Domain</th>
+              <th>Storage Entity</th>
+              <th>Tenancy & Isolation Rule</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Personal Space</strong></td>
+              <td><code>bricksbot.spaces</code></td>
+              <td>
+                Bootstrap creates a <code>Personal</code> space per user (<code>owner_id = userId</code>). Inaccessible
+                to all other users.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Primary Bot</strong></td>
+              <td><code>bricksbot.bots</code></td>
+              <td>
+                Each user has their own Primary router bot. Primary bots are non-shareable, non-deletable, and bound to
+                the owner.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Shared Space Bots</strong></td>
+              <td><code>bricksbot.space_members</code></td>
+              <td>
+                Bots created in shared spaces are visible to space members, but bot ownership stays with the creator.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Per-User Chat Threads</strong></td>
+              <td><code>bricksbot.chats</code></td>
+              <td>
+                Enforced by <code>UNIQUE (bot_id, user_id)</code>. User A and User B talking to the exact same bot get
+                completely isolated chat threads.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Roster Previews</strong></td>
+              <td><code>bot.lastPreview</code></td>
+              <td>
+                Dynamically computed per user. User A's private queries are never visible on User B's roster card.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>API Route Protection</strong></td>
+              <td><code>/api/chats/:chatId/*</code></td>
+              <td>
+                <code>assertChatOwnership</code> returns <code>403 Forbidden</code> if a caller attempts to post
+                messages or inspect approvals of another user's chat.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Marketplace Sharing</strong></td>
+              <td><code>/api/marketplace/bots</code></td>
+              <td>
+                Only the creator can publish a bot. Installing clones instructions and skills into the caller's personal
+                space, zeroing out private memories and chats.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="callout success">
+          <strong>Airtight Isolation Proof:</strong> Automated tests in <code>server/chat/routes.test.ts</code> and
+          <code>server/chat/lakebase-store.test.ts</code> verify that cross-user chat injection, roster leaks, and
+          unauthorized approval mutations are rejected with <code>403 Forbidden</code>.
+        </div>
+      </section>
+
+      <!-- SECTION 4: PI-COMPATIBLE AGENT LOOP -->
+      <section id="agent-loop">
+        <h2>4. Thin Pi-Compatible Agent Harness</h2>
+        <p>
+          The agent loop is modeled after Earendil's Pi Durable framework, built specifically for transactional
+          Postgres/Lakebase state machines.
+        </p>
+
+        <h3>Turn Execution Lifecycle</h3>
+        <ol style="padding-left: 1.5rem; color: #cbd5e1; margin-bottom: 1.5rem">
+          <li>
+            <strong>Request Ingestion & Idempotency:</strong> Client sends message with optional <code>requestId</code>.
+            If already processed, cached response is returned immediately.
+          </li>
+          <li>
+            <strong>History Replay Validation:</strong> Builds OpenAI-compatible message history. Every assistant turn
+            containing <code>tool_calls</code> is guaranteed to be paired with subsequent matching
+            <code>tool</code> results before making LLM calls.
+          </li>
+          <li>
+            <strong>Model Completion:</strong> Calls the configured provider (OpenRouter or Databricks Model Serving).
+          </li>
+          <li>
+            <strong>Tool Execution & Sibling Waiting:</strong>
+            <ul style="padding-left: 1.25rem; margin-top: 0.5rem">
+              <li>
+                <strong>Auto-approved Tools</strong> (meta tools, catalog inspect): Execute immediately within the turn.
+              </li>
+              <li>
+                <strong>Ask-first Tools</strong> (SQL, sandboxes, routine delete): Generates pending approval rows;
+                suspends turn; sets bot presence to <code>waiting</code>.
+              </li>
+              <li>
+                All sibling tool calls in an assistant response must complete before the agent loop triggers the next
+                LLM turn.
+              </li>
+            </ul>
+          </li>
+          <li>
+            <strong>Transcript Compaction:</strong> When context grows large, summarizes older conversation turns into a
+            durable summary row while never destructively dropping raw message history.
+          </li>
+        </ol>
+      </section>
+
+      <!-- SECTION 5: TOOLS & CAPABILITIES -->
+      <section id="tools">
+        <h2>5. Capability & Tool Catalog</h2>
+        <p>
+          Tools are registered dynamically in <code>ChatService</code> using a capability catalog that formats system
+          prompts with tool definitions and instructions.
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Tool Name</th>
+              <th>Trust Policy</th>
+              <th>Target & Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>sql_query</code></td>
+              <td><span class="pill pill-yellow">Ask-First</span> (Configurable)</td>
+              <td>
+                Executes ANSI SQL queries against Databricks SQL Warehouses via Statement Execution API with row limits.
+              </td>
+            </tr>
+            <tr>
+              <td><code>lakehouse_catalog</code></td>
+              <td><span class="pill pill-green">Auto-Run</span></td>
+              <td>Discovers Unity Catalog metadata: catalogs, schemas, tables, views, and column schemas.</td>
+            </tr>
+            <tr>
+              <td><code>volume_read</code></td>
+              <td><span class="pill pill-green">Auto-Run</span></td>
+              <td>Reads text, CSV, JSON, and tabular data files stored in Unity Catalog Volumes.</td>
+            </tr>
+            <tr>
+              <td><code>web_fetch</code></td>
+              <td><span class="pill pill-green">Auto-Run</span></td>
+              <td>
+                Fetches external web pages subject to a strict secret-backed domain allowlist
+                (<code>bricksbot/web-fetch-allowlist</code>).
+              </td>
+            </tr>
+            <tr>
+              <td><code>handoff_to_bot</code></td>
+              <td><span class="pill pill-green">Primary Only</span></td>
+              <td>Dispatches intent to a teammate bot, runs a nested turn, and posts a clickable peek chip.</td>
+            </tr>
+            <tr>
+              <td><code>create_bot</code></td>
+              <td><span class="pill pill-yellow">Ask-First (Always)</span></td>
+              <td>Dynamically provisions a new specialist bot into the space with custom instructions.</td>
+            </tr>
+            <tr>
+              <td><code>pin_artifact</code></td>
+              <td><span class="pill pill-yellow">Ask-First</span></td>
+              <td>Embeds code files, SQL scripts, or analysis markdown in the UI's persistent right-side panel.</td>
+            </tr>
+            <tr>
+              <td><code>pin_chart</code></td>
+              <td><span class="pill pill-yellow">Ask-First</span></td>
+              <td>Renders interactive Vega / Vega-Lite data charts (bar, line, scatter) from query results.</td>
+            </tr>
+            <tr>
+              <td><code>ask_choice</code></td>
+              <td><span class="pill pill-yellow">Ask-First (Always)</span></td>
+              <td>Pauses execution and displays clickable option buttons for the user to select from.</td>
+            </tr>
+            <tr>
+              <td><code>activate_skill</code> / <code>save_skill</code></td>
+              <td><span class="pill pill-green">Auto-Run</span></td>
+              <td>Loads domain instructions into context; allows bots to persist newly acquired skills.</td>
+            </tr>
+            <tr>
+              <td><code>remember</code> / <code>forget</code></td>
+              <td><span class="pill pill-green">Auto-Run</span></td>
+              <td>Manages durable per-bot long-term key/value memory storage.</td>
+            </tr>
+            <tr>
+              <td><code>sandbox_exec</code></td>
+              <td><span class="pill pill-yellow">Ask-First</span></td>
+              <td>Executes shell commands or Python scripts inside isolated compute sandboxes.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Built-in Seed Skills (Available Out-of-the-Box)</h3>
+        <p>
+          In addition to tools, every bot has access to 5 built-in lakehouse skills defined in
+          <code>shared/agents/seed-skills.ts</code>. These guide the agent on how to sequence tools, apply limits, and
+          validate answers:
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Seed Skill Name</th>
+              <th>Trigger Context</th>
+              <th>Operational Guidance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>sql-explore</code></td>
+              <td>Lakehouse data queries</td>
+              <td>
+                Enforces single read-only queries (SELECT/DESCRIBE), requires LIMIT (20–100), and mandates citing exact
+                SQL and table identifiers in replies.
+              </td>
+            </tr>
+            <tr>
+              <td><code>catalog-recon</code></td>
+              <td>Metastore exploration</td>
+              <td>
+                Directs the bot to map catalogs → schemas → tables → columns, summarize fact vs. dim relationships, and
+                offer verified follow-up queries.
+              </td>
+            </tr>
+            <tr>
+              <td><code>weekly-table-health</code></td>
+              <td>Data quality & freshness</td>
+              <td>
+                Calculates row counts, freshness latency, and null rates; reports explicit pass/warn/fail thresholds;
+                recommends automation as a routine.
+              </td>
+            </tr>
+            <tr>
+              <td><code>pin-finding</code></td>
+              <td>Shareable insights</td>
+              <td>
+                Extracts key findings (SQL snippets, table summaries, volume paths) and pins them to the transcript
+                right-side rail using <code>pin_artifact</code>.
+              </td>
+            </tr>
+            <tr>
+              <td><code>dataviz</code></td>
+              <td>Charts & distributions</td>
+              <td>
+                Transforms tabular query rows into interactive Vega-Lite v5 specifications (bar, line, scatter) rendered
+                via <code>pin_chart</code>.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- SECTION 6: APPROVALS & CHOICES -->
+      <section id="approvals">
+        <h2>6. Human-in-the-Loop Approvals</h2>
+        <p>
+          BricksBot implements a durable 3-way approval flow. When an Ask-first tool is planned, the turn pauses and
+          persists an approval record.
+        </p>
+
+        <div class="card-grid">
+          <div class="card">
+            <strong>1. Approve Once</strong>
+            <p>Authorizes the single invocation. The turn resumes and records the decision timestamp in Lakebase.</p>
+          </div>
+          <div class="card">
+            <strong>2. Always Allow (Chat Scoped)</strong>
+            <p>
+              Adds tool to <code>auto_approvals</code> for that chat. Subsequent calls run without prompt. Revocable
+              anytime from UI chips.
+            </p>
+          </div>
+          <div class="card">
+            <strong>3. Deny Request</strong>
+            <p>
+              Rejects tool execution. Generates a synthetic tool error row, allowing the LLM to recover gracefully or
+              apologize.
+            </p>
           </div>
         </div>
 
-        <div class="connector-flow">↕ Lakehouse APIs & Storage</div>
+        <div class="callout warning">
+          <strong>Strict Guardrails:</strong> High-risk tools like <code>create_bot</code>, <code>delete_routine</code>,
+          and <code>ask_choice</code> can <em>never</em> be marked as "Always allow" and always require explicit
+          approval per occurrence.
+        </div>
+      </section>
 
-        <div class="arch-layer">
-          <div class="layer-title">Databricks Platform Tier (Lakehouse & Infrastructure)</div>
-          <div class="card-grid">
-            <div class="card">
-              <strong>Lakebase (PostgreSQL)</strong>
-              <p>ACID store in schema <code>bricksbot</code>: spaces, bots, chats, messages, approvals, routines.</p>
-            </div>
-            <div class="card">
-              <strong>Databricks SQL & UC</strong>
-              <p>Statement Execution API, Unity Catalog metadata, Volume file reads.</p>
-            </div>
-            <div class="card">
-              <strong>Model Serving / OpenRouter</strong>
-              <p>OpenAI-compatible LLM backends (OpenRouter <code>gpt-6-luna</code>, Databricks Serving endpoints).</p>
-            </div>
-            <div class="card">
-              <strong>Execution Sandboxes</strong>
-              <p>Databricks Sandboxes Preview, <code>system.ai.python_exec</code>, or isolated E2B containers.</p>
-            </div>
+      <!-- SECTION 7: ROUTINES -->
+      <section id="routines">
+        <h2>7. Autonomous Routines & Lakeflow Webhooks</h2>
+        <p>Routines enable background execution of bot prompts on cron schedules or external event triggers.</p>
+
+        <h3>Key Capabilities</h3>
+        <ul style="padding-left: 1.5rem; color: #cbd5e1; margin-bottom: 1.5rem">
+          <li>
+            <strong>Cron Execution:</strong> Managed through Databricks Lakeflow jobs or native scheduler triggers.
+          </li>
+          <li>
+            <strong>SHA-256 Webhook Auth:</strong> Each routine generates a unique webhook endpoint protected by a
+            cryptographic token hash. Requests send the secret via <code>X-BricksBot-Webhook-Key</code> or Bearer
+            authorization.
+          </li>
+          <li>
+            <strong>Audit Logging & Trust Badge:</strong> The UI displays last run status, execution time, and trust
+            indicators.
+          </li>
+          <li>
+            <strong>Owner Scoping:</strong> Routines are bound to the creator's <code>owner_id</code>. Users cannot see
+            or trigger each other's routines.
+          </li>
+        </ul>
+      </section>
+
+      <!-- SECTION 8: SANDBOX EXECUTION -->
+      <section id="sandbox">
+        <h2>8. Phase 5 Compute Sandboxes</h2>
+        <p>
+          BricksBot supports executing untrusted code or complex data transformations in isolated Linux execution
+          environments.
+        </p>
+
+        <h3>Supported Backends (<code>SANDBOX_BACKEND</code>)</h3>
+        <div class="card-grid">
+          <div class="card">
+            <strong>Databricks Sandboxes (Beta)</strong>
+            <p>Native Databricks-managed ephemeral containers with seamless workspace identity.</p>
+          </div>
+          <div class="card">
+            <strong>Python Exec Fallback</strong>
+            <p>Executes via <code>system.ai.python_exec</code> when Databricks Sandboxes Preview is disabled.</p>
+          </div>
+          <div class="card">
+            <strong>E2B Containers</strong>
+            <p>Isolated cloud sandboxes with full Linux terminal, filesystem, and package installation.</p>
           </div>
         </div>
-      </div>
-    </section>
+        <p style="margin-top: 1rem">
+          Sandboxes automatically sync generated artifacts (charts, CSV reports) into Unity Catalog Volumes at
+          <code>/Volumes/main/default/bricksbot_artifacts</code>.
+        </p>
+      </section>
 
-    <!-- SECTION 3: MULTI-USER TENANCY -->
-    <section id="tenancy">
-      <h2>3. Multi-User Tenancy & Data Governance</h2>
-      <p>
-        BricksBot enforces complete user-level multi-tenancy. Multiple users can share the same Databricks App deployment without cross-contaminating private chats, credentials, or prompts.
-      </p>
+      <!-- SECTION 9: DATABASE SCHEMA -->
+      <section id="storage">
+        <h2>9. Lakebase Storage Schema</h2>
+        <p>All state is durably held in PostgreSQL schema <code>bricksbot</code>.</p>
 
-      <h3>Tenancy Model Overview</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Domain</th>
-            <th>Storage Entity</th>
-            <th>Tenancy & Isolation Rule</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Personal Space</strong></td>
-            <td><code>bricksbot.spaces</code></td>
-            <td>Bootstrap creates a <code>Personal</code> space per user (<code>owner_id = userId</code>). Inaccessible to all other users.</td>
-          </tr>
-          <tr>
-            <td><strong>Primary Bot</strong></td>
-            <td><code>bricksbot.bots</code></td>
-            <td>Each user has their own Primary router bot. Primary bots are non-shareable, non-deletable, and bound to the owner.</td>
-          </tr>
-          <tr>
-            <td><strong>Shared Space Bots</strong></td>
-            <td><code>bricksbot.space_members</code></td>
-            <td>Bots created in shared spaces are visible to space members, but bot ownership stays with the creator.</td>
-          </tr>
-          <tr>
-            <td><strong>Per-User Chat Threads</strong></td>
-            <td><code>bricksbot.chats</code></td>
-            <td>Enforced by <code>UNIQUE (bot_id, user_id)</code>. User A and User B talking to the exact same bot get completely isolated chat threads.</td>
-          </tr>
-          <tr>
-            <td><strong>Roster Previews</strong></td>
-            <td><code>bot.lastPreview</code></td>
-            <td>Dynamically computed per user. User A's private queries are never visible on User B's roster card.</td>
-          </tr>
-          <tr>
-            <td><strong>API Route Protection</strong></td>
-            <td><code>/api/chats/:chatId/*</code></td>
-            <td><code>assertChatOwnership</code> returns <code>403 Forbidden</code> if a caller attempts to post messages or inspect approvals of another user's chat.</td>
-          </tr>
-          <tr>
-            <td><strong>Marketplace Sharing</strong></td>
-            <td><code>/api/marketplace/bots</code></td>
-            <td>Only the creator can publish a bot. Installing clones instructions and skills into the caller's personal space, zeroing out private memories and chats.</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="callout success">
-        <strong>Airtight Isolation Proof:</strong> Automated tests in <code>server/chat/routes.test.ts</code> and <code>server/chat/lakebase-store.test.ts</code> verify that cross-user chat injection, roster leaks, and unauthorized approval mutations are rejected with <code>403 Forbidden</code>.
-      </div>
-    </section>
-
-    <!-- SECTION 4: PI-COMPATIBLE AGENT LOOP -->
-    <section id="agent-loop">
-      <h2>4. Thin Pi-Compatible Agent Harness</h2>
-      <p>
-        The agent loop is modeled after Earendil's Pi Durable framework, built specifically for transactional Postgres/Lakebase state machines.
-      </p>
-
-      <h3>Turn Execution Lifecycle</h3>
-      <ol style="padding-left: 1.5rem; color: #cbd5e1; margin-bottom: 1.5rem;">
-        <li><strong>Request Ingestion & Idempotency:</strong> Client sends message with optional <code>requestId</code>. If already processed, cached response is returned immediately.</li>
-        <li><strong>History Replay Validation:</strong> Builds OpenAI-compatible message history. Every assistant turn containing <code>tool_calls</code> is guaranteed to be paired with subsequent matching <code>tool</code> results before making LLM calls.</li>
-        <li><strong>Model Completion:</strong> Calls the configured provider (OpenRouter or Databricks Model Serving).</li>
-        <li><strong>Tool Execution & Sibling Waiting:</strong>
-          <ul style="padding-left: 1.25rem; margin-top: 0.5rem;">
-            <li><strong>Auto-approved Tools</strong> (meta tools, catalog inspect): Execute immediately within the turn.</li>
-            <li><strong>Ask-first Tools</strong> (SQL, sandboxes, routine delete): Generates pending approval rows; suspends turn; sets bot presence to <code>waiting</code>.</li>
-            <li>All sibling tool calls in an assistant response must complete before the agent loop triggers the next LLM turn.</li>
-          </ul>
-        </li>
-        <li><strong>Transcript Compaction:</strong> When context grows large, summarizes older conversation turns into a durable summary row while never destructively dropping raw message history.</li>
-      </ol>
-    </section>
-
-    <!-- SECTION 5: TOOLS & CAPABILITIES -->
-    <section id="tools">
-      <h2>5. Capability & Tool Catalog</h2>
-      <p>
-        Tools are registered dynamically in <code>ChatService</code> using a capability catalog that formats system prompts with tool definitions and instructions.
-      </p>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Tool Name</th>
-            <th>Trust Policy</th>
-            <th>Target & Purpose</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>sql_query</code></td>
-            <td><span class="pill pill-yellow">Ask-First</span> (Configurable)</td>
-            <td>Executes ANSI SQL queries against Databricks SQL Warehouses via Statement Execution API with row limits.</td>
-          </tr>
-          <tr>
-            <td><code>lakehouse_catalog</code></td>
-            <td><span class="pill pill-green">Auto-Run</span></td>
-            <td>Discovers Unity Catalog metadata: catalogs, schemas, tables, views, and column schemas.</td>
-          </tr>
-          <tr>
-            <td><code>volume_read</code></td>
-            <td><span class="pill pill-green">Auto-Run</span></td>
-            <td>Reads text, CSV, JSON, and tabular data files stored in Unity Catalog Volumes.</td>
-          </tr>
-          <tr>
-            <td><code>web_fetch</code></td>
-            <td><span class="pill pill-green">Auto-Run</span></td>
-            <td>Fetches external web pages subject to a strict secret-backed domain allowlist (<code>bricksbot/web-fetch-allowlist</code>).</td>
-          </tr>
-          <tr>
-            <td><code>handoff_to_bot</code></td>
-            <td><span class="pill pill-green">Primary Only</span></td>
-            <td>Dispatches intent to a teammate bot, runs a nested turn, and posts a clickable peek chip.</td>
-          </tr>
-          <tr>
-            <td><code>create_bot</code></td>
-            <td><span class="pill pill-yellow">Ask-First (Always)</span></td>
-            <td>Dynamically provisions a new specialist bot into the space with custom instructions.</td>
-          </tr>
-          <tr>
-            <td><code>pin_artifact</code></td>
-            <td><span class="pill pill-yellow">Ask-First</span></td>
-            <td>Embeds code files, SQL scripts, or analysis markdown in the UI's persistent right-side panel.</td>
-          </tr>
-          <tr>
-            <td><code>pin_chart</code></td>
-            <td><span class="pill pill-yellow">Ask-First</span></td>
-            <td>Renders interactive Vega / Vega-Lite data charts (bar, line, scatter) from query results.</td>
-          </tr>
-          <tr>
-            <td><code>ask_choice</code></td>
-            <td><span class="pill pill-yellow">Ask-First (Always)</span></td>
-            <td>Pauses execution and displays clickable option buttons for the user to select from.</td>
-          </tr>
-          <tr>
-            <td><code>activate_skill</code> / <code>save_skill</code></td>
-            <td><span class="pill pill-green">Auto-Run</span></td>
-            <td>Loads domain instructions into context; allows bots to persist newly acquired skills.</td>
-          </tr>
-          <tr>
-            <td><code>remember</code> / <code>forget</code></td>
-            <td><span class="pill pill-green">Auto-Run</span></td>
-            <td>Manages durable per-bot long-term key/value memory storage.</td>
-          </tr>
-          <tr>
-            <td><code>sandbox_exec</code></td>
-            <td><span class="pill pill-yellow">Ask-First</span></td>
-            <td>Executes shell commands or Python scripts inside isolated compute sandboxes.</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h3>Built-in Seed Skills (Available Out-of-the-Box)</h3>
-      <p>
-        In addition to tools, every bot has access to 5 built-in lakehouse skills defined in <code>shared/agents/seed-skills.ts</code>. These guide the agent on how to sequence tools, apply limits, and validate answers:
-      </p>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Seed Skill Name</th>
-            <th>Trigger Context</th>
-            <th>Operational Guidance</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>sql-explore</code></td>
-            <td>Lakehouse data queries</td>
-            <td>Enforces single read-only queries (SELECT/DESCRIBE), requires LIMIT (20–100), and mandates citing exact SQL and table identifiers in replies.</td>
-          </tr>
-          <tr>
-            <td><code>catalog-recon</code></td>
-            <td>Metastore exploration</td>
-            <td>Directs the bot to map catalogs → schemas → tables → columns, summarize fact vs. dim relationships, and offer verified follow-up queries.</td>
-          </tr>
-          <tr>
-            <td><code>weekly-table-health</code></td>
-            <td>Data quality & freshness</td>
-            <td>Calculates row counts, freshness latency, and null rates; reports explicit pass/warn/fail thresholds; recommends automation as a routine.</td>
-          </tr>
-          <tr>
-            <td><code>pin-finding</code></td>
-            <td>Shareable insights</td>
-            <td>Extracts key findings (SQL snippets, table summaries, volume paths) and pins them to the transcript right-side rail using <code>pin_artifact</code>.</td>
-          </tr>
-          <tr>
-            <td><code>dataviz</code></td>
-            <td>Charts & distributions</td>
-            <td>Transforms tabular query rows into interactive Vega-Lite v5 specifications (bar, line, scatter) rendered via <code>pin_chart</code>.</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <!-- SECTION 6: APPROVALS & CHOICES -->
-    <section id="approvals">
-      <h2>6. Human-in-the-Loop Approvals</h2>
-      <p>
-        BricksBot implements a durable 3-way approval flow. When an Ask-first tool is planned, the turn pauses and persists an approval record.
-      </p>
-
-      <div class="card-grid">
-        <div class="card">
-          <strong>1. Approve Once</strong>
-          <p>Authorizes the single invocation. The turn resumes and records the decision timestamp in Lakebase.</p>
-        </div>
-        <div class="card">
-          <strong>2. Always Allow (Chat Scoped)</strong>
-          <p>Adds tool to <code>auto_approvals</code> for that chat. Subsequent calls run without prompt. Revocable anytime from UI chips.</p>
-        </div>
-        <div class="card">
-          <strong>3. Deny Request</strong>
-          <p>Rejects tool execution. Generates a synthetic tool error row, allowing the LLM to recover gracefully or apologize.</p>
-        </div>
-      </div>
-
-      <div class="callout warning">
-        <strong>Strict Guardrails:</strong> High-risk tools like <code>create_bot</code>, <code>delete_routine</code>, and <code>ask_choice</code> can <em>never</em> be marked as "Always allow" and always require explicit approval per occurrence.
-      </div>
-    </section>
-
-    <!-- SECTION 7: ROUTINES -->
-    <section id="routines">
-      <h2>7. Autonomous Routines & Lakeflow Webhooks</h2>
-      <p>
-        Routines enable background execution of bot prompts on cron schedules or external event triggers.
-      </p>
-      
-      <h3>Key Capabilities</h3>
-      <ul style="padding-left: 1.5rem; color: #cbd5e1; margin-bottom: 1.5rem;">
-        <li><strong>Cron Execution:</strong> Managed through Databricks Lakeflow jobs or native scheduler triggers.</li>
-        <li><strong>SHA-256 Webhook Auth:</strong> Each routine generates a unique webhook endpoint protected by a cryptographic token hash. Requests send the secret via <code>X-BricksBot-Webhook-Key</code> or Bearer authorization.</li>
-        <li><strong>Audit Logging & Trust Badge:</strong> The UI displays last run status, execution time, and trust indicators.</li>
-        <li><strong>Owner Scoping:</strong> Routines are bound to the creator's <code>owner_id</code>. Users cannot see or trigger each other's routines.</li>
-      </ul>
-    </section>
-
-    <!-- SECTION 8: SANDBOX EXECUTION -->
-    <section id="sandbox">
-      <h2>8. Phase 5 Compute Sandboxes</h2>
-      <p>
-        BricksBot supports executing untrusted code or complex data transformations in isolated Linux execution environments.
-      </p>
-
-      <h3>Supported Backends (<code>SANDBOX_BACKEND</code>)</h3>
-      <div class="card-grid">
-        <div class="card">
-          <strong>Databricks Sandboxes (Beta)</strong>
-          <p>Native Databricks-managed ephemeral containers with seamless workspace identity.</p>
-        </div>
-        <div class="card">
-          <strong>Python Exec Fallback</strong>
-          <p>Executes via <code>system.ai.python_exec</code> when Databricks Sandboxes Preview is disabled.</p>
-        </div>
-        <div class="card">
-          <strong>E2B Containers</strong>
-          <p>Isolated cloud sandboxes with full Linux terminal, filesystem, and package installation.</p>
-        </div>
-      </div>
-      <p style="margin-top: 1rem;">
-        Sandboxes automatically sync generated artifacts (charts, CSV reports) into Unity Catalog Volumes at <code>/Volumes/main/default/bricksbot_artifacts</code>.
-      </p>
-    </section>
-
-    <!-- SECTION 9: DATABASE SCHEMA -->
-    <section id="storage">
-      <h2>9. Lakebase Storage Schema</h2>
-      <p>
-        All state is durably held in PostgreSQL schema <code>bricksbot</code>.
-      </p>
-
-      <pre><code>-- Primary Entities
+        <pre><code>-- Primary Entities
 bricksbot.spaces          (id, name, owner_id, created_at)
 bricksbot.space_members   (space_id, user_id, role)
 bricksbot.bots            (id, name, avatar_label, presence, space_id, is_primary, owner_id, is_shared, ...)
@@ -816,17 +926,15 @@ bricksbot.compactions     (id, chat_id, summary, keep_from_message_id, created_a
 bricksbot.routines        (id, bot_id, owner_id, name, cron, prompt, webhook_key_hash, enabled, ...)
 bricksbot.sandbox_sessions(id, chat_id, bot_id, user_id, backend, external_id, status, ...)
 bricksbot.sandbox_events  (id, session_id, type, payload, created_at)</code></pre>
-    </section>
+      </section>
 
-    <!-- SECTION 10: DEPLOYMENT -->
-    <section id="deployment">
-      <h2>10. Bundle & Deployment Operations</h2>
-      <p>
-        BricksBot is deployed as a <strong>Databricks Asset Bundle (DAB)</strong> using the Databricks CLI.
-      </p>
+      <!-- SECTION 10: DEPLOYMENT -->
+      <section id="deployment">
+        <h2>10. Bundle & Deployment Operations</h2>
+        <p>BricksBot is deployed as a <strong>Databricks Asset Bundle (DAB)</strong> using the Databricks CLI.</p>
 
-      <h3>Build & Deploy Commands</h3>
-      <pre><code># 1. Run local checks (Typecheck + 252 Vitest unit tests)
+        <h3>Build & Deploy Commands</h3>
+        <pre><code># 1. Run local checks (Typecheck + 252 Vitest unit tests)
 npm run check
 
 # 2. Build TypeScript backend and Vite frontend
@@ -841,38 +949,39 @@ databricks bundle run app -p dev
 # Or direct app deployment:
 databricks apps deploy bricksbot -p dev</code></pre>
 
-      <div class="callout">
-        <strong>Pre-commit Guard:</strong> A git pre-commit hook (<code>.githooks/pre-commit</code>) is configured via <code>npm run prepare</code> to automatically run <code>npm run check</code> prior to every commit, preventing type regressions or broken tests from reaching source control.
-      </div>
-    </section>
+        <div class="callout">
+          <strong>Pre-commit Guard:</strong> A git pre-commit hook (<code>.githooks/pre-commit</code>) is configured via
+          <code>npm run prepare</code> to automatically run <code>npm run check</code> prior to every commit, preventing
+          type regressions or broken tests from reaching source control.
+        </div>
+      </section>
 
-    <footer>
-      <span>BricksBot Architecture Documentation • Databricks AppKit</span>
-      <span>Confidential & Proprietary</span>
-    </footer>
+      <footer>
+        <span>BricksBot Architecture Documentation • Databricks AppKit</span>
+        <span>Confidential & Proprietary</span>
+      </footer>
+    </main>
 
-  </main>
+    <script>
+      // Smooth scrolling & active link highlighting
+      const links = document.querySelectorAll('.nav-links a');
+      const sections = document.querySelectorAll('section');
 
-  <script>
-    // Smooth scrolling & active link highlighting
-    const links = document.querySelectorAll('.nav-links a');
-    const sections = document.querySelectorAll('section');
-
-    window.addEventListener('scroll', () => {
-      let current = '';
-      sections.forEach((section) => {
-        const top = section.offsetTop - 120;
-        if (window.scrollY >= top) {
-          current = section.getAttribute('id');
-        }
+      window.addEventListener('scroll', () => {
+        let current = '';
+        sections.forEach((section) => {
+          const top = section.offsetTop - 120;
+          if (window.scrollY >= top) {
+            current = section.getAttribute('id');
+          }
+        });
+        links.forEach((link) => {
+          link.classList.remove('active');
+          if (link.getAttribute('href') === `#${current}`) {
+            link.classList.add('active');
+          }
+        });
       });
-      links.forEach((link) => {
-        link.classList.remove('active');
-        if (link.getAttribute('href') === `#${current}`) {
-          link.classList.add('active');
-        }
-      });
-    });
-  </script>
-</body>
+    </script>
+  </body>
 </html>

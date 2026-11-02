@@ -22,7 +22,7 @@ describe('schedule_routine', () => {
         cron: '0 9 * * *',
         prompt: 'Summarize overnight alerts',
       },
-      primary,
+      primary
     );
     expect(planned.ok).toBe(true);
     if (!planned.ok) return;
@@ -31,36 +31,40 @@ describe('schedule_routine', () => {
   });
 
   test('refuses missing bot, bad cron shape, empty prompt', () => {
-    expect(planScheduleRoutine({ name: 'x', cron: '0 9 * * *', prompt: 'p' }, null).ok).toBe(
-      false,
-    );
+    expect(planScheduleRoutine({ name: 'x', cron: '0 9 * * *', prompt: 'p' }, null).ok).toBe(false);
     expect(
-      planScheduleRoutine({ name: 'x', cron: '0 9 * *', prompt: 'p' }, {
-        id: 'b',
-        name: 'B',
-        ownerId: 'o',
-        spaceId: null,
-        isPrimary: true,
-        avatarLabel: 'P',
-        presence: 'online',
-        sortOrder: 0,
-        archivedAt: null,
-        createdAt: new Date().toISOString(),
-      }).ok,
+      planScheduleRoutine(
+        { name: 'x', cron: '0 9 * *', prompt: 'p' },
+        {
+          id: 'b',
+          name: 'B',
+          ownerId: 'o',
+          spaceId: null,
+          isPrimary: true,
+          avatarLabel: 'P',
+          presence: 'online',
+          sortOrder: 0,
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+        }
+      ).ok
     ).toBe(false);
     expect(
-      planScheduleRoutine({ name: 'x', cron: '0 9 * * *', prompt: '  ' }, {
-        id: 'b',
-        name: 'B',
-        ownerId: 'o',
-        spaceId: null,
-        isPrimary: true,
-        avatarLabel: 'P',
-        presence: 'online',
-        sortOrder: 0,
-        archivedAt: null,
-        createdAt: new Date().toISOString(),
-      }).ok,
+      planScheduleRoutine(
+        { name: 'x', cron: '0 9 * * *', prompt: '  ' },
+        {
+          id: 'b',
+          name: 'B',
+          ownerId: 'o',
+          spaceId: null,
+          isPrimary: true,
+          avatarLabel: 'P',
+          presence: 'online',
+          sortOrder: 0,
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+        }
+      ).ok
     ).toBe(false);
   });
 
@@ -79,7 +83,7 @@ describe('schedule_routine', () => {
         cron: '0 9 * * 1',
         prompt: 'Run table health',
         enabled: true,
-      },
+      }
     );
     const result = JSON.parse(raw) as {
       ok: boolean;
@@ -95,11 +99,9 @@ describe('schedule_routine', () => {
     expect(listed.some((r) => r.id === result.routine.id)).toBe(true);
 
     const messages = await chats.listMessages(chat.id);
-    expect(
-      messages.some(
-        (m) => m.role === 'system' && m.content.includes('[routine:Weekly health] created'),
-      ),
-    ).toBe(true);
+    expect(messages.some((m) => m.role === 'system' && m.content.includes('[routine:Weekly health] created'))).toBe(
+      true
+    );
   });
 
   test('factory preflight + execute round-trip', async () => {
@@ -110,13 +112,13 @@ describe('schedule_routine', () => {
     const tool = createScheduleRoutineTool(routines, chats);
 
     expect(tool.definition.name).toBe('schedule_routine');
-    expect(
-      tool.preflight({ name: '', cron: '0 9 * * *', prompt: 'p' }, { chatId: chat.id, bot: primary }),
-    ).toMatch(/name/i);
+    expect(tool.preflight({ name: '', cron: '0 9 * * *', prompt: 'p' }, { chatId: chat.id, bot: primary })).toMatch(
+      /name/i
+    );
 
     const out = await tool.execute(
       { name: 'Probe', cron: '0 9 * * *', prompt: 'hi', enabled: false },
-      { chatId: chat.id, bot: primary },
+      { chatId: chat.id, bot: primary }
     );
     const parsed = JSON.parse(out) as { ok: boolean; routine: { enabled: boolean } };
     expect(parsed.ok).toBe(true);

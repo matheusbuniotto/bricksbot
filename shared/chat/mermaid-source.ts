@@ -1,13 +1,6 @@
 export const MAX_MERMAID_CHARS = 16_000;
 
-const ALLOWED_TYPES = [
-  'flowchart',
-  'graph',
-  'sequenceDiagram',
-  'stateDiagram',
-  'classDiagram',
-  'erDiagram',
-];
+const ALLOWED_TYPES = ['flowchart', 'graph', 'sequenceDiagram', 'stateDiagram', 'classDiagram', 'erDiagram'];
 
 export type MermaidCheck = { ok: true } | { ok: false; error: string };
 
@@ -27,7 +20,9 @@ export function validateMermaidSource(source: string): MermaidCheck {
     .split('\n')
     .map((line) => line.trim())
     .find((line) => line && !line.startsWith('%%'));
-  const ok = first && ALLOWED_TYPES.some((type) => first === type || first.startsWith(`${type} `) || first.startsWith(`${type}-`));
+  const ok =
+    first &&
+    ALLOWED_TYPES.some((type) => first === type || first.startsWith(`${type} `) || first.startsWith(`${type}-`));
   if (!ok) return { ok: false, error: `mermaid diagram type must be one of: ${ALLOWED_TYPES.join(', ')}` };
   return { ok: true };
 }

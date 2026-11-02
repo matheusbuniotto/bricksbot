@@ -7,11 +7,7 @@ import { resolveOwnerId } from '../chat/identity.js';
 import type { ChatHttpApp } from '../chat/routes.js';
 import { RoutineService } from './service.js';
 import { buildSetupStatus } from './setup-status.js';
-import {
-  extractWebhookSecretBearer,
-  extractWebhookSecretHeader,
-  WEBHOOK_HEADER,
-} from './webhook-auth.js';
+import { extractWebhookSecretBearer, extractWebhookSecretHeader, WEBHOOK_HEADER } from './webhook-auth.js';
 
 const createRoutineSchema = z.object({
   botId: z.string().uuid(),
@@ -60,7 +56,7 @@ export function registerRoutineRoutes(
     provider: ChatClient['provider'];
     chats: ChatStore;
     env?: Record<string, string | undefined>;
-  },
+  }
 ): void {
   const env = options.env ?? process.env;
 
@@ -95,9 +91,7 @@ export function registerRoutineRoutes(
       });
       res.status(201).json(created);
     } catch (err) {
-      res
-        .status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500)
-        .json({ error: errorMessage(err) });
+      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
     }
   });
 
@@ -108,16 +102,10 @@ export function registerRoutineRoutes(
       return;
     }
     try {
-      const routine = await store.updateRoutine(
-        String(req.params.id),
-        resolveOwnerId(req),
-        parsed.data,
-      );
+      const routine = await store.updateRoutine(String(req.params.id), resolveOwnerId(req), parsed.data);
       res.json({ routine });
     } catch (err) {
-      res
-        .status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500)
-        .json({ error: errorMessage(err) });
+      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
     }
   };
 
@@ -155,12 +143,11 @@ export function registerRoutineRoutes(
     const headers = (req.headers ?? {}) as Record<string, string | string[] | undefined>;
     const bodyKey =
       req.body && typeof req.body === 'object' && !Array.isArray(req.body)
-        ? (req.body as { webhookKey?: unknown; webhookSecret?: unknown }).webhookKey ??
-          (req.body as { webhookSecret?: unknown }).webhookSecret
+        ? ((req.body as { webhookKey?: unknown; webhookSecret?: unknown }).webhookKey ??
+          (req.body as { webhookSecret?: unknown }).webhookSecret)
         : undefined;
     const secretFromBody = typeof bodyKey === 'string' && bodyKey.trim() ? bodyKey.trim() : null;
-    const secret =
-      extractWebhookSecretHeader(headers) ?? secretFromBody ?? extractWebhookSecretBearer(headers);
+    const secret = extractWebhookSecretHeader(headers) ?? secretFromBody ?? extractWebhookSecretBearer(headers);
     if (!secret) {
       res.status(401).json({
         error: `Missing ${WEBHOOK_HEADER} header, body.webhookKey, or Authorization Bearer webhook secret`,

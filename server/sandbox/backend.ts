@@ -12,16 +12,8 @@ export interface RunCommandOptions {
  */
 export interface ExecutionBackend {
   createSession(sessionId: string): Promise<string>;
-  runCommand(
-    externalId: string,
-    cmd: string[],
-    opts: RunCommandOptions,
-  ): Promise<ExecutionResult>;
-  uploadFile(
-    externalId: string,
-    data: Uint8Array | string,
-    dest: string,
-  ): Promise<string>;
+  runCommand(externalId: string, cmd: string[], opts: RunCommandOptions): Promise<ExecutionResult>;
+  uploadFile(externalId: string, data: Uint8Array | string, dest: string): Promise<string>;
   downloadFile(externalId: string, src: string): Promise<Uint8Array>;
   stopSession(externalId: string): Promise<void>;
   deleteSession(externalId: string): Promise<void>;

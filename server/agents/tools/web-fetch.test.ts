@@ -49,7 +49,7 @@ describe('createWebFetchTool', () => {
   test('fetches allowlisted HTTPS pages as text', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response('hello page', { status: 200, headers: { 'content-type': 'text/plain' } })),
+      vi.fn(async () => new Response('hello page', { status: 200, headers: { 'content-type': 'text/plain' } }))
     );
     const tool = createWebFetchTool({ allowlist: ['example.com'] });
     const result = await tool.execute({ url: 'https://example.com/docs' });

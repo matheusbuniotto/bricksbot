@@ -35,10 +35,8 @@ describe('memory skill tools', () => {
         name: 'Weekly health',
         body: '## When\nMondays\n## Steps\n1. Query\n2. Summarize',
       },
-      ctx,
+      ctx
     );
-    expect(await memory.listSkills('bot-1')).toEqual([
-      expect.objectContaining({ name: 'Weekly health' }),
-    ]);
+    expect(await memory.listSkills('bot-1')).toEqual([expect.objectContaining({ name: 'Weekly health' })]);
   });
 });

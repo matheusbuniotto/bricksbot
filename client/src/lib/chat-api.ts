@@ -23,36 +23,34 @@ export async function createSpace(name: string): Promise<Space> {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name }),
-    }),
+    })
   );
   return data.space;
 }
 
 export async function fetchSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
-  const data = await readJson<{ members: SpaceMember[] }>(
-    await fetch(`/api/spaces/${spaceId}/members`),
-  );
+  const data = await readJson<{ members: SpaceMember[] }>(await fetch(`/api/spaces/${spaceId}/members`));
   return data.members;
 }
 
 export async function addSpaceMember(
   spaceId: string,
   userId: string,
-  role: SpaceMember['role'] = 'member',
+  role: SpaceMember['role'] = 'member'
 ): Promise<SpaceMember> {
   const data = await readJson<{ member: SpaceMember }>(
     await fetch(`/api/spaces/${spaceId}/members`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ userId, role }),
-    }),
+    })
   );
   return data.member;
 }
 
 export async function fetchBots(
   spaceId?: string | null,
-  archived: 'active' | 'archived' | 'all' = 'active',
+  archived: 'active' | 'archived' | 'all' = 'active'
 ): Promise<Bot[]> {
   const params = new URLSearchParams();
   if (spaceId !== undefined) params.set('spaceId', spaceId ?? 'null');
@@ -74,7 +72,7 @@ export async function createBot(input: {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
-    }),
+    })
   );
   return data.bot;
 }
@@ -87,14 +85,14 @@ export async function updateBot(
     avatarLabel?: string;
     description?: string;
     isShared?: boolean;
-  },
+  }
 ): Promise<Bot> {
   const data = await readJson<{ bot: Bot }>(
     await fetch(`/api/bots/${botId}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
-    }),
+    })
   );
   return data.bot;
 }
@@ -104,45 +102,35 @@ export async function fetchMarketplaceBots(): Promise<MarketplaceBot[]> {
   return data.bots;
 }
 
-export async function installMarketplaceBot(
-  botId: string,
-  spaceId?: string | null,
-): Promise<Bot> {
+export async function installMarketplaceBot(botId: string, spaceId?: string | null): Promise<Bot> {
   const data = await readJson<{ bot: Bot }>(
     await fetch(`/api/marketplace/bots/${encodeURIComponent(botId)}/install`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ spaceId: spaceId ?? null }),
-    }),
+    })
   );
   return data.bot;
 }
 
-export async function moveBot(
-  botId: string,
-  input: { spaceId: string | null; index: number },
-): Promise<Bot> {
+export async function moveBot(botId: string, input: { spaceId: string | null; index: number }): Promise<Bot> {
   const data = await readJson<{ bot: Bot }>(
     await fetch(`/api/bots/${botId}/move`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
-    }),
+    })
   );
   return data.bot;
 }
 
 export async function archiveBot(botId: string): Promise<Bot> {
-  const data = await readJson<{ bot: Bot }>(
-    await fetch(`/api/bots/${botId}/archive`, { method: 'POST' }),
-  );
+  const data = await readJson<{ bot: Bot }>(await fetch(`/api/bots/${botId}/archive`, { method: 'POST' }));
   return data.bot;
 }
 
 export async function unarchiveBot(botId: string): Promise<Bot> {
-  const data = await readJson<{ bot: Bot }>(
-    await fetch(`/api/bots/${botId}/unarchive`, { method: 'POST' }),
-  );
+  const data = await readJson<{ bot: Bot }>(await fetch(`/api/bots/${botId}/unarchive`, { method: 'POST' }));
   return data.bot;
 }
 
@@ -182,21 +170,21 @@ export async function fetchBotChat(botId: string): Promise<{
 
 export async function stopBotSandbox(botId: string): Promise<SandboxUiStatus> {
   const data = await readJson<{ sandbox: SandboxUiStatus }>(
-    await fetch(`/api/bots/${botId}/sandbox/stop`, { method: 'POST' }),
+    await fetch(`/api/bots/${botId}/sandbox/stop`, { method: 'POST' })
   );
   return data.sandbox;
 }
 
 export async function deleteBotSandbox(botId: string): Promise<SandboxUiStatus> {
   const data = await readJson<{ sandbox: SandboxUiStatus }>(
-    await fetch(`/api/bots/${botId}/sandbox`, { method: 'DELETE' }),
+    await fetch(`/api/bots/${botId}/sandbox`, { method: 'DELETE' })
   );
   return data.sandbox;
 }
 
 export async function sendChatMessage(
   chatId: string,
-  content: string,
+  content: string
 ): Promise<{
   user: Message;
   assistant: Message | null;
@@ -210,13 +198,13 @@ export async function sendChatMessage(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ content }),
-    }),
+    })
   );
 }
 
 export async function decideApproval(
   approvalId: string,
-  decision: ApprovalDecision,
+  decision: ApprovalDecision
 ): Promise<{
   assistant: Message | null;
   pendingApprovals: ApprovalRequest[];
@@ -228,14 +216,14 @@ export async function decideApproval(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ decision }),
-    }),
+    })
   );
 }
 
 export async function submitChoice(
   chatId: string,
   choiceId: string,
-  selectedOption: string,
+  selectedOption: string
 ): Promise<{
   assistant: Message | null;
   pendingApprovals: ApprovalRequest[];
@@ -247,19 +235,16 @@ export async function submitChoice(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ selectedOption }),
-    }),
+    })
   );
 }
 
-export async function revokeAutoApproval(
-  chatId: string,
-  toolName?: string,
-): Promise<{ autoApprovedTools: string[] }> {
+export async function revokeAutoApproval(chatId: string, toolName?: string): Promise<{ autoApprovedTools: string[] }> {
   if (toolName) {
     return readJson(
       await fetch(`/api/chats/${chatId}/approvals/auto/${encodeURIComponent(toolName)}`, {
         method: 'DELETE',
-      }),
+      })
     );
   }
   return readJson(
@@ -267,13 +252,11 @@ export async function revokeAutoApproval(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
-    }),
+    })
   );
 }
 
-export async function fetchAutoApprovedTools(
-  chatId: string,
-): Promise<{ autoApprovedTools: string[] }> {
+export async function fetchAutoApprovedTools(chatId: string): Promise<{ autoApprovedTools: string[] }> {
   return readJson(await fetch(`/api/chats/${chatId}/approvals/auto`));
 }
 
@@ -285,14 +268,14 @@ export async function fetchMcps(refresh = false): Promise<DatabricksMcpApp[]> {
 
 export async function registerCustomMcp(
   service: string,
-  meta?: { name?: string; description?: string },
+  meta?: { name?: string; description?: string }
 ): Promise<DatabricksMcpApp> {
   const data = await readJson<{ mcp: DatabricksMcpApp }>(
     await fetch('/api/mcps/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ service, ...meta }),
-    }),
+    })
   );
   return data.mcp;
 }
@@ -301,7 +284,7 @@ export async function removeCustomMcp(service: string): Promise<boolean> {
   const data = await readJson<{ success: boolean }>(
     await fetch(`/api/mcps/${encodeURIComponent(service)}`, {
       method: 'DELETE',
-    }),
+    })
   );
   return data.success;
 }

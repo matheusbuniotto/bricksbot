@@ -2,9 +2,7 @@ export const SQL_TRUNCATION_MARKER = '…[truncated]';
 
 export type SqlRow = Record<string, string | number | null>;
 
-export type SqlResultParse =
-  | { ok: true; columns: string[]; rows: SqlRow[] }
-  | { ok: false; error: string };
+export type SqlResultParse = { ok: true; columns: string[]; rows: SqlRow[] } | { ok: false; error: string };
 
 function cell(text: string): string | number | null {
   if (text === '') return null;

@@ -30,10 +30,7 @@ describe('MemoryChatStore', () => {
 
     expect(analyst.avatarLabel).toBe('A');
     expect(analyst.spaceId).toBe(team.id);
-    expect((await store.listSpaces('user-1')).map((s) => s.name).sort()).toEqual([
-      'Fraud team',
-      'Personal',
-    ]);
+    expect((await store.listSpaces('user-1')).map((s) => s.name).sort()).toEqual(['Fraud team', 'Personal']);
     expect(await store.listBots({ spaceId: team.id })).toEqual([
       expect.objectContaining({ id: analyst.id, name: 'Analyst' }),
     ]);
@@ -48,11 +45,9 @@ describe('MemoryChatStore', () => {
       expect.arrayContaining([
         { spaceId: space.id, userId: 'owner', role: 'admin' },
         { spaceId: space.id, userId: 'teammate', role: 'member' },
-      ]),
+      ])
     );
-    expect(await store.listSpaces('teammate')).toEqual([
-      expect.objectContaining({ id: space.id, name: 'Shared' }),
-    ]);
+    expect(await store.listSpaces('teammate')).toEqual([expect.objectContaining({ id: space.id, name: 'Shared' })]);
   });
 
   test('getOrCreateChatForBot + addMessage still persist turns', async () => {
@@ -188,9 +183,7 @@ describe('MemoryChatStore', () => {
 
   test('listMarketplaceBots returns only active shared non-primary bots with blank preview', async () => {
     const { primary } = await store.ensureBootstrap('user-a');
-    await expect(store.updateBot(primary.id, { isShared: true })).rejects.toThrow(
-      'Cannot share the Primary bot',
-    );
+    await expect(store.updateBot(primary.id, { isShared: true })).rejects.toThrow('Cannot share the Primary bot');
 
     const personalBot = await store.createBot({
       name: 'Private Bot',

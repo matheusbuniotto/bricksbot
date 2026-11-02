@@ -44,21 +44,18 @@ const DESCRIPTION_MAX = 160;
 
 /** First meaningful line of a skill body, used when no frontmatter description exists. */
 export function skillDescriptionFromBody(body: string, maxLen = DESCRIPTION_MAX): string {
-  const lines = body.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const preferred =
-    lines.find((line) => !/^#+\s/.test(line)) ?? lines[0] ?? 'Saved skill. Activate for full steps.';
+  const lines = body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const preferred = lines.find((line) => !/^#+\s/.test(line)) ?? lines[0] ?? 'Saved skill. Activate for full steps.';
   const cleaned = preferred.replace(/^#+\s*/, '').replace(/^[-*]\s+/, '');
   if (cleaned.length <= maxLen) return cleaned;
   return `${cleaned.slice(0, Math.max(1, maxLen - 1))}…`;
 }
 
-export function toSkillIndexEntry(skill: {
-  name: string;
-  body: string;
-  description?: string;
-}): SkillIndexEntry {
-  const description =
-    skill.description?.trim() || skillDescriptionFromBody(skill.body);
+export function toSkillIndexEntry(skill: { name: string; body: string; description?: string }): SkillIndexEntry {
+  const description = skill.description?.trim() || skillDescriptionFromBody(skill.body);
   return { name: skill.name, description };
 }
 
@@ -78,9 +75,7 @@ export function buildCapabilityCatalog(input: BuildCapabilityCatalogInput): Capa
     },
     teammates: input.isPrimary ? [...(input.teammates ?? [])] : [],
     memoryKeys: [...(input.memoryKeys ?? [])].sort((a, b) => a.localeCompare(b)),
-    skills: [...(input.skills ?? [])]
-      .map(toSkillIndexEntry)
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    skills: [...(input.skills ?? [])].map(toSkillIndexEntry).sort((a, b) => a.name.localeCompare(b.name)),
   };
 }
 
@@ -90,9 +85,7 @@ export function buildCapabilityCatalog(input: BuildCapabilityCatalogInput): Capa
  */
 export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
   const toolLine =
-    catalog.tools.length > 0
-      ? catalog.tools.map((tool) => `${tool.label} (\`${tool.name}\`)`).join(', ')
-      : 'none';
+    catalog.tools.length > 0 ? catalog.tools.map((tool) => `${tool.label} (\`${tool.name}\`)`).join(', ') : 'none';
 
   const limits: string[] = [
     catalog.softLimits.computer
@@ -109,12 +102,12 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
   }
   if (catalog.tools.some((tool) => tool.name === 'pin_chart')) {
     limits.push(
-      'pin_chart builds a chart from an earlier sql_query result (max 1000 rows, never truncated results); aggregate in SQL first.',
+      'pin_chart builds a chart from an earlier sql_query result (max 1000 rows, never truncated results); aggregate in SQL first.'
     );
   }
   if (catalog.tools.some((tool) => tool.name === 'pin_artifact')) {
     limits.push(
-      'pin_artifact pins are short shareable findings (no secrets); use kind volume_path for large content on a Volume.',
+      'pin_artifact pins are short shareable findings (no secrets); use kind volume_path for large content on a Volume.'
     );
   }
 
@@ -193,21 +186,21 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
   if (catalog.teammates.length > 0) {
     const list = catalog.teammates.map((bot) => `${bot.name} (${bot.id})`).join(', ');
     blocks.push(
-      `Teammates (Primary handoff only): ${list}. Use handoff_to_bot for one brief, then summarize the reply.`,
+      `Teammates (Primary handoff only): ${list}. Use handoff_to_bot for one brief, then summarize the reply.`
     );
   } else if (canHandoff) {
     blocks.push(
-      'You are the Primary bot. Use handoff_to_bot to hand one brief to a teammate when the roster lists any. Only you may hand off.',
+      'You are the Primary bot. Use handoff_to_bot to hand one brief to a teammate when the roster lists any. Only you may hand off.'
     );
   }
 
   if (canCreateBot) {
     blocks.push(
-      'You can create focused teammates with create_bot when a job needs a long-lived owner and no teammate fits. Prefer handoff_to_bot otherwise. Creating a bot always needs user approval — ask before creating several. Pass job as an operational brief: goal/ownership, sources, working style, and approval boundary (what never happens without the user).',
+      'You can create focused teammates with create_bot when a job needs a long-lived owner and no teammate fits. Prefer handoff_to_bot otherwise. Creating a bot always needs user approval — ask before creating several. Pass job as an operational brief: goal/ownership, sources, working style, and approval boundary (what never happens without the user).'
     );
   } else if (!canHandoff) {
     blocks.push(
-      'You cannot create bots. Ask the user to have Primary create a focused teammate, or describe the role so they can.',
+      'You cannot create bots. Ask the user to have Primary create a focused teammate, or describe the role so they can.'
     );
   }
 
@@ -225,7 +218,7 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
         '## Skills',
         'Index only — activate a skill to load its full body.',
         ...catalog.skills.map((skill) => `- ${skill.name}: ${skill.description}`),
-      ].join('\n'),
+      ].join('\n')
     );
   } else {
     blocks.push('## Skills\n(none saved yet)');

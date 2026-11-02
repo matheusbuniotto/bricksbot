@@ -13,7 +13,7 @@ function formatClock(date: Date, locale?: string): string {
 export function shouldShowChatTimeSeparator(
   prevIso: string | undefined,
   nextIso: string | undefined,
-  gapMs = CHAT_TIME_GAP_MS,
+  gapMs = CHAT_TIME_GAP_MS
 ): boolean {
   if (!prevIso || !nextIso) return false;
   const prev = Date.parse(prevIso);
@@ -28,11 +28,7 @@ export function shouldShowChatTimeSeparator(
  * - Yesterday → `Yesterday 14:30` (localized)
  * - Older → `Mon, Oct 26, 23:01` / `seg., 26 de out. 23:01`
  */
-export function formatChatTimeSeparator(
-  iso: string,
-  now: Date = new Date(),
-  locale?: string,
-): string | null {
+export function formatChatTimeSeparator(iso: string, now: Date = new Date(), locale?: string): string | null {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
 

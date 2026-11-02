@@ -56,9 +56,7 @@ export class McpDiscoveryService {
     this.cache = null;
   }
 
-  async probeService(
-    service: string,
-  ): Promise<{ isViable: boolean; tools: string[]; error?: string }> {
+  async probeService(service: string): Promise<{ isViable: boolean; tools: string[]; error?: string }> {
     try {
       const toolDefs = await this.client.listTools(service);
       if (Array.isArray(toolDefs) && toolDefs.length > 0) {
@@ -77,10 +75,7 @@ export class McpDiscoveryService {
     }
   }
 
-  async registerCustomMcp(
-    serviceName: string,
-    metadata?: Partial<DatabricksMcpApp>,
-  ): Promise<DatabricksMcpApp> {
+  async registerCustomMcp(serviceName: string, metadata?: Partial<DatabricksMcpApp>): Promise<DatabricksMcpApp> {
     const cleanService = serviceName.trim().replace(/^\/+/, '');
     if (!cleanService) {
       throw new Error('MCP service name is required');
@@ -89,17 +84,11 @@ export class McpDiscoveryService {
     const probe = await this.probeService(cleanService);
     if (!probe.isViable) {
       throw new Error(
-        `MCP service "${cleanService}" is not viable or not reachable: ${probe.error ?? 'unknown error'}`,
+        `MCP service "${cleanService}" is not viable or not reachable: ${probe.error ?? 'unknown error'}`
       );
     }
 
-    const app = this.buildMcpAppFromService(
-      cleanService,
-      probe.tools,
-      metadata?.name,
-      metadata?.description,
-      'custom',
-    );
+    const app = this.buildMcpAppFromService(cleanService, probe.tools, metadata?.name, metadata?.description, 'custom');
 
     this.customServices.set(cleanService, app);
     this.clearCache();
@@ -115,9 +104,7 @@ export class McpDiscoveryService {
     return removed;
   }
 
-  private async fetchUnityCatalogMcpServices(
-    schema: string,
-  ): Promise<UnityCatalogMcpServiceItem[]> {
+  private async fetchUnityCatalogMcpServices(schema: string): Promise<UnityCatalogMcpServiceItem[]> {
     const rawHost = (this.config.host ?? '').trim().replace(/\/+$/, '');
     const host = /^https?:\/\//i.test(rawHost) ? rawHost : `https://${rawHost}`;
     if (!rawHost || !this.config.getToken) {
@@ -156,15 +143,14 @@ export class McpDiscoveryService {
     tools: string[],
     customName?: string,
     customDescription?: string,
-    forcedSource?: McpSource,
+    forcedSource?: McpSource
   ): DatabricksMcpApp {
     const known = AVAILABLE_DATABRICKS_MCPS.find((item) => item.service === service);
     const parts = service.split('.');
     const catalog = parts.length > 2 ? parts[0] : undefined;
     const schema = parts.length > 2 ? parts[1] : undefined;
     const shortName = parts[parts.length - 1] ?? service;
-    const source: McpSource =
-      forcedSource ?? (service.startsWith('system.ai') ? 'system' : 'user');
+    const source: McpSource = forcedSource ?? (service.startsWith('system.ai') ? 'system' : 'user');
 
     if (known) {
       return {
@@ -183,8 +169,7 @@ export class McpDiscoveryService {
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
 
-    const description =
-      customDescription || `Unity Catalog MCP service: ${service}`;
+    const description = customDescription || `Unity Catalog MCP service: ${service}`;
 
     return {
       id: service.replace(/[^a-zA-Z0-9_-]/g, '-'),
@@ -212,11 +197,7 @@ export class McpDiscoveryService {
 
   async listViableMcps(options?: { refresh?: boolean }): Promise<DatabricksMcpApp[]> {
     const now = Date.now();
-    if (
-      !options?.refresh &&
-      this.cache &&
-      now - this.cache.timestamp < this.getCacheTtlMs()
-    ) {
+    if (!options?.refresh && this.cache && now - this.cache.timestamp < this.getCacheTtlMs()) {
       return this.cache.mcps;
     }
 
@@ -228,9 +209,7 @@ export class McpDiscoveryService {
       return combined;
     }
 
-    const schemas = [
-      ...new Set([...DEFAULT_SCHEMAS, ...(this.config.userSchemas ?? [])]),
-    ];
+    const schemas = [...new Set([...DEFAULT_SCHEMAS, ...(this.config.userSchemas ?? [])])];
 
     const discoveredCandidates = new Map<string, { name?: string; description?: string }>();
 
@@ -266,19 +245,14 @@ export class McpDiscoveryService {
       probeEntries.map(async ([service, meta]) => {
         const probe = await this.probeService(service);
         return { service, meta, probe };
-      }),
+      })
     );
 
     const viableMcps: DatabricksMcpApp[] = [];
 
     for (const { service, meta, probe } of probeResults) {
       if (probe.isViable) {
-        const app = this.buildMcpAppFromService(
-          service,
-          probe.tools,
-          meta.name,
-          meta.description,
-        );
+        const app = this.buildMcpAppFromService(service, probe.tools, meta.name, meta.description);
         viableMcps.push(app);
       }
     }

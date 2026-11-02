@@ -5,23 +5,14 @@ import type { ExecutionBackend } from './backend.js';
 import { LakebaseSandboxStore } from './lakebase-store.js';
 import { MemorySandboxStore } from './memory-store.js';
 import { SandboxReaper } from './reaper.js';
-import {
-  redactSecrets,
-  safeArtifactName,
-  sanitizeEventPayload,
-  stripSandboxPaths,
-  truncatePreview,
-} from './redact.js';
+import { redactSecrets, safeArtifactName, sanitizeEventPayload, stripSandboxPaths, truncatePreview } from './redact.js';
 import {
   createSandboxRegistryFromEnv,
   parseSandboxBackendSetting,
   resolveSandboxConfigFromEnv,
   SandboxRegistry,
 } from './registry.js';
-import {
-  SandboxSessionService,
-  sanitizeSandboxEnv,
-} from './session-service.js';
+import { SandboxSessionService, sanitizeSandboxEnv } from './session-service.js';
 
 function createFakeBackend(): ExecutionBackend & {
   created: string[];
@@ -98,16 +89,10 @@ function createFakeLakebaseSandboxQuery(): LakebaseQuery {
       return { rows: found ? [found] : [] };
     }
 
-    if (
-      normalized.includes('FROM bricksbot.sandbox_sessions WHERE chat_id = $1 AND status IN')
-    ) {
+    if (normalized.includes('FROM bricksbot.sandbox_sessions WHERE chat_id = $1 AND status IN')) {
       const chatId = String(params[0]);
       const active = [...sessions.values()]
-        .filter(
-          (s) =>
-            s.chat_id === chatId &&
-            ['creating', 'ready', 'running'].includes(String(s.status)),
-        )
+        .filter((s) => s.chat_id === chatId && ['creating', 'ready', 'running'].includes(String(s.status)))
         .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
       return { rows: active[0] ? [active[0]] : [] };
     }
@@ -123,11 +108,7 @@ function createFakeLakebaseSandboxQuery(): LakebaseQuery {
     if (normalized.includes('FROM bricksbot.sandbox_sessions WHERE user_id = $1')) {
       const userId = String(params[0]);
       const active = [...sessions.values()]
-        .filter(
-          (s) =>
-            s.user_id === userId &&
-            ['creating', 'ready', 'running'].includes(String(s.status)),
-        )
+        .filter((s) => s.user_id === userId && ['creating', 'ready', 'running'].includes(String(s.status)))
         .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
       return { rows: active };
     }
@@ -176,9 +157,7 @@ function createFakeLakebaseSandboxQuery(): LakebaseQuery {
     if (normalized.includes('FROM bricksbot.sandbox_events WHERE session_id = $1')) {
       const sessionId = String(params[0]);
       const limit = Number(params[1] ?? 50);
-      const matching = events
-        .filter((e) => e.session_id === sessionId)
-        .slice(0, limit);
+      const matching = events.filter((e) => e.session_id === sessionId).slice(0, limit);
       return { rows: matching };
     }
 
@@ -238,14 +217,14 @@ describe('Phase 5.1 — Sandbox registry, redaction, stores, and reaper', () => 
         cmd: 'curl -H "Authorization: Bearer supersecrettoken123456789"',
         nested: { key: 'my-custom-secret-999' },
       },
-      secrets,
+      secrets
     );
     expect(JSON.stringify(payload)).not.toContain('supersecrettoken123456789');
     expect(JSON.stringify(payload)).not.toContain('my-custom-secret-999');
 
     expect(safeArtifactName('/home/sandbox-agent/out/report.csv')).toBe('report.csv');
     expect(stripSandboxPaths('wrote /home/sandbox-agent/out/report.csv and /tmp/test.txt')).toBe(
-      'wrote report.csv and test.txt',
+      'wrote report.csv and test.txt'
     );
   });
 
@@ -259,7 +238,7 @@ describe('Phase 5.1 — Sandbox registry, redaction, stores, and reaper', () => 
         SAFE_MODE: '1',
         PYTHONUNBUFFERED: '1',
       },
-      ['actual-secret-val'],
+      ['actual-secret-val']
     );
     expect(clean).toEqual({
       SAFE_MODE: '1',
@@ -269,10 +248,7 @@ describe('Phase 5.1 — Sandbox registry, redaction, stores, and reaper', () => 
 
   test.each([
     ['MemorySandboxStore', () => new MemorySandboxStore() as SandboxStore],
-    [
-      'LakebaseSandboxStore',
-      () => new LakebaseSandboxStore(createFakeLakebaseSandboxQuery()) as SandboxStore,
-    ],
+    ['LakebaseSandboxStore', () => new LakebaseSandboxStore(createFakeLakebaseSandboxQuery()) as SandboxStore],
   ])('%s implements SandboxStore lifecycle and event parity', async (_label, createStore) => {
     const store = createStore();
     expect(await store.getActiveSessionForChat('chat-1')).toBeNull();
@@ -326,9 +302,9 @@ describe('Phase 5.1 — Sandbox registry, redaction, stores, and reaper', () => 
     const s2 = await service.ensureSession({ chatId: 'c2', botId: 'b2', userId: 'user-1' });
 
     // 3rd session for user-1 should be rejected by per-user cap.
-    await expect(
-      service.ensureSession({ chatId: 'c3', botId: 'b3', userId: 'user-1' }),
-    ).rejects.toThrow(/Sandbox limit reached/);
+    await expect(service.ensureSession({ chatId: 'c3', botId: 'b3', userId: 'user-1' })).rejects.toThrow(
+      /Sandbox limit reached/
+    );
 
     // Advance clock to +16m since s1 was created (s1 is 16m idle; s2 is 11m idle).
     clockMs += 11 * 60_000;

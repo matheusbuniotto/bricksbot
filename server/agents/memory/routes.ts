@@ -36,7 +36,7 @@ async function assertBotAccess(
   chats: ChatStore,
   botId: string,
   req: Request,
-  res: Response,
+  res: Response
 ): Promise<{ bot: Bot; callerId: string } | null> {
   const bot = await chats.getBot(botId);
   if (!bot) {

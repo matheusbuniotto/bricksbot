@@ -16,7 +16,7 @@ describe('pin_artifact', () => {
         body: 'SELECT * FROM main.sales LIMIT 10',
         summary: 'Top sales sample',
       },
-      bot,
+      bot
     );
     expect(planned.ok).toBe(true);
 
@@ -28,7 +28,7 @@ describe('pin_artifact', () => {
         kind: 'sql',
         body: 'SELECT * FROM main.sales LIMIT 10',
         summary: 'Top sales sample',
-      },
+      }
     );
     const parsed = JSON.parse(result) as { ok: boolean; title: string; kind: string; messageId?: string };
     expect(parsed.ok).toBe(true);
@@ -46,7 +46,7 @@ describe('pin_artifact', () => {
         artifactKind: 'sql',
         pinnedByBotId: bot.id,
         pinnedByName: bot.name,
-      }),
+      })
     );
   });
 
@@ -60,11 +60,7 @@ describe('pin_artifact', () => {
       error: 'pin_artifact requires an active Bot',
     });
 
-    const badKind = await executePinArtifact(
-      store,
-      { chatId: chat.id, bot },
-      { title: 'x', kind: 'genie', body: 'y' },
-    );
+    const badKind = await executePinArtifact(store, { chatId: chat.id, bot }, { title: 'x', kind: 'genie', body: 'y' });
     expect(badKind).toContain('kind must be one of');
 
     const messages = await store.listMessages(chat.id);
@@ -76,26 +72,26 @@ describe('pin_artifact', () => {
   });
 });
 
-  test('validates mermaid and chart bodies and enforces per-kind limits', () => {
-    const bot = {
-      id: 'b1',
-      name: 'Primary',
-      avatarLabel: 'P',
-      presence: 'online' as const,
-      spaceId: 's1',
-      isPrimary: true,
-      ownerId: 'u1',
-      sortOrder: 0,
-      archivedAt: null,
-      createdAt: '2026-10-30T00:00:00Z',
-    };
-    expect(planPinArtifact({ title: 'Flow', kind: 'mermaid', body: 'flowchart LR\n  A-->B' }, bot).ok).toBe(true);
-    expect(planPinArtifact({ title: 'Bad', kind: 'mermaid', body: 'pie title x\n  "a": 1' }, bot).ok).toBe(false);
-    expect(
-      planPinArtifact(
-        { title: 'Big table', kind: 'table', body: JSON.stringify({ columns: ['a'], rows: [['x'.repeat(10_000)]] }) },
-        bot,
-      ).ok,
-    ).toBe(true);
-    expect(planPinArtifact({ title: 'Big note', kind: 'note', body: 'x'.repeat(9_000) }, bot).ok).toBe(false);
-  });
+test('validates mermaid and chart bodies and enforces per-kind limits', () => {
+  const bot = {
+    id: 'b1',
+    name: 'Primary',
+    avatarLabel: 'P',
+    presence: 'online' as const,
+    spaceId: 's1',
+    isPrimary: true,
+    ownerId: 'u1',
+    sortOrder: 0,
+    archivedAt: null,
+    createdAt: '2026-10-30T00:00:00Z',
+  };
+  expect(planPinArtifact({ title: 'Flow', kind: 'mermaid', body: 'flowchart LR\n  A-->B' }, bot).ok).toBe(true);
+  expect(planPinArtifact({ title: 'Bad', kind: 'mermaid', body: 'pie title x\n  "a": 1' }, bot).ok).toBe(false);
+  expect(
+    planPinArtifact(
+      { title: 'Big table', kind: 'table', body: JSON.stringify({ columns: ['a'], rows: [['x'.repeat(10_000)]] }) },
+      bot
+    ).ok
+  ).toBe(true);
+  expect(planPinArtifact({ title: 'Big note', kind: 'note', body: 'x'.repeat(9_000) }, bot).ok).toBe(false);
+});

@@ -38,7 +38,7 @@ function createFakeSandboxSetup(options?: {
       if (commandText.includes('report.csv')) {
         files.set(
           '/home/sandbox-agent/report.csv',
-          new Uint8Array(Buffer.from('region,revenue\nNA,1200\nEU,950\n', 'utf8')),
+          new Uint8Array(Buffer.from('region,revenue\nNA,1200\nEU,950\n', 'utf8'))
         );
       }
       return {
@@ -50,8 +50,7 @@ function createFakeSandboxSetup(options?: {
       };
     },
     async uploadFile(_ext, data, dest) {
-      const bytes =
-        typeof data === 'string' ? new Uint8Array(Buffer.from(data, 'utf8')) : data;
+      const bytes = typeof data === 'string' ? new Uint8Array(Buffer.from(data, 'utf8')) : data;
       files.set(dest, bytes);
       return dest;
     },
@@ -71,10 +70,7 @@ function createFakeSandboxSetup(options?: {
   };
 
   const sandboxStore = new MemorySandboxStore();
-  const registry = new SandboxRegistry(
-    options?.enabled === false ? 'off' : 'databricks',
-    { databricks: backend },
-  );
+  const registry = new SandboxRegistry(options?.enabled === false ? 'off' : 'databricks', { databricks: backend });
   const sessionService = new SandboxSessionService({
     store: sandboxStore,
     registry,
@@ -229,10 +225,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     expect((await store.getBot(primary.id))?.presence).toBe('waiting');
 
     // Approve with all_the_time so a second call in this chat auto-runs and reuses the session.
-    const decided = await service.decideApproval(
-      first.pendingApprovals[0]!.id,
-      'all_the_time',
-    );
+    const decided = await service.decideApproval(first.pendingApprovals[0]!.id, 'all_the_time');
     expect(presenceDuringExec).toBe('working');
     expect(decided.assistant?.content).toBe('Sandbox said hello.');
     expect(createdSessions).toHaveLength(1);
@@ -257,8 +250,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     const store = new MemoryChatStore();
     const { primary } = await store.ensureBootstrap('user-1');
     const chat = await store.getOrCreateChatForBot(primary.id);
-    const { sessionService, volumeFiles, stoppedSessions, deletedSessions } =
-      createFakeSandboxSetup();
+    const { sessionService, volumeFiles, stoppedSessions, deletedSessions } = createFakeSandboxSetup();
 
     const artifactSync = new ArtifactSyncService({
       chatStore: store,
@@ -379,9 +371,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
         if (turn === 1) {
           return {
             content: 'Running slow script',
-            toolCalls: [
-              { id: 'call_fail', name: 'sandbox_exec', arguments: { command: 'sleep 999' } },
-            ],
+            toolCalls: [{ id: 'call_fail', name: 'sandbox_exec', arguments: { command: 'sleep 999' } }],
           };
         }
         return {

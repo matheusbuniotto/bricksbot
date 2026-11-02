@@ -25,9 +25,7 @@ export function formatBotContext(
     .slice(0, Math.max(0, memoryLimit))
     .sort((a, b) => a.key.localeCompare(b.key));
 
-  const skillIndex = [...skills]
-    .map((skill) => toSkillIndexEntry(skill))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const skillIndex = [...skills].map((skill) => toSkillIndexEntry(skill)).sort((a, b) => a.name.localeCompare(b.name));
 
   const blocks: string[] = [];
   if (kept.length > 0) {
@@ -38,7 +36,7 @@ export function formatBotContext(
       [
         'Skills (index — call activate_skill for full body):',
         ...skillIndex.map((skill) => `- ${skill.name}: ${skill.description}`),
-      ].join('\n'),
+      ].join('\n')
     );
   }
 

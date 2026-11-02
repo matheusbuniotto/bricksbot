@@ -151,7 +151,11 @@ describe('ChatService', () => {
           toolCalls: [
             { id: 'call_a', name: 'lakehouse_catalog', arguments: { action: 'list_catalogs' } },
             { id: 'call_b', name: 'lakehouse_catalog', arguments: { action: 'list_schemas', catalog: 'main' } },
-            { id: 'call_c', name: 'lakehouse_catalog', arguments: { action: 'list_tables', catalog: 'main', schema: 'default' } },
+            {
+              id: 'call_c',
+              name: 'lakehouse_catalog',
+              arguments: { action: 'list_tables', catalog: 'main', schema: 'default' },
+            },
           ],
         },
         { content: 'catalogs ready', toolCalls: [] },
@@ -267,7 +271,7 @@ describe('ChatService', () => {
     expect(primarySystem).toContain('sql-explore');
     expect(primarySystem).toContain('Memory is not a source of truth');
     expect(client.lastRequest?.tools?.map((t) => t.name)).toEqual(
-      expect.arrayContaining(['handoff_to_bot', 'activate_skill', 'list_memories']),
+      expect.arrayContaining(['handoff_to_bot', 'activate_skill', 'list_memories'])
     );
 
     const otherChat = await store.getOrCreateChatForBot(other.id);
@@ -388,11 +392,9 @@ describe('ChatService', () => {
     const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'approved');
     expect(continued.assistant?.content).toBe('no warehouse');
     const messages = await store.listMessages(chat.id);
-    expect(
-      messages.some(
-        (m) => m.role === 'tool' && /Databricks workspace is not configured/i.test(m.content),
-      ),
-    ).toBe(true);
+    expect(messages.some((m) => m.role === 'tool' && /Databricks workspace is not configured/i.test(m.content))).toBe(
+      true
+    );
   });
 
   test('does not execute sql_query when the approval is denied', async () => {
@@ -468,7 +470,7 @@ describe('ChatService', () => {
       expect.arrayContaining([
         expect.objectContaining({ role: 'user', content: 'From Primary: look at revenue' }),
         expect.objectContaining({ role: 'assistant', content: 'Revenue is up 12%.' }),
-      ]),
+      ])
     );
     const source = await store.listMessages(chat.id);
     const threadNotice = [...source]
@@ -485,10 +487,10 @@ describe('ChatService', () => {
         messageCount: 2,
         replyPreview: 'Revenue is up 12%.',
         threadBotId: analyst.id,
-      }),
+      })
     );
     const peerThread = targetMessages.find(
-      (message) => message.role === 'system' && message.content.includes('"thread"'),
+      (message) => message.role === 'system' && message.content.includes('"thread"')
     );
     expect(JSON.parse(peerThread!.content)).toEqual(
       expect.objectContaining({
@@ -498,7 +500,7 @@ describe('ChatService', () => {
         messageCount: 2,
         replyPreview: 'Revenue is up 12%.',
         threadBotId: analyst.id,
-      }),
+      })
     );
   });
 
@@ -542,10 +544,10 @@ describe('ChatService', () => {
           role: 'assistant',
           content: '(handoff failed) Bot not found',
         }),
-      ]),
+      ])
     );
     const peerThread = targetMessages.find(
-      (message) => message.role === 'system' && message.content.includes('"thread"'),
+      (message) => message.role === 'system' && message.content.includes('"thread"')
     );
     expect(peerThread).toBeTruthy();
     expect(JSON.parse(peerThread!.content)).toEqual(
@@ -554,7 +556,7 @@ describe('ChatService', () => {
         targetName: 'Primary',
         threadBotId: analyst.id,
         replyPreview: '(handoff failed) Bot not found',
-      }),
+      })
     );
 
     const source = await store.listMessages(chat.id);
@@ -568,7 +570,7 @@ describe('ChatService', () => {
         targetName: 'Analyst',
         threadBotId: analyst.id,
         replyPreview: '(handoff failed) Bot not found',
-      }),
+      })
     );
   });
 
@@ -735,9 +737,7 @@ describe('ChatService', () => {
 
     await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
     const followUp = client.requests[1]!;
-    const assistantWithTools = followUp.messages.find(
-      (m) => m.role === 'assistant' && (m.toolCalls?.length ?? 0) > 0,
-    );
+    const assistantWithTools = followUp.messages.find((m) => m.role === 'assistant' && (m.toolCalls?.length ?? 0) > 0);
     expect(assistantWithTools?.toolCalls?.[0]?.id).toBe('call_1');
     const toolMsg = followUp.messages.find((m) => m.role === 'tool');
     expect(toolMsg?.toolCallId).toBe('call_1');
@@ -833,11 +833,9 @@ describe('ChatService', () => {
     expect(memories.some((entry) => entry.key === 'job')).toBe(true);
 
     const source = await store.listMessages(chat.id);
-    const notice = source.find(
-      (message) => message.role === 'system' && message.content.includes('bot_created'),
-    );
+    const notice = source.find((message) => message.role === 'system' && message.content.includes('bot_created'));
     expect(JSON.parse(notice!.content)).toEqual(
-      expect.objectContaining({ kind: 'bot_created', name: 'Probe', botId: probe!.id }),
+      expect.objectContaining({ kind: 'bot_created', name: 'Probe', botId: probe!.id })
     );
   });
 
@@ -896,15 +894,9 @@ describe('ChatService', () => {
     expect(listed.some((r) => r.name === 'Nightly' && r.botId === bot.id)).toBe(true);
 
     const messages = await store.listMessages(chat.id);
+    expect(messages.some((m) => m.role === 'system' && m.content.includes('[routine:Nightly] created'))).toBe(true);
     expect(
-      messages.some(
-        (m) => m.role === 'system' && m.content.includes('[routine:Nightly] created'),
-      ),
-    ).toBe(true);
-    expect(
-      messages.some(
-        (m) => m.role === 'tool' && m.toolCallId === 'call_sched' && m.content.includes('webhookSecret'),
-      ),
+      messages.some((m) => m.role === 'tool' && m.toolCallId === 'call_sched' && m.content.includes('webhookSecret'))
     ).toBe(true);
   });
 
@@ -938,14 +930,10 @@ describe('ChatService', () => {
     expect(afterApproval.pendingChoices).toHaveLength(1);
     expect(afterApproval.pendingApprovals).toHaveLength(0);
     const messagesAfterApproval = await store.listMessages(chat.id);
-    expect(
-      messagesAfterApproval.some(
-        (m) => m.role === 'system' && m.content.includes('"kind":"choice_prompt"'),
-      ),
-    ).toBe(true);
-    expect(messagesAfterApproval.some((m) => m.role === 'tool' && m.toolCallId === 'call_choice')).toBe(
-      false,
+    expect(messagesAfterApproval.some((m) => m.role === 'system' && m.content.includes('"kind":"choice_prompt"'))).toBe(
+      true
     );
+    expect(messagesAfterApproval.some((m) => m.role === 'tool' && m.toolCallId === 'call_choice')).toBe(false);
 
     const choiceId = afterApproval.pendingChoices![0]!.id;
     const continued = await service.submitChoice(choiceId, 'prod');
@@ -954,13 +942,11 @@ describe('ChatService', () => {
     const finalMessages = await store.listMessages(chat.id);
     expect(
       finalMessages.some(
-        (m) => m.role === 'system' && m.content.includes('"kind":"choice_answer"') && m.content.includes('prod'),
-      ),
+        (m) => m.role === 'system' && m.content.includes('"kind":"choice_answer"') && m.content.includes('prod')
+      )
     ).toBe(true);
     expect(
-      finalMessages.some(
-        (m) => m.role === 'tool' && m.toolCallId === 'call_choice' && m.content.includes('prod'),
-      ),
+      finalMessages.some((m) => m.role === 'tool' && m.toolCallId === 'call_choice' && m.content.includes('prod'))
     ).toBe(true);
   });
 
@@ -995,9 +981,7 @@ describe('ChatService', () => {
     const service = new ChatService({ store, client });
 
     const pending = await service.sendUserMessage(primaryChat.id, 'ask DataWizard');
-    expect(client.requests[0]?.messages[0]?.content).toContain(
-      `DataWizard (${sharedTeammate.id})`,
-    );
+    expect(client.requests[0]?.messages[0]?.content).toContain(`DataWizard (${sharedTeammate.id})`);
     expect(pending.pendingApprovals).toHaveLength(1);
 
     const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
@@ -1045,7 +1029,7 @@ describe('ChatService', () => {
                   },
                 ],
               },
-            }),
+            })
           )) as typeof fetch,
       },
     });
@@ -1056,10 +1040,7 @@ describe('ChatService', () => {
     expect(pending.pendingApprovals[0]?.toolCall.name).toBe('genie_ask');
 
     // Selecting all_the_time is coerced to once; genie_ask never persists auto-approval.
-    const continued = await service.decideApproval(
-      pending.pendingApprovals[0]!.id,
-      'all_the_time',
-    );
+    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'all_the_time');
     expect(continued.assistant?.content).toBe('Genie reports churn is 2%.');
     expect(await service.getApprovals().isAutoApproved(chat.id, 'genie_ask')).toBe(false);
   });

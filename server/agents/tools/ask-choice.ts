@@ -63,7 +63,7 @@ export function createAskChoiceTool() {
         JSON.stringify({
           error: 'ask_choice must be completed by the user in the choice UI',
           tool: ASK_CHOICE_TOOL_NAME,
-        }),
+        })
       );
     },
   };

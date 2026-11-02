@@ -12,7 +12,7 @@ export class RoutineService {
   constructor(
     private readonly routines: RoutineStore,
     private readonly chats: ChatStore,
-    private readonly chatService: ChatService,
+    private readonly chatService: ChatService
   ) {}
 
   /** Manual trigger — allowed even when the routine is disabled. */

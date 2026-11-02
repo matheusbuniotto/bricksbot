@@ -36,4 +36,3 @@ describe('createChatClientFromEnv', () => {
     expect(client.provider).toBe('stub');
   });
 });
-

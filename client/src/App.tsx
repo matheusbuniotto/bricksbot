@@ -32,13 +32,7 @@ import {
   updateBot,
 } from './lib/chat-api';
 import type { SandboxUiStatus } from '../../shared/sandbox/types';
-import {
-  createRoutine,
-  deleteRoutine,
-  fetchRoutines,
-  runRoutine,
-  updateRoutine,
-} from './lib/routines-api';
+import { createRoutine, deleteRoutine, fetchRoutines, runRoutine, updateRoutine } from './lib/routines-api';
 import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
 import { lastUserFacingPreview, toolLabel } from './lib/user-facing';
 import type { Routine } from '../../shared/routines/types';
@@ -84,9 +78,7 @@ export default function App() {
   const [lastWebhookSecret, setLastWebhookSecret] = useState<string | null>(null);
   const [sandboxStatus, setSandboxStatus] = useState<SandboxUiStatus | null>(null);
   const [sandboxBusy, setSandboxBusy] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState<boolean>(
-    () => localStorage.getItem('bricksbot.detailsOpen') === '1',
-  );
+  const [detailsOpen, setDetailsOpen] = useState<boolean>(() => localStorage.getItem('bricksbot.detailsOpen') === '1');
   const [detailsWidth, setDetailsWidth] = useState<number>(() => readDetailsWidth());
   const toggleDetails = useCallback(() => {
     setDetailsOpen((open) => {
@@ -113,9 +105,7 @@ export default function App() {
   registerBotLooks(rosterBots);
   const selectedBot = rosterBots.find((bot) => bot.id === selectedBotId) ?? null;
   const accent = selectedBot ? botColor(selectedBot.id, selectedBot.isPrimary) : 'oklch(0.58 0.22 25)';
-  const botRoutines = selectedBotId
-    ? routines.filter((routine) => routine.botId === selectedBotId)
-    : [];
+  const botRoutines = selectedBotId ? routines.filter((routine) => routine.botId === selectedBotId) : [];
 
   const syncPreviewsFromBots = useCallback((botsList: Bot[]) => {
     setPreviews((prev) => {
@@ -224,12 +214,7 @@ export default function App() {
     }
   }
 
-  async function handleCreateBot(
-    name: string,
-    spaceId: string | null,
-    avatarLabel?: string,
-    description?: string,
-  ) {
+  async function handleCreateBot(name: string, spaceId: string | null, avatarLabel?: string, description?: string) {
     setError(null);
     try {
       const bot = await createBot({ name, spaceId, avatarLabel, description });
@@ -256,10 +241,7 @@ export default function App() {
     }
   }
 
-  async function handleUpdateBotConfig(
-    botId: string,
-    patch: { description?: string; isShared?: boolean },
-  ) {
+  async function handleUpdateBotConfig(botId: string, patch: { description?: string; isShared?: boolean }) {
     setError(null);
     try {
       await updateBot(botId, patch);
@@ -397,10 +379,7 @@ export default function App() {
     }
   }
 
-  async function handleDecide(
-    id: string,
-    decision: ApprovalDecision
-  ) {
+  async function handleDecide(id: string, decision: ApprovalDecision) {
     const approval = pendingApprovals.find((item) => item.id === id) ?? null;
     const accepted = decision === 'once' || decision === 'all_the_time';
     setApprovalBusyId(id);
@@ -411,16 +390,14 @@ export default function App() {
       setPendingApprovals((prev) =>
         decision === 'all_the_time'
           ? prev.filter((item) => item.toolCall.name !== approval.toolCall.name)
-          : prev.filter((item) => item.id !== id),
+          : prev.filter((item) => item.id !== id)
       );
       setRunningTool({
         label: toolLabel(approval.toolCall.name),
         startedAt: new Date().toISOString(),
       });
       if (selectedBotId) {
-        setBots((prev) =>
-          prev.map((bot) => (bot.id === selectedBotId ? { ...bot, presence: 'working' } : bot)),
-        );
+        setBots((prev) => prev.map((bot) => (bot.id === selectedBotId ? { ...bot, presence: 'working' } : bot)));
       }
     }
 
@@ -435,9 +412,7 @@ export default function App() {
       await refreshRoster();
     } catch (err) {
       if (accepted && approval) {
-        setPendingApprovals((prev) =>
-          prev.some((item) => item.id === approval.id) ? prev : [approval, ...prev],
-        );
+        setPendingApprovals((prev) => (prev.some((item) => item.id === approval.id) ? prev : [approval, ...prev]));
       }
       setError(err instanceof Error ? err.message : 'Approval failed');
     } finally {
@@ -476,12 +451,7 @@ export default function App() {
     }
   }
 
-  async function handleCreateRoutine(input: {
-    botId: string;
-    name: string;
-    cron: string;
-    prompt: string;
-  }) {
+  async function handleCreateRoutine(input: { botId: string; name: string; cron: string; prompt: string }) {
     setError(null);
     try {
       const result = await createRoutine(input);
@@ -494,7 +464,7 @@ export default function App() {
 
   async function handleUpdateRoutine(
     id: string,
-    patch: { name?: string; cron?: string; prompt?: string; enabled?: boolean },
+    patch: { name?: string; cron?: string; prompt?: string; enabled?: boolean }
   ) {
     setError(null);
     try {
@@ -599,11 +569,7 @@ export default function App() {
               type="button"
               className={detailsOpen ? 'chat-pill is-open' : 'chat-pill'}
               aria-pressed={detailsOpen}
-              aria-label={
-                detailsOpen
-                  ? `Hide details for ${selectedBot.name}`
-                  : `Show details for ${selectedBot.name}`
-              }
+              aria-label={detailsOpen ? `Hide details for ${selectedBot.name}` : `Show details for ${selectedBot.name}`}
               onClick={(event) => {
                 // Details pane is md+ only; keep the pill as identity chrome on narrow screens.
                 if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
@@ -620,7 +586,6 @@ export default function App() {
                 <ChevronRight className="chat-pill-chevron" size={14} strokeWidth={2} aria-hidden />
               )}
             </button>
-
           </div>
         ) : null}
 
@@ -632,9 +597,7 @@ export default function App() {
           <>
             <ChatTranscript
               thinking={
-                Boolean(runningTool) ||
-                selectedBot?.presence === 'thinking' ||
-                selectedBot?.presence === 'working'
+                Boolean(runningTool) || selectedBot?.presence === 'thinking' || selectedBot?.presence === 'working'
               }
               thinkingLabel={
                 runningTool
@@ -660,12 +623,7 @@ export default function App() {
             />
             <div className="composer-wrap">
               <ChatComposer
-                disabled={
-                  !chat ||
-                  pendingApprovals.length > 0 ||
-                  pendingChoices.length > 0 ||
-                  Boolean(runningTool)
-                }
+                disabled={!chat || pendingApprovals.length > 0 || pendingChoices.length > 0 || Boolean(runningTool)}
                 placeholder={
                   runningTool
                     ? `Running ${runningTool.label}…`

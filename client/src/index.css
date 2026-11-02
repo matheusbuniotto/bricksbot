@@ -258,7 +258,9 @@ select {
   left: 3px;
   width: 1px;
   background: transparent;
-  transition: background 120ms ease, box-shadow 120ms ease;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .bot-details-resizer:hover::after,
@@ -409,7 +411,9 @@ select {
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
 .bot-details-tab:hover {
@@ -667,7 +671,9 @@ select {
 .roster-section {
   margin-bottom: 16px;
   border-radius: 14px;
-  transition: background 120ms ease, box-shadow 120ms ease;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .roster-section.is-drop-target,
@@ -878,7 +884,9 @@ select {
   font-size: 13px;
   line-height: 1.4;
   outline: none;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
 }
 
 .field::placeholder {
@@ -1144,7 +1152,9 @@ textarea.field {
   border-radius: 12px;
   background: transparent;
   cursor: pointer;
-  transition: background 0.1s ease, border-color 0.1s ease;
+  transition:
+    background 0.1s ease,
+    border-color 0.1s ease;
 }
 
 .grid5 button:hover {
@@ -1180,7 +1190,9 @@ textarea.field {
 }
 
 .dots button[aria-checked='true'] {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #888;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 3.5px #888;
 }
 
 .bot-picker-row {
@@ -1214,7 +1226,9 @@ textarea.field {
   color: var(--foreground);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.1s ease, border-color 0.1s ease;
+  transition:
+    background 0.1s ease,
+    border-color 0.1s ease;
 }
 
 .chips button:hover {
@@ -1275,54 +1289,122 @@ textarea.field {
 
 /* Gummy squash-and-stretch with a damped wobble; the eyes lag behind the body like they're floating in jelly. */
 @keyframes face-jelly {
-  0% { transform: scale(1, 1) skewX(0); }
-  14% { transform: scale(1.2, 0.74) skewX(5deg); }
-  32% { transform: scale(0.86, 1.18) skewX(-4deg); }
-  50% { transform: scale(1.09, 0.92) skewX(2.5deg); }
-  68% { transform: scale(0.96, 1.05) skewX(-1.5deg); }
-  84% { transform: scale(1.02, 0.98) skewX(0.6deg); }
-  100% { transform: scale(1, 1) skewX(0); }
+  0% {
+    transform: scale(1, 1) skewX(0);
+  }
+  14% {
+    transform: scale(1.2, 0.74) skewX(5deg);
+  }
+  32% {
+    transform: scale(0.86, 1.18) skewX(-4deg);
+  }
+  50% {
+    transform: scale(1.09, 0.92) skewX(2.5deg);
+  }
+  68% {
+    transform: scale(0.96, 1.05) skewX(-1.5deg);
+  }
+  84% {
+    transform: scale(1.02, 0.98) skewX(0.6deg);
+  }
+  100% {
+    transform: scale(1, 1) skewX(0);
+  }
 }
 
 @keyframes face-jelly-eyes {
-  0% { transform: translate(0, 0) scale(1, 1); }
-  14% { transform: translate(-2px, 4px) scale(1.1, 0.8); }
-  32% { transform: translate(2px, -4px) scale(0.92, 1.12); }
-  50% { transform: translate(-1.5px, 2px) scale(1.04, 0.95); }
-  68% { transform: translate(1px, -1px) scale(0.98, 1.03); }
-  100% { transform: translate(0, 0) scale(1, 1); }
+  0% {
+    transform: translate(0, 0) scale(1, 1);
+  }
+  14% {
+    transform: translate(-2px, 4px) scale(1.1, 0.8);
+  }
+  32% {
+    transform: translate(2px, -4px) scale(0.92, 1.12);
+  }
+  50% {
+    transform: translate(-1.5px, 2px) scale(1.04, 0.95);
+  }
+  68% {
+    transform: translate(1px, -1px) scale(0.98, 1.03);
+  }
+  100% {
+    transform: translate(0, 0) scale(1, 1);
+  }
 }
 
 @keyframes face-gummy {
-  0%, 100% { transform: scale(1, 1) skewX(0); }
-  20% { transform: scale(1.07, 0.93) skewX(2deg); }
-  45% { transform: scale(0.94, 1.07) skewX(-2deg); }
-  70% { transform: scale(1.05, 0.96) skewX(1.5deg); }
+  0%,
+  100% {
+    transform: scale(1, 1) skewX(0);
+  }
+  20% {
+    transform: scale(1.07, 0.93) skewX(2deg);
+  }
+  45% {
+    transform: scale(0.94, 1.07) skewX(-2deg);
+  }
+  70% {
+    transform: scale(1.05, 0.96) skewX(1.5deg);
+  }
 }
 
 @keyframes face-gummy-eyes {
-  0%, 100% { transform: translate(0, 0) scale(1, 1); }
-  20% { transform: translate(-3px, 2px) scale(1.06, 0.92); }
-  45% { transform: translate(3px, -3px) scale(0.94, 1.08); }
-  70% { transform: translate(-2px, 1px) scale(1.04, 0.96); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1, 1);
+  }
+  20% {
+    transform: translate(-3px, 2px) scale(1.06, 0.92);
+  }
+  45% {
+    transform: translate(3px, -3px) scale(0.94, 1.08);
+  }
+  70% {
+    transform: translate(-2px, 1px) scale(1.04, 0.96);
+  }
 }
 
 @keyframes face-hover-jiggle {
-  0% { transform: scale(1, 1) skewX(0); }
-  18% { transform: scale(1.07, 0.95) skewX(4deg); }
-  38% { transform: scale(0.95, 1.04) skewX(-3.5deg); }
-  58% { transform: scale(1.03, 0.98) skewX(2deg); }
-  78% { transform: scale(0.99, 1.01) skewX(-1deg); }
-  100% { transform: scale(1, 1) skewX(0); }
+  0% {
+    transform: scale(1, 1) skewX(0);
+  }
+  18% {
+    transform: scale(1.07, 0.95) skewX(4deg);
+  }
+  38% {
+    transform: scale(0.95, 1.04) skewX(-3.5deg);
+  }
+  58% {
+    transform: scale(1.03, 0.98) skewX(2deg);
+  }
+  78% {
+    transform: scale(0.99, 1.01) skewX(-1deg);
+  }
+  100% {
+    transform: scale(1, 1) skewX(0);
+  }
 }
 
 @keyframes face-hover-eyes {
-  0% { transform: translateX(0); }
-  18% { transform: translateX(-3px); }
-  38% { transform: translateX(3px); }
-  58% { transform: translateX(-1.5px); }
-  78% { transform: translateX(0.8px); }
-  100% { transform: translateX(0); }
+  0% {
+    transform: translateX(0);
+  }
+  18% {
+    transform: translateX(-3px);
+  }
+  38% {
+    transform: translateX(3px);
+  }
+  58% {
+    transform: translateX(-1.5px);
+  }
+  78% {
+    transform: translateX(0.8px);
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1779,7 +1861,9 @@ textarea.field {
 
 .handoff-status-clickable {
   cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .handoff-status-clickable:hover,
@@ -2084,7 +2168,9 @@ textarea.field {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .approval-btn:hover {
@@ -2376,7 +2462,9 @@ textarea.field {
   border-radius: 28px;
   background: var(--background);
   box-shadow: var(--shadow-soft);
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
 }
 
 .composer-plus {
@@ -2605,11 +2693,23 @@ textarea.field {
   background: var(--muted-foreground);
   animation: typing-bounce 1.2s infinite ease-in-out;
 }
-.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
-.typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
 @keyframes typing-bounce {
-  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-  30% { opacity: 1; transform: translateY(-3px); }
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
 }
 
 .running-tool {
@@ -2689,31 +2789,134 @@ textarea.field {
   }
 }
 
-.artifact-table-wrap { max-height: 280px; overflow: auto; margin: 6px auto 0; width: fit-content; max-width: 100%; border: 1px solid var(--border); border-radius: 6px; }
-.artifact-table { border-collapse: collapse; font-size: 12px; width: 100%; color: var(--foreground); }
-.artifact-table th, .artifact-table td { border-bottom: 1px solid var(--border); padding: 4px 10px; text-align: left; }
-.artifact-table th { background: var(--muted); color: var(--foreground); font-weight: 600; }
-.artifact-chart { display: block; width: 100%; max-width: 480px; margin: 6px auto 0; color: var(--foreground); }
-.artifact-fallback { font-size: 11px; white-space: pre-wrap; margin-top: 6px; color: var(--foreground); }
-.artifact-pin { flex-direction: column; align-items: center; }
-.artifact-pin > .handoff-status { margin: 0; }
-.artifact-vega { margin-top: 6px; max-width: 100%; overflow-x: auto; color: var(--foreground); }
-.artifact-vega details > summary { color: var(--muted-foreground); }
-.code-block { margin: 6px 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; text-align: left; max-width: 100%; background: var(--card); color: var(--foreground); }
-.code-block-head { display: flex; justify-content: space-between; align-items: center; padding: 3px 8px; font-size: 11px; color: var(--muted-foreground); background: var(--muted); border-bottom: 1px solid var(--border); }
-.code-block-head button { font: inherit; background: none; border: none; cursor: pointer; color: inherit; }
-.code-block pre { margin: 0; padding: 8px; overflow: auto; max-height: 320px; font-size: 12px; color: var(--foreground); }
-.code-block .hljs-keyword, .code-block .hljs-built_in { color: #8250df; }
-.code-block .hljs-string { color: #0a7d3c; }
-.code-block .hljs-number, .code-block .hljs-literal { color: #b45309; }
-.code-block .hljs-comment { opacity: 0.6; }
+.artifact-table-wrap {
+  max-height: 280px;
+  overflow: auto;
+  margin: 6px auto 0;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.artifact-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+  color: var(--foreground);
+}
+.artifact-table th,
+.artifact-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 10px;
+  text-align: left;
+}
+.artifact-table th {
+  background: var(--muted);
+  color: var(--foreground);
+  font-weight: 600;
+}
+.artifact-chart {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  margin: 6px auto 0;
+  color: var(--foreground);
+}
+.artifact-fallback {
+  font-size: 11px;
+  white-space: pre-wrap;
+  margin-top: 6px;
+  color: var(--foreground);
+}
+.artifact-pin {
+  flex-direction: column;
+  align-items: center;
+}
+.artifact-pin > .handoff-status {
+  margin: 0;
+}
+.artifact-vega {
+  margin-top: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  color: var(--foreground);
+}
+.artifact-vega details > summary {
+  color: var(--muted-foreground);
+}
+.code-block {
+  margin: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  text-align: left;
+  max-width: 100%;
+  background: var(--card);
+  color: var(--foreground);
+}
+.code-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.code-block-head button {
+  font: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+}
+.code-block pre {
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  max-height: 320px;
+  font-size: 12px;
+  color: var(--foreground);
+}
+.code-block .hljs-keyword,
+.code-block .hljs-built_in {
+  color: #8250df;
+}
+.code-block .hljs-string {
+  color: #0a7d3c;
+}
+.code-block .hljs-number,
+.code-block .hljs-literal {
+  color: #b45309;
+}
+.code-block .hljs-comment {
+  opacity: 0.6;
+}
 html[data-theme='dark'] .code-block .hljs-keyword,
-html[data-theme='dark'] .code-block .hljs-built_in { color: #c4b5fd; }
-html[data-theme='dark'] .code-block .hljs-string { color: #6ee7b7; }
+html[data-theme='dark'] .code-block .hljs-built_in {
+  color: #c4b5fd;
+}
+html[data-theme='dark'] .code-block .hljs-string {
+  color: #6ee7b7;
+}
 html[data-theme='dark'] .code-block .hljs-number,
-html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
-.artifact-mermaid { margin-top: 6px; max-width: 100%; overflow-x: auto; display: flex; justify-content: center; color: var(--foreground); }
-.artifact-caption { font-size: 11px; color: var(--muted-foreground); text-align: center; }
+html[data-theme='dark'] .code-block .hljs-literal {
+  color: #fcd34d;
+}
+.artifact-mermaid {
+  margin-top: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  display: flex;
+  justify-content: center;
+  color: var(--foreground);
+}
+.artifact-caption {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
 
 #vg-tooltip-element,
 #vg-tooltip-element.vg-tooltip {
@@ -2903,7 +3106,9 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   border: 1px solid var(--border);
   cursor: pointer;
   padding: 2px;
-  transition: background-color 0.2s, border-color 0.2s;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
 }
 
 .marketplace-toggle.is-on {
@@ -2995,7 +3200,10 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  transition: background-color 0.15s, border-color 0.15s, transform 0.1s;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    transform 0.1s;
 }
 
 .roster-connectors-btn:hover {
@@ -3123,7 +3331,9 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   font-size: 14px;
   color: var(--foreground);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .connectors-search-input::placeholder {
@@ -3143,7 +3353,9 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   color: var(--muted-foreground);
   cursor: pointer;
   padding: 0;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .connectors-search-clear:hover {
@@ -3167,7 +3379,9 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   color: var(--foreground);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
 }
 
 .connectors-icon-btn:hover:not(:disabled) {
@@ -3209,7 +3423,9 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
 }
 
 .connectors-marketplace-btn:hover {
@@ -3241,7 +3457,9 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .connectors-pill:hover {
@@ -3372,7 +3590,10 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   color: var(--muted-foreground);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+  transition:
+    opacity 0.15s,
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .connector-card:hover .connector-remove-btn,
@@ -3514,7 +3735,9 @@ html[data-theme='dark'] .code-block .hljs-literal { color: #fcd34d; }
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .connector-action-btn:hover {

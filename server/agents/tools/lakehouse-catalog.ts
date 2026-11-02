@@ -141,7 +141,7 @@ export function createLakehouseCatalogTool(options: SqlQueryToolOptions = {}) {
       const result = await executeReadOnlySql(
         { ...options, maxChars: options.maxChars ?? maxChars },
         statement,
-        fromArgs,
+        fromArgs
       );
       // Keep lakehouse_catalog label on shared executor errors.
       if (result.startsWith('sql_query ')) {

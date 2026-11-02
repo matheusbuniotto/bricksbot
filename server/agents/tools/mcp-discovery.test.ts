@@ -29,7 +29,7 @@ describe('McpDiscoveryService', () => {
               { name: 'slack', full_name: 'system.ai.slack' },
             ],
           }),
-          { status: 200 },
+          { status: 200 }
         );
       }
 
@@ -47,7 +47,7 @@ describe('McpDiscoveryService', () => {
               id: parsed.id ?? 1,
               result: { tools },
             }),
-            { status: 200 },
+            { status: 200 }
           );
         }
 
@@ -65,10 +65,7 @@ describe('McpDiscoveryService', () => {
     });
 
     const initial = await discovery.listViableMcps({ refresh: true });
-    expect(initial.map((m) => m.service)).toEqual([
-      'system.ai.genie_one_mcp',
-      'system.ai.dbsql',
-    ]);
+    expect(initial.map((m) => m.service)).toEqual(['system.ai.genie_one_mcp', 'system.ai.dbsql']);
     expect(initial.find((m) => m.service === 'system.ai.slack')).toBeUndefined();
 
     fakeTools['system.ai.slack'] = ['search_messages', 'read_channel'];
@@ -99,7 +96,7 @@ describe('McpDiscoveryService', () => {
             id: parsed.id ?? 1,
             result: { tools: [{ name: 'query_custom_data' }] },
           }),
-          { status: 200 },
+          { status: 200 }
         );
       }
 

@@ -23,16 +23,7 @@ import type { Bot, MarketplaceBot, Space } from '../../../shared/chat/types';
 import type { Theme } from '../lib/theme';
 import { presenceTooltip, rosterPreviewForPresence } from '../lib/user-facing';
 import { ConnectorsDialog } from './ConnectorsDialog';
-import {
-  BotFace,
-  botColor,
-  botLook,
-  decodeLook,
-  encodeLook,
-  COLORS,
-  DEFAULT_BOT,
-  type BotConfig,
-} from './BotFace';
+import { BotFace, botColor, botLook, decodeLook, encodeLook, COLORS, DEFAULT_BOT, type BotConfig } from './BotFace';
 import { BotPicker } from './BotPicker';
 
 type MenuState =
@@ -102,7 +93,7 @@ export function BotRoster({
     name: string,
     spaceId: string | null,
     avatarLabel?: string,
-    description?: string,
+    description?: string
   ) => void | Promise<void>;
   onInstallMarketplaceBot?: (botId: string, spaceId: string | null) => void | Promise<void>;
   onToggleShareBot?: (botId: string, isShared: boolean) => void | Promise<void>;
@@ -272,7 +263,7 @@ export function BotRoster({
 
   const menuBot =
     menu && (menu.kind === 'bot' || menu.kind === 'move')
-      ? [...bots, ...archivedBots].find((bot) => bot.id === menu.botId) ?? null
+      ? ([...bots, ...archivedBots].find((bot) => bot.id === menu.botId) ?? null)
       : null;
 
   return (
@@ -354,22 +345,22 @@ export function BotRoster({
             />
           </form>
         ) : (
-        <button
-          type="button"
-          className="roster-primary"
-          aria-current={primary.id === selectedBotId ? 'true' : undefined}
-          onClick={() => void onSelectBot(primary.id)}
-          onContextMenu={(event) => openBotMenu(primary.id, event)}
-        >
-          <BotFace
-            color={botColor(primary.id, true)}
-            size={64}
-            botId={primary.id}
-            presence={primary.presence}
-            title={presenceTooltip(primary.presence)}
-          />
-          <span>{primary.name}</span>
-        </button>
+          <button
+            type="button"
+            className="roster-primary"
+            aria-current={primary.id === selectedBotId ? 'true' : undefined}
+            onClick={() => void onSelectBot(primary.id)}
+            onContextMenu={(event) => openBotMenu(primary.id, event)}
+          >
+            <BotFace
+              color={botColor(primary.id, true)}
+              size={64}
+              botId={primary.id}
+              presence={primary.presence}
+              title={presenceTooltip(primary.presence)}
+            />
+            <span>{primary.name}</span>
+          </button>
         )
       ) : null}
 
@@ -406,9 +397,7 @@ export function BotRoster({
           ) : (
             <button
               type="button"
-              className={
-                dropTarget === '__new' ? 'roster-section-add is-drop-target' : 'roster-section-add'
-              }
+              className={dropTarget === '__new' ? 'roster-section-add is-drop-target' : 'roster-section-add'}
               onClick={() => setNamingSection(true)}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -429,9 +418,7 @@ export function BotRoster({
           return (
             <section
               key={section.id}
-              className={
-                dropTarget === section.id ? 'roster-section is-drop-target' : 'roster-section'
-              }
+              className={dropTarget === section.id ? 'roster-section is-drop-target' : 'roster-section'}
               onDragOver={(event) => {
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'move';
@@ -452,129 +439,126 @@ export function BotRoster({
               </button>
               {isCollapsed ? null : (
                 <>
-                {createOpen && (botSpaceId || defaultSpaceId) === section.id ? (
-                  <div className="roster-bot-row is-creating-highlight" aria-hidden="true">
-                    <div className="roster-bot">
-                      <BotFace config={lookConfig} size={34} />
-                      <span className="roster-bot-copy">
-                        <span className="roster-bot-name">{botName.trim() || 'New Bot'}</span>
-                        <span className="roster-bot-preview">Creating…</span>
-                      </span>
+                  {createOpen && (botSpaceId || defaultSpaceId) === section.id ? (
+                    <div className="roster-bot-row is-creating-highlight" aria-hidden="true">
+                      <div className="roster-bot">
+                        <BotFace config={lookConfig} size={34} />
+                        <span className="roster-bot-copy">
+                          <span className="roster-bot-name">{botName.trim() || 'New Bot'}</span>
+                          <span className="roster-bot-preview">Creating…</span>
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-                {section.bots.length === 0 &&
-                !(createOpen && (botSpaceId || defaultSpaceId) === section.id) ? (
-                  <p className="roster-section-empty">No bots</p>
-                ) : null}
-                {section.bots.map((bot, index) => {
-                  const selected = bot.id === selectedBotId;
-                  const preview = rosterPreviewForPresence(bot.presence, previews?.[bot.id] ?? '');
-                  const isRenaming = renamingId === bot.id;
-                  return (
-                    <div
-                      key={bot.id}
-                      className={
-                        dropTarget === `${section.id}:${index}`
-                          ? 'roster-bot-row is-drop-target'
-                          : 'roster-bot-row'
-                      }
-                      draggable={!isRenaming}
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData(
-                          'application/x-bricksbot-bot',
-                          JSON.stringify({ botId: bot.id } satisfies DragPayload),
-                        );
-                        event.dataTransfer.effectAllowed = 'move';
-                      }}
-                      onDragEnd={() => setDropTarget(null)}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        event.dataTransfer.dropEffect = 'move';
-                        setDropTarget(`${section.id}:${index}`);
-                      }}
-                      onDrop={(event) => {
-                        event.stopPropagation();
-                        void handleDropOnSection(section.id, index, event);
-                      }}
-                    >
-                      {isRenaming ? (
-                        <form
-                          className="roster-bot is-renaming"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            void commitRename();
-                          }}
-                        >
-                          <BotFace
-                            color={botColor(bot.id, false)}
-                            size={34}
-                            botId={bot.id}
-                            track={bot.id === selectedBotId}
-                            presence={bot.presence}
-                            title={presenceTooltip(bot.presence)}
-                          />
-                          <input
-                            ref={renameRef}
-                            value={renameValue}
-                            aria-label="Rename bot"
-                            onChange={(event) => setRenameValue(event.target.value)}
-                            onBlur={() => void commitRename()}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Escape') {
-                                setRenamingId(null);
-                              }
+                  ) : null}
+                  {section.bots.length === 0 && !(createOpen && (botSpaceId || defaultSpaceId) === section.id) ? (
+                    <p className="roster-section-empty">No bots</p>
+                  ) : null}
+                  {section.bots.map((bot, index) => {
+                    const selected = bot.id === selectedBotId;
+                    const preview = rosterPreviewForPresence(bot.presence, previews?.[bot.id] ?? '');
+                    const isRenaming = renamingId === bot.id;
+                    return (
+                      <div
+                        key={bot.id}
+                        className={
+                          dropTarget === `${section.id}:${index}` ? 'roster-bot-row is-drop-target' : 'roster-bot-row'
+                        }
+                        draggable={!isRenaming}
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData(
+                            'application/x-bricksbot-bot',
+                            JSON.stringify({ botId: bot.id } satisfies DragPayload)
+                          );
+                          event.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragEnd={() => setDropTarget(null)}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          event.dataTransfer.dropEffect = 'move';
+                          setDropTarget(`${section.id}:${index}`);
+                        }}
+                        onDrop={(event) => {
+                          event.stopPropagation();
+                          void handleDropOnSection(section.id, index, event);
+                        }}
+                      >
+                        {isRenaming ? (
+                          <form
+                            className="roster-bot is-renaming"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void commitRename();
                             }}
-                          />
-                        </form>
-                      ) : (
-                        <button
-                          type="button"
-                          className={selected ? 'roster-bot is-selected' : 'roster-bot'}
-                          aria-current={selected ? 'true' : undefined}
-                          onClick={() => void onSelectBot(bot.id)}
-                          onDoubleClick={() => startRename(bot)}
-                          onContextMenu={(event) => openBotMenu(bot.id, event)}
-                        >
-                          <BotFace
-                            color={botColor(bot.id, false)}
-                            size={34}
-                            botId={bot.id}
-                            track={bot.id === selectedBotId}
-                            presence={bot.presence}
-                            title={presenceTooltip(bot.presence)}
-                          />
-                          <span className="roster-bot-copy">
-                            <span className="roster-bot-name">
-                              {bot.name}
-                              {bot.isShared ? (
-                                <span className="roster-bot-shared-badge" title="Compartilhado no Marketplace">
-                                  Shared
-                                </span>
-                              ) : null}
-                            </span>
-                            <span className="roster-bot-preview">{preview || 'No messages'}</span>
-                          </span>
-                          <span
-                            className="roster-bot-more"
-                            onClick={(event) => openBotMenu(bot.id, event)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                openBotMenu(bot.id, event);
-                              }
-                            }}
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`Actions for ${bot.name}`}
                           >
-                            <MoreHorizontal size={16} />
-                          </span>
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                            <BotFace
+                              color={botColor(bot.id, false)}
+                              size={34}
+                              botId={bot.id}
+                              track={bot.id === selectedBotId}
+                              presence={bot.presence}
+                              title={presenceTooltip(bot.presence)}
+                            />
+                            <input
+                              ref={renameRef}
+                              value={renameValue}
+                              aria-label="Rename bot"
+                              onChange={(event) => setRenameValue(event.target.value)}
+                              onBlur={() => void commitRename()}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Escape') {
+                                  setRenamingId(null);
+                                }
+                              }}
+                            />
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            className={selected ? 'roster-bot is-selected' : 'roster-bot'}
+                            aria-current={selected ? 'true' : undefined}
+                            onClick={() => void onSelectBot(bot.id)}
+                            onDoubleClick={() => startRename(bot)}
+                            onContextMenu={(event) => openBotMenu(bot.id, event)}
+                          >
+                            <BotFace
+                              color={botColor(bot.id, false)}
+                              size={34}
+                              botId={bot.id}
+                              track={bot.id === selectedBotId}
+                              presence={bot.presence}
+                              title={presenceTooltip(bot.presence)}
+                            />
+                            <span className="roster-bot-copy">
+                              <span className="roster-bot-name">
+                                {bot.name}
+                                {bot.isShared ? (
+                                  <span className="roster-bot-shared-badge" title="Compartilhado no Marketplace">
+                                    Shared
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="roster-bot-preview">{preview || 'No messages'}</span>
+                            </span>
+                            <span
+                              className="roster-bot-more"
+                              onClick={(event) => openBotMenu(bot.id, event)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  openBotMenu(bot.id, event);
+                                }
+                              }}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`Actions for ${bot.name}`}
+                            >
+                              <MoreHorizontal size={16} />
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </>
               )}
             </section>
@@ -812,7 +796,7 @@ export function BotRoster({
                 name,
                 selected === NO_SECTION ? null : selected,
                 encodeLook(lookConfig),
-                botDescription.trim() || undefined,
+                botDescription.trim() || undefined
               );
               onCreateOpenChange(false);
             }}
@@ -901,19 +885,11 @@ export function BotRoster({
           <div className="dialog" role="dialog" aria-label="Change look" onClick={(event) => event.stopPropagation()}>
             <div className="dialog-header-row">
               <h2>Change look</h2>
-              <button
-                type="button"
-                className="dialog-close-btn"
-                aria-label="Close"
-                onClick={() => setEditLook(null)}
-              >
+              <button type="button" className="dialog-close-btn" aria-label="Close" onClick={() => setEditLook(null)}>
                 <X size={18} />
               </button>
             </div>
-            <BotPicker
-              value={editLook.config}
-              onChange={(config) => setEditLook({ ...editLook, config })}
-            />
+            <BotPicker value={editLook.config} onChange={(config) => setEditLook({ ...editLook, config })} />
             <div className="dialog-actions">
               <button type="button" onClick={() => setEditLook(null)}>
                 Cancel
@@ -939,11 +915,7 @@ export function BotRoster({
       ) : null}
 
       {marketplaceOpen && onMarketplaceOpenChange ? (
-        <div
-          className="dialog-backdrop"
-          role="presentation"
-          onClick={() => onMarketplaceOpenChange(false)}
-        >
+        <div className="dialog-backdrop" role="presentation" onClick={() => onMarketplaceOpenChange(false)}>
           <div
             className="dialog marketplace-dialog"
             role="dialog"
@@ -962,8 +934,8 @@ export function BotRoster({
               </button>
             </div>
             <p className="dialog-note">
-              Bots are personal by default. When using a Marketplace Bot, you receive its behavior,
-              instructions, and skills in a 100% private chat.
+              Bots are personal by default. When using a Marketplace Bot, you receive its behavior, instructions, and
+              skills in a 100% private chat.
             </p>
             <div className="dialog-field">
               Add to section:
@@ -996,9 +968,7 @@ export function BotRoster({
                           <span className="marketplace-card-owner">by {mBot.ownerId}</span>
                         </div>
                       </div>
-                      <p className="marketplace-card-desc">
-                        {mBot.description || 'No additional description'}
-                      </p>
+                      <p className="marketplace-card-desc">{mBot.description || 'No additional description'}</p>
                       {mBot.skillNames.length > 0 ? (
                         <div className="marketplace-skills">
                           {mBot.skillNames.map((skill) => (
@@ -1014,9 +984,7 @@ export function BotRoster({
                         aria-label={`Use ${mBot.name}`}
                         onClick={() => {
                           const targetSpace =
-                            (botSpaceId || defaultSpaceId) === NO_SECTION
-                              ? null
-                              : botSpaceId || defaultSpaceId;
+                            (botSpaceId || defaultSpaceId) === NO_SECTION ? null : botSpaceId || defaultSpaceId;
                           if (onInstallMarketplaceBot) {
                             void onInstallMarketplaceBot(mBot.id, targetSpace);
                           }
@@ -1039,7 +1007,6 @@ export function BotRoster({
         onClose={() => setConnectorsOpen(false)}
         onOpenMarketplace={() => onMarketplaceOpenChange?.(true)}
       />
-
     </aside>
   );
 }

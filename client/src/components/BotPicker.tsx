@@ -11,13 +11,12 @@ import {
   attachMouseFollow,
 } from './bricksbot-avatar';
 
-const Html = ({ html }: { html: string }) => <span className="bot-svg-wrap" dangerouslySetInnerHTML={{ __html: html }} />;
+const Html = ({ html }: { html: string }) => (
+  <span className="bot-svg-wrap" dangerouslySetInnerHTML={{ __html: html }} />
+);
 
 export function BotAvatar({ config, size = 48 }: { config: BotConfig; size?: number }) {
-  const html = useMemo(
-    () => renderBot(config, size),
-    [config.shape, config.color, config.hat, config.glasses, size]
-  );
+  const html = useMemo(() => renderBot(config, size), [config.shape, config.color, config.hat, config.glasses, size]);
   return <Html html={html} />;
 }
 

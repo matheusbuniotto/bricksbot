@@ -20,16 +20,14 @@ export class SandboxReaper {
   constructor(options: SandboxReaperOptions) {
     this.sessionService = options.sessionService;
     this.idleMinutes = options.idleMinutes ?? options.sessionService.getIdleMinutes();
-    this.maxSessionMinutes =
-      options.maxSessionMinutes ?? options.sessionService.getMaxSessionMinutes();
+    this.maxSessionMinutes = options.maxSessionMinutes ?? options.sessionService.getMaxSessionMinutes();
     this.now = options.now ?? (() => new Date());
   }
 
-  private shouldReap(session: {
-    status: string;
-    createdAt: string;
-    lastUsedAt: string;
-  }): { reap: boolean; reason: string } {
+  private shouldReap(session: { status: string; createdAt: string; lastUsedAt: string }): {
+    reap: boolean;
+    reason: string;
+  } {
     const nowMs = this.now().getTime();
     const lastUsedMs = new Date(session.lastUsedAt).getTime();
     const createdMs = new Date(session.createdAt).getTime();

@@ -6,7 +6,7 @@ import { registerChatRoutes } from './routes.js';
 import { ChatService } from './service.js';
 
 async function withChatApp(
-  run: (baseUrl: string, ctx: { store: MemoryChatStore; service: ChatService }) => Promise<void>,
+  run: (baseUrl: string, ctx: { store: MemoryChatStore; service: ChatService }) => Promise<void>
 ) {
   const store = new MemoryChatStore();
   const service = new ChatService({ store, client: new StubChatClient() });
@@ -144,9 +144,7 @@ describe('chat HTTP API', () => {
       const archived = await fetch(`${baseUrl}/api/bots/${bot.id}/archive`, { method: 'POST' });
       expect(archived.status).toBe(200);
       const hidden = await fetch(`${baseUrl}/api/bots?archived=archived`);
-      expect(
-        ((await hidden.json()) as { bots: Array<{ id: string }> }).bots.map((row) => row.id),
-      ).toContain(bot.id);
+      expect(((await hidden.json()) as { bots: Array<{ id: string }> }).bots.map((row) => row.id)).toContain(bot.id);
 
       const restored = await fetch(`${baseUrl}/api/bots/${bot.id}/unarchive`, { method: 'POST' });
       expect(restored.status).toBe(200);

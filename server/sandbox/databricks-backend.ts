@@ -146,7 +146,7 @@ export class DatabricksSandboxBackend implements ExecutionBackend {
         ? ' — Enable the "Databricks Sandboxes" preview in Workspace Settings → Previews (or use SANDBOX_BACKEND=python_exec / e2b).'
         : '';
       throw new Error(
-        `Databricks Sandbox create failed (${response.status}): ${detail || response.statusText}${notEnabledHint}`,
+        `Databricks Sandbox create failed (${response.status}): ${detail || response.statusText}${notEnabledHint}`
       );
     }
 
@@ -154,11 +154,7 @@ export class DatabricksSandboxBackend implements ExecutionBackend {
     return payload.name?.trim() || `sandboxes/${sandboxId}`;
   }
 
-  async runCommand(
-    externalId: string,
-    cmd: string[],
-    opts: RunCommandOptions,
-  ): Promise<ExecutionResult> {
+  async runCommand(externalId: string, cmd: string[], opts: RunCommandOptions): Promise<ExecutionResult> {
     if (this.isPythonExecSession(externalId)) {
       return this.pythonExecFallback.runCommand(externalId, cmd, opts);
     }
@@ -186,9 +182,7 @@ export class DatabricksSandboxBackend implements ExecutionBackend {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(
-        `Databricks Sandbox exec failed (${response.status}): ${detail || response.statusText}`,
-      );
+      throw new Error(`Databricks Sandbox exec failed (${response.status}): ${detail || response.statusText}`);
     }
 
     const payload = (await response.json()) as {
@@ -210,11 +204,7 @@ export class DatabricksSandboxBackend implements ExecutionBackend {
     };
   }
 
-  async uploadFile(
-    externalId: string,
-    data: Uint8Array | string,
-    dest: string,
-  ): Promise<string> {
+  async uploadFile(externalId: string, data: Uint8Array | string, dest: string): Promise<string> {
     if (this.isPythonExecSession(externalId)) {
       return this.pythonExecFallback.uploadFile(externalId, data, dest);
     }
@@ -228,7 +218,7 @@ export class DatabricksSandboxBackend implements ExecutionBackend {
     });
     if (result.exitCode !== 0) {
       throw new Error(
-        `Databricks Sandbox upload failed (exit ${result.exitCode}): ${result.stderr || 'unable to write file'}`,
+        `Databricks Sandbox upload failed (exit ${result.exitCode}): ${result.stderr || 'unable to write file'}`
       );
     }
     return targetPath;
@@ -245,7 +235,7 @@ export class DatabricksSandboxBackend implements ExecutionBackend {
     });
     if (result.exitCode !== 0) {
       throw new Error(
-        `Databricks Sandbox download failed (exit ${result.exitCode}): ${result.stderr || 'unable to read file'}`,
+        `Databricks Sandbox download failed (exit ${result.exitCode}): ${result.stderr || 'unable to read file'}`
       );
     }
     return new Uint8Array(Buffer.from(result.stdout.trim(), 'base64'));
@@ -264,9 +254,7 @@ export class DatabricksSandboxBackend implements ExecutionBackend {
     });
     if (!response.ok && response.status !== 404) {
       const detail = await response.text().catch(() => '');
-      throw new Error(
-        `Databricks Sandbox stop failed (${response.status}): ${detail || response.statusText}`,
-      );
+      throw new Error(`Databricks Sandbox stop failed (${response.status}): ${detail || response.statusText}`);
     }
   }
 
@@ -282,9 +270,7 @@ export class DatabricksSandboxBackend implements ExecutionBackend {
     });
     if (!response.ok && response.status !== 404) {
       const detail = await response.text().catch(() => '');
-      throw new Error(
-        `Databricks Sandbox delete failed (${response.status}): ${detail || response.statusText}`,
-      );
+      throw new Error(`Databricks Sandbox delete failed (${response.status}): ${detail || response.statusText}`);
     }
   }
 }

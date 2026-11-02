@@ -16,15 +16,10 @@ describe('validateVegaLiteSpec', () => {
     expect(validateVegaLiteSpec({ ...valid, data: { values: [] } }, { allowData: false }).ok).toBe(false);
     expect(validateVegaLiteSpec({ ...valid, data: { values: [] } }, { allowData: true }).ok).toBe(true);
     expect(validateVegaLiteSpec({ ...valid, data: { url: 'https://x.test/a.json' } }, { allowData: true }).ok).toBe(
-      false,
+      false
     );
     expect(validateVegaLiteSpec({ mark: 'geoshape' }, { allowData: false }).ok).toBe(false);
-    expect(
-      validateVegaLiteSpec(
-        { mark: 'bar', description: 'x'.repeat(20_000) },
-        { allowData: false },
-      ).ok,
-    ).toBe(false);
+    expect(validateVegaLiteSpec({ mark: 'bar', description: 'x'.repeat(20_000) }, { allowData: false }).ok).toBe(false);
   });
 });
 

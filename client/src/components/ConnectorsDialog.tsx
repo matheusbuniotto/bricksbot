@@ -1,11 +1,4 @@
-import {
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-  type FormEvent,
-  type ReactNode,
-} from 'react';
+import { useState, useEffect, useMemo, useCallback, type FormEvent, type ReactNode } from 'react';
 import {
   X,
   Search,
@@ -26,17 +19,12 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import {
-  AVAILABLE_DATABRICKS_MCPS,
-  type DatabricksMcpApp,
-} from '../../../shared/agents/mcp-types.js';
+import { AVAILABLE_DATABRICKS_MCPS, type DatabricksMcpApp } from '../../../shared/agents/mcp-types.js';
 import { fetchMcps, registerCustomMcp, removeCustomMcp } from '../lib/chat-api.js';
 
 export type ConnectorApp = DatabricksMcpApp;
 
-export const DEFAULT_VIABLE_MCPS: ConnectorApp[] = AVAILABLE_DATABRICKS_MCPS.filter(
-  (app) => app.isViable !== false,
-);
+export const DEFAULT_VIABLE_MCPS: ConnectorApp[] = AVAILABLE_DATABRICKS_MCPS.filter((app) => app.isViable !== false);
 export const CONNECTOR_APPS: ConnectorApp[] = DEFAULT_VIABLE_MCPS;
 
 const STORAGE_KEY = 'bricksbot.connected_apps';
@@ -169,9 +157,7 @@ export function ConnectorsDialog({
     if (activeCategory === '__connected') {
       list = list.filter((app) => connectedIds.has(app.id));
     } else if (activeCategory === 'custom') {
-      list = list.filter(
-        (app) => app.source === 'custom' || !app.service.startsWith('system.ai'),
-      );
+      list = list.filter((app) => app.source === 'custom' || !app.service.startsWith('system.ai'));
     } else if (activeCategory !== 'all') {
       list = list.filter((app) => app.category === activeCategory);
     }
@@ -183,7 +169,7 @@ export function ConnectorsDialog({
           app.description.toLowerCase().includes(q) ||
           app.service.toLowerCase().includes(q) ||
           app.categoryLabel.toLowerCase().includes(q) ||
-          app.tools.some((t) => t.toLowerCase().includes(q)),
+          app.tools.some((t) => t.toLowerCase().includes(q))
       );
     }
     return list;
@@ -322,13 +308,9 @@ export function ConnectorsDialog({
             </h2>
             <button
               type="button"
-              className={
-                activeCategory === '__connected' ? 'connectors-badge is-active' : 'connectors-badge'
-              }
+              className={activeCategory === '__connected' ? 'connectors-badge is-active' : 'connectors-badge'}
               title={`${connectedIds.size} connected. Click to filter.`}
-              onClick={() =>
-                setActiveCategory((curr) => (curr === '__connected' ? 'all' : '__connected'))
-              }
+              onClick={() => setActiveCategory((curr) => (curr === '__connected' ? 'all' : '__connected'))}
             >
               <div className="connectors-badge-avatars">
                 {connectedList.slice(0, 3).map((app) => (
@@ -341,17 +323,10 @@ export function ConnectorsDialog({
                   </span>
                 ))}
               </div>
-              <span className="connectors-badge-label">
-                {connectedIds.size} connected &rsaquo;
-              </span>
+              <span className="connectors-badge-label">{connectedIds.size} connected &rsaquo;</span>
             </button>
           </div>
-          <button
-            type="button"
-            className="dialog-close-btn"
-            aria-label="Close"
-            onClick={onClose}
-          >
+          <button type="button" className="dialog-close-btn" aria-label="Close" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
@@ -463,18 +438,10 @@ export function ConnectorsDialog({
               {addError ? <div className="connectors-error-banner">{addError}</div> : null}
 
               <div className="connectors-custom-actions">
-                <button
-                  type="button"
-                  className="connectors-btn-secondary"
-                  onClick={() => setShowAddCustom(false)}
-                >
+                <button type="button" className="connectors-btn-secondary" onClick={() => setShowAddCustom(false)}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="connector-action-btn is-connected"
-                  disabled={submittingCustom}
-                >
+                <button type="submit" className="connector-action-btn is-connected" disabled={submittingCustom}>
                   {submittingCustom ? (
                     <>
                       <RotateCw size={13} className="spin" />

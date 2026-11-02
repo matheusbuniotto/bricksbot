@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Bot, Message } from '../../../shared/chat/types';
-import {
-  handoffPeekBotId,
-  sliceHandoffThread,
-  type HandoffNotice,
-} from '../../../shared/chat/handoff-notice';
+import { handoffPeekBotId, sliceHandoffThread, type HandoffNotice } from '../../../shared/chat/handoff-notice';
 import { fetchBotChat } from '../lib/chat-api';
 import { BotFace, botColor } from './BotFace';
 import { ChatMarkdown } from './ChatMarkdown';
@@ -49,11 +45,7 @@ export function HandoffPeek({
         if (!cancelled) {
           setMessages([]);
           setLoading(false);
-          setError(
-            notice.replyPreview
-              ? null
-              : 'This older handoff has no linked bot chat.',
-          );
+          setError(notice.replyPreview ? null : 'This older handoff has no linked bot chat.');
         }
         return;
       }
@@ -61,19 +53,13 @@ export function HandoffPeek({
         const data = await fetchBotChat(peekBotId);
         if (cancelled) return;
         const thread = sliceHandoffThread(data.messages, notice).filter(
-          (m) => m.role !== 'tool' || !m.content.startsWith('Handed off'),
+          (m) => m.role !== 'tool' || !m.content.startsWith('Handed off')
         );
         setMessages(thread);
       } catch (err) {
         if (!cancelled) {
           setMessages([]);
-          setError(
-            notice.replyPreview
-              ? null
-              : err instanceof Error
-                ? err.message
-                : 'Unable to load bot chat',
-          );
+          setError(notice.replyPreview ? null : err instanceof Error ? err.message : 'Unable to load bot chat');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -132,10 +118,7 @@ export function HandoffPeek({
             <>
               {notice.brief ? (
                 <div className="handoff-peek-msg handoff-peek-msg-user">
-                  <div
-                    className="handoff-peek-bubble handoff-peek-bubble-user"
-                    style={{ background: targetAccent }}
-                  >
+                  <div className="handoff-peek-bubble handoff-peek-bubble-user" style={{ background: targetAccent }}>
                     {notice.brief}
                   </div>
                 </div>

@@ -3,11 +3,7 @@ import { formatBotContext } from './context.js';
 
 describe('formatBotContext', () => {
   test('includes memories and a skills index without inlining full bodies', () => {
-    const longBody = [
-      'Prefer concise SQL.',
-      'Always qualify tables.',
-      'x'.repeat(2_000),
-    ].join('\n');
+    const longBody = ['Prefer concise SQL.', 'Always qualify tables.', 'x'.repeat(2_000)].join('\n');
     const section = formatBotContext(
       [{ key: 'warehouse', content: 'us-west', updatedAt: '2026-01-01T00:00:00.000Z' }],
       [{ name: 'SQL style', body: longBody }]

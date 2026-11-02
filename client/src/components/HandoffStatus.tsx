@@ -1,13 +1,7 @@
 import type { HandoffNotice } from '../../../shared/chat/handoff-notice';
 import { BotFace, botColor } from './BotFace';
 
-export function HandoffStatus({
-  notice,
-  onOpen,
-}: {
-  notice: HandoffNotice;
-  onOpen: (notice: HandoffNotice) => void;
-}) {
+export function HandoffStatus({ notice, onOpen }: { notice: HandoffNotice; onOpen: (notice: HandoffNotice) => void }) {
   const accent = botColor(notice.targetBotId || notice.targetName, notice.targetName === 'Primary');
   const canPeek = Boolean(notice.targetBotId);
   const count = notice.messageCount && notice.messageCount > 0 ? notice.messageCount : null;

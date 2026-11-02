@@ -6,16 +6,9 @@ import {
   parseChoiceAnswerNotice,
   parseChoicePromptNotice,
 } from '../../../shared/chat/choice-notice';
-import {
-  collapseHandoffNotices,
-  parseHandoffNotice,
-  type HandoffNotice,
-} from '../../../shared/chat/handoff-notice';
+import { collapseHandoffNotices, parseHandoffNotice, type HandoffNotice } from '../../../shared/chat/handoff-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
-import {
-  formatChatTimeSeparator,
-  shouldShowChatTimeSeparator,
-} from '../lib/chat-time';
+import { formatChatTimeSeparator, shouldShowChatTimeSeparator } from '../lib/chat-time';
 import { toolResultView } from '../lib/user-facing';
 import { ArtifactPinStatus } from './ArtifactPinStatus';
 import { BotCreatedStatus } from './BotCreatedStatus';
@@ -81,16 +74,11 @@ type TranscriptRow =
       toolName: string;
     };
 
-function buildTranscriptRows(
-  messages: Message[],
-  toolNameByCallId: Map<string, string>,
-): TranscriptRow[] {
+function buildTranscriptRows(messages: Message[], toolNameByCallId: Map<string, string>): TranscriptRow[] {
   const rows: TranscriptRow[] = [];
   for (const message of messages) {
     if (message.role === 'tool') {
-      const toolName = message.toolCallId
-        ? (toolNameByCallId.get(message.toolCallId) ?? '')
-        : '';
+      const toolName = message.toolCallId ? (toolNameByCallId.get(message.toolCallId) ?? '') : '';
       const prev = rows[rows.length - 1];
       if (prev?.kind === 'tool_group' && prev.toolName === toolName && toolName) {
         prev.messages.push(message);
@@ -155,9 +143,7 @@ export function ChatTranscript({
             if (!trimmed || isApprovalWaitBubble(trimmed)) return false;
           }
           if (message.role !== 'tool') return true;
-          const toolName = message.toolCallId
-            ? (toolNameByCallId.get(message.toolCallId) ?? '')
-            : '';
+          const toolName = message.toolCallId ? (toolNameByCallId.get(message.toolCallId) ?? '') : '';
           if (
             isHandoffToolEcho(message.content) ||
             isCreateBotToolEcho(message.content) ||
@@ -172,15 +158,12 @@ export function ChatTranscript({
           if (!view.isError) return false;
           return true;
         }),
-        (message) => message.role === 'system',
+        (message) => message.role === 'system'
       ),
-    [messages, toolNameByCallId],
+    [messages, toolNameByCallId]
   );
 
-  const rows = useMemo(
-    () => buildTranscriptRows(visible, toolNameByCallId),
-    [visible, toolNameByCallId],
-  );
+  const rows = useMemo(() => buildTranscriptRows(visible, toolNameByCallId), [visible, toolNameByCallId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -211,8 +194,7 @@ export function ChatTranscript({
             const primary = row.messages[0]!;
             const view = toolResultView(primary.content, row.toolName);
             const count = row.messages.length;
-            const summary =
-              count > 1 ? `${view.summary} · ${count}` : view.summary;
+            const summary = count > 1 ? `${view.summary} · ${count}` : view.summary;
             return (
               <Fragment key={row.id}>
                 {timeSep}
@@ -300,10 +282,7 @@ export function ChatTranscript({
                 <Fragment key={message.id}>
                   {timeSep}
                   <div className="message message-system message-enter">
-                    <ChoicePromptStatus
-                      notice={choicePrompt}
-                      selectedOption={choiceAnswers.get(choicePrompt.id)}
-                    />
+                    <ChoicePromptStatus notice={choicePrompt} selectedOption={choiceAnswers.get(choicePrompt.id)} />
                   </div>
                 </Fragment>
               );

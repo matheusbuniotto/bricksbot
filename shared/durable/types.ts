@@ -26,11 +26,7 @@ export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
 
 export interface CompactionStore {
   getLatest(chatId: string): Promise<CompactionRecord | null>;
-  save(input: {
-    chatId: string;
-    summary: string;
-    keepFromMessageId: string;
-  }): Promise<CompactionRecord>;
+  save(input: { chatId: string; summary: string; keepFromMessageId: string }): Promise<CompactionRecord>;
 }
 
 export interface IdempotencyRecord {

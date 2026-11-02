@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import {
-  buildCapabilityCatalog,
-  formatCapabilityPrompt,
-  skillDescriptionFromBody,
-} from './capability-catalog.js';
+import { buildCapabilityCatalog, formatCapabilityPrompt, skillDescriptionFromBody } from './capability-catalog.js';
 
 describe('capability-catalog', () => {
   test('Primary includes handoff_to_bot and a teammate omits it', () => {

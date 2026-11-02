@@ -1,13 +1,6 @@
-import {
-  ARTIFACT_BODY_LIMITS,
-  serializeArtifactPinNotice,
-} from '../../../shared/chat/artifact-pin-notice.js';
+import { ARTIFACT_BODY_LIMITS, serializeArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice.js';
 import { parseSqlQueryResult } from '../../../shared/chat/sql-result.js';
-import {
-  MAX_CHART_ROWS,
-  VEGA_LITE_SCHEMA,
-  validateVegaLiteSpec,
-} from '../../../shared/chat/vega-spec.js';
+import { MAX_CHART_ROWS, VEGA_LITE_SCHEMA, validateVegaLiteSpec } from '../../../shared/chat/vega-spec.js';
 import type { ChatStore } from '../../../shared/chat/types.js';
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { HandoffTurnContext } from '../handoff.js';
@@ -67,16 +60,14 @@ export function planPinChart(args: Record<string, unknown>, bot: HandoffTurnCont
 export async function executePinChart(
   store: ChatStore,
   ctx: HandoffTurnContext,
-  args: Record<string, unknown>,
+  args: Record<string, unknown>
 ): Promise<string> {
   const planned = planPinChart(args, ctx.bot);
   if (!planned.ok) return planned.error;
   const bot = ctx.bot!;
 
   const messages = await store.listMessages(ctx.chatId);
-  const assistantCall = messages
-    .flatMap((m) => m.toolCalls ?? [])
-    .find((call) => call.id === planned.sourceToolCallId);
+  const assistantCall = messages.flatMap((m) => m.toolCalls ?? []).find((call) => call.id === planned.sourceToolCallId);
   if (!assistantCall || assistantCall.name !== 'sql_query') {
     return 'pin_chart source_tool_call_id must be the id of an earlier sql_query call in this chat';
   }
@@ -109,7 +100,7 @@ export async function executePinChart(
       summary: planned.summary,
       pinnedByBotId: bot.id,
       pinnedByName: bot.name,
-    }),
+    })
   );
 
   return JSON.stringify({ ok: true, title: planned.title, rows: parsed.rows.length, messageId: message.id });

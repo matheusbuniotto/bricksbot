@@ -41,20 +41,20 @@ export async function createRoutine(input: {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
-    }),
+    })
   );
 }
 
 export async function updateRoutine(
   id: string,
-  patch: { enabled?: boolean; name?: string; cron?: string; prompt?: string },
+  patch: { enabled?: boolean; name?: string; cron?: string; prompt?: string }
 ): Promise<Routine> {
   const data = await readJson<{ routine: Routine }>(
     await fetch(`/api/routines/${id}/update`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(patch),
-    }),
+    })
   );
   return data.routine;
 }
@@ -66,7 +66,7 @@ export async function runRoutine(id: string): Promise<{
   return readJson(
     await fetch(`/api/routines/${id}/run`, {
       method: 'POST',
-    }),
+    })
   );
 }
 

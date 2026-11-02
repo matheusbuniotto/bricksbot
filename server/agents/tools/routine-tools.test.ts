@@ -32,10 +32,7 @@ describe('routine tools CRUD', () => {
     const ctx = { chatId: chat.id, bot: primary };
     const [listTool, scheduleTool, updateTool, deleteTool] = createRoutineTools(routines, chats);
 
-    await scheduleTool.execute(
-      { name: 'Dawn', cron: '0 6 * * *', prompt: 'Morning brief' },
-      ctx,
-    );
+    await scheduleTool.execute({ name: 'Dawn', cron: '0 6 * * *', prompt: 'Morning brief' }, ctx);
 
     const listed = JSON.parse(await listTool.execute({}, ctx)) as {
       count: number;
@@ -45,19 +42,14 @@ describe('routine tools CRUD', () => {
     const id = listed.routines[0]!.id;
 
     const updated = JSON.parse(
-      await updateTool.execute(
-        { routine_id: id, cron: '0 7 * * *', enabled: false, new_name: 'Dawn v2' },
-        ctx,
-      ),
+      await updateTool.execute({ routine_id: id, cron: '0 7 * * *', enabled: false, new_name: 'Dawn v2' }, ctx)
     ) as { ok: boolean; routine: { name: string; cron: string; enabled: boolean } };
     expect(updated.ok).toBe(true);
     expect(updated.routine.name).toBe('Dawn v2');
     expect(updated.routine.cron).toBe('0 7 * * *');
     expect(updated.routine.enabled).toBe(false);
 
-    const deleted = JSON.parse(
-      await deleteTool.execute({ name: 'Dawn v2' }, ctx),
-    ) as { ok: boolean };
+    const deleted = JSON.parse(await deleteTool.execute({ name: 'Dawn v2' }, ctx)) as { ok: boolean };
     expect(deleted.ok).toBe(true);
     expect((await routines.listRoutines('owner-1')).length).toBe(0);
 

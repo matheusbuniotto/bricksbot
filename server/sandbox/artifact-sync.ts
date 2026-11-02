@@ -36,7 +36,7 @@ export function resolveArtifactVolumePath(
   sourcePath: string,
   chatId: string,
   explicitVolumePath?: string,
-  defaultVolumeRoot?: string,
+  defaultVolumeRoot?: string
 ): { ok: true; volumePath: string; artifactName: string } | { ok: false; error: string } {
   const artifactName = safeArtifactName(sourcePath);
   if (!artifactName) {
@@ -103,9 +103,7 @@ export class ArtifactSyncService {
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new Error(
-          `Volume upload failed (${res.status}): ${text || res.statusText}`,
-        );
+        throw new Error(`Volume upload failed (${res.status}): ${text || res.statusText}`);
       }
       return;
     }
@@ -114,10 +112,7 @@ export class ArtifactSyncService {
     await fs.writeFile(volumePath, data);
   }
 
-  async syncAndPin(
-    ctx: HandoffTurnContext,
-    input: SyncArtifactInput,
-  ): Promise<SyncArtifactResult> {
+  async syncAndPin(ctx: HandoffTurnContext, input: SyncArtifactInput): Promise<SyncArtifactResult> {
     if (!ctx.bot) {
       throw new Error('sandbox_save_artifact requires an active Bot');
     }
@@ -126,7 +121,7 @@ export class ArtifactSyncService {
       input.sourcePath,
       ctx.chatId,
       input.volumePath,
-      this.options.sessionService.getArtifactVolumeRoot(),
+      this.options.sessionService.getArtifactVolumeRoot()
     );
     if (!resolved.ok) {
       throw new Error(resolved.error);
@@ -139,7 +134,7 @@ export class ArtifactSyncService {
         botId: ctx.bot.id,
         userId: ctx.bot.ownerId,
       },
-      { src: input.sourcePath },
+      { src: input.sourcePath }
     );
 
     try {
@@ -147,14 +142,13 @@ export class ArtifactSyncService {
     } catch (err) {
       const msg = redactSecrets(
         err instanceof Error ? err.message : 'Unable to write artifact to Volume',
-        this.options.sessionService.getSecretsToRedact(),
+        this.options.sessionService.getSecretsToRedact()
       );
       throw new Error(msg);
     }
 
     const title = input.title?.trim() || artifactName;
-    const summary =
-      input.summary?.trim() || `Saved ${artifactName} (${downloaded.bytes} bytes)`;
+    const summary = input.summary?.trim() || `Saved ${artifactName} (${downloaded.bytes} bytes)`;
 
     const pinRaw = await executePinArtifact(this.options.chatStore, ctx, {
       title,

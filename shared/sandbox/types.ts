@@ -2,22 +2,9 @@ export type BackendId = 'databricks' | 'python_exec' | 'e2b';
 
 export type SandboxBackendSetting = 'off' | BackendId;
 
-export type SandboxSessionStatus =
-  | 'creating'
-  | 'ready'
-  | 'running'
-  | 'stopped'
-  | 'failed'
-  | 'deleted';
+export type SandboxSessionStatus = 'creating' | 'ready' | 'running' | 'stopped' | 'failed' | 'deleted';
 
-export type SandboxEventType =
-  | 'create'
-  | 'command'
-  | 'upload'
-  | 'download'
-  | 'stop'
-  | 'delete'
-  | 'error';
+export type SandboxEventType = 'create' | 'command' | 'upload' | 'download' | 'stop' | 'delete' | 'error';
 
 export interface ExecutionResult {
   stdout: string;
@@ -75,14 +62,10 @@ export interface SandboxStore {
       lastUsedAt?: string;
       stoppedAt?: string | null;
       metadata?: Record<string, unknown>;
-    },
+    }
   ): Promise<SandboxSession>;
   touchSession(id: string, usedAt?: string): Promise<SandboxSession>;
-  addEvent(
-    sessionId: string,
-    type: SandboxEventType,
-    payload: Record<string, unknown>,
-  ): Promise<SandboxEvent>;
+  addEvent(sessionId: string, type: SandboxEventType, payload: Record<string, unknown>): Promise<SandboxEvent>;
   listEvents(sessionId: string, limit?: number): Promise<SandboxEvent[]>;
 }
 

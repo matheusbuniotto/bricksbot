@@ -11,9 +11,7 @@ describe('pin_chart', () => {
     const chat = await store.getOrCreateChatForBot(bot.id);
 
     await store.addMessage(chat.id, 'assistant', 'Running query', {
-      toolCalls: [
-        { id: 'call-sql-1', name: 'sql_query', arguments: { statement: 'SELECT month, orders FROM t' } },
-      ],
+      toolCalls: [{ id: 'call-sql-1', name: 'sql_query', arguments: { statement: 'SELECT month, orders FROM t' } }],
     });
     await store.addMessage(chat.id, 'tool', 'month\torders\nJul\t120\nAug\t180', {
       toolCallId: 'call-sql-1',
@@ -27,14 +25,12 @@ describe('pin_chart', () => {
       },
     };
 
-    expect(
-      planPinChart({ title: 'Orders', source_tool_call_id: 'call-sql-1', spec }, bot).ok,
-    ).toBe(true);
+    expect(planPinChart({ title: 'Orders', source_tool_call_id: 'call-sql-1', spec }, bot).ok).toBe(true);
 
     const raw = await executePinChart(
       store,
       { chatId: chat.id, bot },
-      { title: 'Orders', source_tool_call_id: 'call-sql-1', spec },
+      { title: 'Orders', source_tool_call_id: 'call-sql-1', spec }
     );
     const out = JSON.parse(raw) as { ok: boolean; rows: number; messageId: string };
     expect(out.ok).toBe(true);
@@ -59,7 +55,7 @@ describe('pin_chart', () => {
     const missing = await executePinChart(
       store,
       { chatId: chat.id, bot },
-      { title: 'Orders', source_tool_call_id: 'nope', spec: { mark: 'bar' } },
+      { title: 'Orders', source_tool_call_id: 'nope', spec: { mark: 'bar' } }
     );
     expect(missing).toContain('source_tool_call_id');
 
@@ -73,7 +69,7 @@ describe('pin_chart', () => {
     const trunc = await executePinChart(
       store,
       { chatId: chat.id, bot },
-      { title: 'Orders', source_tool_call_id: 'call-trunc', spec: { mark: 'bar' } },
+      { title: 'Orders', source_tool_call_id: 'call-trunc', spec: { mark: 'bar' } }
     );
     expect(trunc).toContain('truncated');
   });

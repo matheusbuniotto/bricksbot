@@ -1,9 +1,5 @@
 import type { Message } from '../../shared/chat/types.js';
-import type {
-  CompactionRecord,
-  CompactionSettings,
-  CompactionStore,
-} from '../../shared/durable/types.js';
+import type { CompactionRecord, CompactionSettings, CompactionStore } from '../../shared/durable/types.js';
 import { DEFAULT_COMPACTION_SETTINGS } from '../../shared/durable/types.js';
 import type { ChatClient, LlmMessage } from '../../shared/agents/types.js';
 import { estimateMessageTokens, estimateTokensFromText } from './tokens.js';
@@ -22,7 +18,7 @@ export function findKeepFromIndex(history: Message[], keepFromMessageId: string)
  */
 export function applyCompactionToHistory(
   history: Message[],
-  compaction: CompactionRecord | null,
+  compaction: CompactionRecord | null
 ): { messages: Message[]; summarySystem: string | null } {
   if (!compaction) return { messages: history, summarySystem: null };
   let keepFrom = findKeepFromIndex(history, compaction.keepFromMessageId);
@@ -37,20 +33,16 @@ export function applyCompactionToHistory(
 export function shouldCompact(
   history: Message[],
   systemPrompt: string,
-  settings: CompactionSettings = DEFAULT_COMPACTION_SETTINGS,
+  settings: CompactionSettings = DEFAULT_COMPACTION_SETTINGS
 ): boolean {
   const budget = settings.contextWindow - settings.reserveTokens;
   if (budget <= 0) return false;
   const used =
-    estimateTokensFromText(systemPrompt) +
-    history.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
+    estimateTokensFromText(systemPrompt) + history.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
   return used > budget;
 }
 
-export function pickKeepFromMessage(
-  history: Message[],
-  keepRecentMessages: number,
-): Message | null {
+export function pickKeepFromMessage(history: Message[], keepRecentMessages: number): Message | null {
   if (history.length === 0) return null;
   const keep = Math.max(1, keepRecentMessages);
   // Prefer starting on a user turn near the tail.

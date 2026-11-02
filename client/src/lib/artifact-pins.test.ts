@@ -47,7 +47,7 @@ describe('listArtifactPinsFromMessages', () => {
           createdAt: '2026-01-01T00:00:00Z',
         },
         systemMsg('s', 'not json', '2026-01-01T00:00:00Z'),
-      ]),
+      ])
     ).toEqual([]);
   });
 });

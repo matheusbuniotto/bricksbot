@@ -36,7 +36,7 @@ export class LakebaseIdempotencyStore implements IdempotencyStore {
       `SELECT request_id, chat_id, result_json, created_at
        FROM bricksbot.message_requests
        WHERE request_id = $1`,
-      [requestId],
+      [requestId]
     );
     const row = result.rows[0];
     if (!row) return null;
@@ -53,7 +53,7 @@ export class LakebaseIdempotencyStore implements IdempotencyStore {
       `INSERT INTO bricksbot.message_requests (request_id, chat_id, result_json)
        VALUES ($1, $2, $3)
        ON CONFLICT (request_id) DO NOTHING`,
-      [requestId, chatId, resultJson],
+      [requestId, chatId, resultJson]
     );
   }
 }

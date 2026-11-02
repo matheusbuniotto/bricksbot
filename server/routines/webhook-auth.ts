@@ -23,9 +23,7 @@ export function verifyWebhookSecret(secret: string, storedHash: string): boolean
 }
 
 /** Read only the dedicated webhook header (not Authorization — Apps OAuth uses Bearer). */
-export function extractWebhookSecretHeader(
-  headers: Record<string, string | string[] | undefined>,
-): string | null {
+export function extractWebhookSecretHeader(headers: Record<string, string | string[] | undefined>): string | null {
   const raw = headers[WEBHOOK_HEADER] ?? headers[WEBHOOK_HEADER.toLowerCase()];
   if (typeof raw === 'string' && raw.trim()) return raw.trim();
   if (Array.isArray(raw) && raw[0]?.trim()) return raw[0].trim();
@@ -33,9 +31,7 @@ export function extractWebhookSecretHeader(
 }
 
 /** Read Authorization Bearer token (legacy local callers; Jobs should prefer header/body). */
-export function extractWebhookSecretBearer(
-  headers: Record<string, string | string[] | undefined>,
-): string | null {
+export function extractWebhookSecretBearer(headers: Record<string, string | string[] | undefined>): string | null {
   const auth = headers.authorization ?? headers.Authorization;
   const value = typeof auth === 'string' ? auth : Array.isArray(auth) ? auth[0] : undefined;
   if (!value) return null;

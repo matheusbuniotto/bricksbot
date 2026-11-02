@@ -16,7 +16,7 @@
 resources:
   jobs:
     bricksbot_routine_webhook:
-      name: "[${bundle.target}] bricksbot routine webhook"
+      name: '[${bundle.target}] bricksbot routine webhook'
       schedule:
         quartz_cron_expression: ${var.routine_webhook_quartz_cron}
         timezone_id: ${var.routine_webhook_timezone_id}
@@ -33,6 +33,6 @@ resources:
       environments:
         - environment_key: default
           spec:
-            environment_version: "2"
+            environment_version: '2'
             dependencies:
               - databricks-sdk

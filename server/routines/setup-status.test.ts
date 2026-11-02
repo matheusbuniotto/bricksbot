@@ -10,9 +10,7 @@ describe('buildSetupStatus', () => {
     expect(status.secretsScope).toBe('claw');
     expect(status.putSecretExamples[1]).toContain('put-secret claw openrouter-api-key');
     expect(status.appPublicUrl).toBeNull();
-    expect(status.routineWebhookSecretPutExample[1]).toContain(
-      'put-secret bricksbot routine-webhook-key',
-    );
+    expect(status.routineWebhookSecretPutExample[1]).toContain('put-secret bricksbot routine-webhook-key');
   });
 
   test('clears needsLlmSetup when openrouter secret env is present', () => {
@@ -21,7 +19,7 @@ describe('buildSetupStatus', () => {
         OPENROUTER_API_KEY: 'sk-test',
         LAKEBASE_ENDPOINT: 'projects/my-project/branches/bricksbot/endpoints/primary',
       },
-      'openai',
+      'openai'
     );
     expect(status.needsLlmSetup).toBe(false);
     expect(status.lakebaseConfigured).toBe(true);
@@ -34,7 +32,7 @@ describe('buildSetupStatus', () => {
         ROUTINE_WEBHOOK_SECRET_SCOPE: 'my-scope',
         ROUTINE_WEBHOOK_SECRET_KEY: 'my-key',
       },
-      'stub',
+      'stub'
     );
     expect(status.appPublicUrl).toBe('https://bricksbot-example.databricksapps.com');
     expect(status.routineWebhookSecretPutExample[1]).toContain('put-secret my-scope my-key');

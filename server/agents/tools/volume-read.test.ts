@@ -1,9 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import {
-  createVolumeReadTool,
-  validateVolumePath,
-  volumeReadToolDefinition,
-} from './volume-read.js';
+import { createVolumeReadTool, validateVolumePath, volumeReadToolDefinition } from './volume-read.js';
 
 describe('validateVolumePath', () => {
   test('accepts valid /Volumes/ path', () => {
@@ -35,12 +31,8 @@ describe('createVolumeReadTool', () => {
 
   test('preflight validates action and path', () => {
     const tool = createVolumeReadTool();
-    expect(tool.preflight({ action: 'invalid', path: '/Volumes/a/b/c' })).toMatch(
-      /action to be "read" or "list"/
-    );
-    expect(tool.preflight({ action: 'read', path: '/etc/passwd' })).toMatch(
-      /only accesses Unity Catalog Volumes/
-    );
+    expect(tool.preflight({ action: 'invalid', path: '/Volumes/a/b/c' })).toMatch(/action to be "read" or "list"/);
+    expect(tool.preflight({ action: 'read', path: '/etc/passwd' })).toMatch(/only accesses Unity Catalog Volumes/);
     expect(tool.preflight({ action: 'read', path: '/Volumes/a/b/c/data.json' })).toBeNull();
   });
 

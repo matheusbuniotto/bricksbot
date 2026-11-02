@@ -132,9 +132,7 @@ export function createVolumeReadTool(options: VolumeReadToolOptions = {}) {
               return `volume_read failed (${res.status}): unable to list ${rawPath}`;
             }
             const data = (await res.json()) as { contents?: Array<{ path?: string }> };
-            const names = (data.contents ?? [])
-              .map((c) => path.basename(c.path ?? ''))
-              .filter(Boolean);
+            const names = (data.contents ?? []).map((c) => path.basename(c.path ?? '')).filter(Boolean);
             return names.length > 0 ? names.join('\n') : '(directory is empty)';
           } catch (restErr) {
             const msg = restErr instanceof Error ? restErr.message : 'REST error';

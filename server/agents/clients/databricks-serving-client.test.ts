@@ -10,7 +10,7 @@ describe('DatabricksServingChatClient', () => {
     const fetchMock = vi.fn(async () =>
       Response.json({
         choices: [{ message: { role: 'assistant', content: 'from serving' } }],
-      }),
+      })
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -29,9 +29,8 @@ describe('DatabricksServingChatClient', () => {
     const url = String(call[0]);
     const init = call[1] as RequestInit;
     expect(url).toBe(
-      'https://dbc-example.cloud.databricks.com/serving-endpoints/databricks-meta-llama-3-3-70b-instruct/invocations',
+      'https://dbc-example.cloud.databricks.com/serving-endpoints/databricks-meta-llama-3-3-70b-instruct/invocations'
     );
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer dbx-token');
   });
 });
-

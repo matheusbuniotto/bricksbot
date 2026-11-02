@@ -1,11 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { MemoryChatStore } from '../../chat/memory-store.js';
 import { MemoryMemorySkillStore } from '../memory/memory-store.js';
-import {
-  CREATE_BOT_TOOL_NAME,
-  executeCreateBot,
-  planCreateBot,
-} from './create-bot.js';
+import { CREATE_BOT_TOOL_NAME, executeCreateBot, planCreateBot } from './create-bot.js';
 
 describe('create_bot', () => {
   test('Primary plans and creates a bot with job memory and greeting', async () => {
@@ -20,16 +16,10 @@ describe('create_bot', () => {
     });
     expect(planned.ok).toBe(true);
 
-    const result = await executeCreateBot(
-      store,
-      memory,
-      primary,
-      chat.id,
-      {
-        name: 'Revenue',
-        job: 'Own weekly revenue review. Ask before contacting customers.',
-      },
-    );
+    const result = await executeCreateBot(store, memory, primary, chat.id, {
+      name: 'Revenue',
+      job: 'Own weekly revenue review. Ask before contacting customers.',
+    });
     const parsed = JSON.parse(result) as {
       ok: boolean;
       tool: string;
@@ -51,7 +41,7 @@ describe('create_bot', () => {
           key: 'job',
           content: 'Own weekly revenue review. Ask before contacting customers.',
         }),
-      ]),
+      ])
     );
 
     const newChat = await store.getOrCreateChatForBot(parsed.bot_id);
@@ -67,7 +57,7 @@ describe('create_bot', () => {
         kind: 'bot_created',
         botId: parsed.bot_id,
         name: 'Revenue',
-      }),
+      })
     );
   });
 

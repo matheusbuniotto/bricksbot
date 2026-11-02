@@ -1,10 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  ApprovalDecision,
-  ApprovalRequest,
-  ApprovalStatus,
-  ToolCall,
-} from '../../shared/agents/types.js';
+import type { ApprovalDecision, ApprovalRequest, ApprovalStatus, ToolCall } from '../../shared/agents/types.js';
 import type { LakebaseQuery } from './lakebase-store.js';
 
 function asString(value: unknown): string {
@@ -37,7 +32,7 @@ export class ApprovalStore {
       `SELECT id, chat_id, tool_call, status, decision, created_at, decided_at
        FROM bricksbot.approvals
        WHERE chat_id = $1 AND status = 'pending'`,
-      [chatId],
+      [chatId]
     );
     for (const row of pending.rows) {
       const id = asString(row.id);
@@ -51,10 +46,7 @@ export class ApprovalStore {
       });
     }
 
-    const autos = await this.query(
-      `SELECT tool_name FROM bricksbot.auto_approvals WHERE chat_id = $1`,
-      [chatId],
-    );
+    const autos = await this.query(`SELECT tool_name FROM bricksbot.auto_approvals WHERE chat_id = $1`, [chatId]);
     if (autos.rows.length > 0) {
       const set = this.autoApprovedByChat.get(chatId) ?? new Set<string>();
       for (const row of autos.rows) set.add(asString(row.tool_name));
@@ -76,7 +68,7 @@ export class ApprovalStore {
       await this.query(
         `INSERT INTO bricksbot.approvals (id, chat_id, tool_call, status, created_at)
          VALUES ($1, $2, $3, 'pending', NOW())`,
-        [request.id, chatId, JSON.stringify(toolCall)],
+        [request.id, chatId, JSON.stringify(toolCall)]
       );
     }
     return request;
@@ -89,7 +81,7 @@ export class ApprovalStore {
     const result = await this.query(
       `SELECT id, chat_id, tool_call, status, decision, created_at, decided_at
        FROM bricksbot.approvals WHERE id = $1`,
-      [id],
+      [id]
     );
     const row = result.rows[0];
     if (!row) return null;
@@ -142,7 +134,7 @@ export class ApprovalStore {
         `INSERT INTO bricksbot.auto_approvals (chat_id, tool_name)
          VALUES ($1, $2)
          ON CONFLICT (chat_id, tool_name) DO NOTHING`,
-        [chatId, toolName],
+        [chatId, toolName]
       );
     }
   }
@@ -176,10 +168,7 @@ export class ApprovalStore {
    * Settle a pending approval. Idempotent for races/double-clicks: returns
    * `{ applied: false }` when the row was already decided.
    */
-  async decide(
-    id: string,
-    decision: ApprovalDecision,
-  ): Promise<{ request: ApprovalRequest; applied: boolean }> {
+  async decide(id: string, decision: ApprovalDecision): Promise<{ request: ApprovalRequest; applied: boolean }> {
     const existing = (await this.get(id)) ?? this.byId.get(id);
     if (!existing) {
       throw new Error('Approval not found');
@@ -210,7 +199,7 @@ export class ApprovalStore {
         `UPDATE bricksbot.approvals
          SET status = $2, decision = $3, decided_at = NOW()
          WHERE id = $1 AND status = 'pending'`,
-        [id, status, decisionKind],
+        [id, status, decisionKind]
       );
     }
     return { request: updated, applied: true };

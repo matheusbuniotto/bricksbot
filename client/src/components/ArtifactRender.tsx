@@ -2,13 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { CodeBlock } from './CodeBlock';
 import { MermaidDiagram } from './MermaidDiagram';
-import {
-  parseChartBody,
-  parseTableBody,
-  parseVegaBody,
-  type ChartData,
-  type VegaSpec,
-} from '../lib/artifact-render';
+import { parseChartBody, parseTableBody, parseVegaBody, type ChartData, type VegaSpec } from '../lib/artifact-render';
 import { useIsDarkTheme } from '../lib/use-is-dark-theme';
 
 const W = 480;
@@ -141,7 +135,7 @@ function VegaChart({ spec }: { spec: VegaSpec }) {
           renderer: 'svg',
           theme: dark ? 'dark' : undefined,
           tooltip: { theme: dark ? 'dark' : 'light' },
-        }),
+        })
       )
       .then((result) => {
         if (cancelled) result.finalize();

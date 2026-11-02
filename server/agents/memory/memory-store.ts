@@ -17,7 +17,7 @@ export class MemoryMemorySkillStore implements MemorySkillStore {
       .filter(
         (memory) =>
           memory.botId === id &&
-          (!userId || memory.userId === userId || (!memory.userId && userId === 'workspace-user')),
+          (!userId || memory.userId === userId || (!memory.userId && userId === 'workspace-user'))
       )
       .sort((a, b) => a.key.localeCompare(b.key));
   }
@@ -28,9 +28,7 @@ export class MemoryMemorySkillStore implements MemorySkillStore {
     const resolvedUserId = userId ?? 'workspace-user';
     const existing = [...this.memories.values()].find(
       (memory) =>
-        memory.botId === id &&
-        memory.key === normalized.key &&
-        (memory.userId ?? 'workspace-user') === resolvedUserId,
+        memory.botId === id && memory.key === normalized.key && (memory.userId ?? 'workspace-user') === resolvedUserId
     );
     const memory: BotMemory = {
       id: existing?.id ?? randomUUID(),
@@ -51,9 +49,7 @@ export class MemoryMemorySkillStore implements MemorySkillStore {
     const resolvedUserId = userId ?? 'workspace-user';
     const existing = [...this.memories.values()].find(
       (memory) =>
-        memory.botId === id &&
-        memory.key === trimmedKey &&
-        (memory.userId ?? 'workspace-user') === resolvedUserId,
+        memory.botId === id && memory.key === trimmedKey && (memory.userId ?? 'workspace-user') === resolvedUserId
     );
     if (!existing) throw new Error('Memory not found');
     this.memories.delete(existing.id);

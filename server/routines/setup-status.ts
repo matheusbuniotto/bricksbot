@@ -24,16 +24,14 @@ function truthySecret(value: string | undefined): boolean {
 /** Build install-wizard status from env + resolved ChatClient (no invented secrets). */
 export function buildSetupStatus(
   env: Record<string, string | undefined>,
-  provider: ChatClient['provider'],
+  provider: ChatClient['provider']
 ): SetupStatus {
   const resolved = resolveLlmEnv(env);
   const scope = env.LLM_SECRET_SCOPE?.trim() || 'claw';
   const secretKey = env.LLM_SECRET_KEY?.trim() || 'openrouter-api-key';
   const lakebaseConfigured = Boolean(env.LAKEBASE_ENDPOINT || env.PGHOST);
-  const hasOpenAI =
-    truthySecret(resolved.LLM_BASE_URL) && truthySecret(resolved.LLM_API_KEY);
-  const needsLlmSetup =
-    provider === 'stub' || (!hasOpenAI && provider !== 'databricks-serving');
+  const hasOpenAI = truthySecret(resolved.LLM_BASE_URL) && truthySecret(resolved.LLM_API_KEY);
+  const needsLlmSetup = provider === 'stub' || (!hasOpenAI && provider !== 'databricks-serving');
 
   const appPublicUrl = env.BRICKSBOT_PUBLIC_APP_URL?.trim() || null;
   const routineWebhookScope = env.ROUTINE_WEBHOOK_SECRET_SCOPE?.trim() || 'bricksbot';

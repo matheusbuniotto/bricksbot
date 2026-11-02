@@ -36,7 +36,7 @@ describe('bricksbot avatar system', () => {
       for (let color = 0; color < COLORS.length; color++) {
         const svg = renderBot({ shape, color, hat: 0, glasses: 0 }, 48);
         expect(svg).toContain('<svg');
-        expect(svg).toContain('class=\'bt\'');
+        expect(svg).toContain("class='bt'");
       }
     }
   });

@@ -28,9 +28,7 @@ describe('RoutineService', () => {
     const chat = await chats.getOrCreateChatForBot(primary.id);
     const messages = await chats.listMessages(chat.id);
     expect(messages.some((m) => m.role === 'system' && m.content.includes('Daily'))).toBe(true);
-    expect(messages.some((m) => m.role === 'user' && m.content === 'Give me the daily brief')).toBe(
-      true,
-    );
+    expect(messages.some((m) => m.role === 'user' && m.content === 'Give me the daily brief')).toBe(true);
     expect(messages.some((m) => m.role === 'assistant')).toBe(true);
   });
 
@@ -49,9 +47,7 @@ describe('RoutineService', () => {
       prompt: 'ping',
     });
 
-    await expect(service.runFromWebhook(created.routine.id, 'nope')).rejects.toThrow(
-      /invalid webhook/i,
-    );
+    await expect(service.runFromWebhook(created.routine.id, 'nope')).rejects.toThrow(/invalid webhook/i);
 
     const ok = await service.runFromWebhook(created.routine.id, created.webhookSecret);
     expect(ok.chat.user.content).toBe('ping');
@@ -73,9 +69,7 @@ describe('RoutineService', () => {
     });
     await routines.updateRoutine(created.routine.id, 'owner', { enabled: false });
 
-    await expect(
-      service.runFromWebhook(created.routine.id, created.webhookSecret),
-    ).rejects.toThrow(/disabled/i);
+    await expect(service.runFromWebhook(created.routine.id, created.webhookSecret)).rejects.toThrow(/disabled/i);
 
     const manual = await service.runNow(created.routine.id, 'owner');
     expect(manual.chat.user.content).toBe('should wait');

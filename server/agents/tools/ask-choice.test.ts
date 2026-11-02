@@ -17,14 +17,12 @@ describe('ask_choice', () => {
 
   test('preflight requires an active bot', () => {
     const tool = createAskChoiceTool();
-    expect(tool.preflight({ prompt: 'Q', options: ['a', 'b'] }, { chatId: 'c', bot: null })).toMatch(
-      /active Bot/i,
-    );
+    expect(tool.preflight({ prompt: 'Q', options: ['a', 'b'] }, { chatId: 'c', bot: null })).toMatch(/active Bot/i);
     expect(
       tool.preflight(
         { prompt: 'Q', options: ['a', 'b'] },
-        { chatId: 'c', bot: { id: 'b1', name: 'Ana', isPrimary: false } as never },
-      ),
+        { chatId: 'c', bot: { id: 'b1', name: 'Ana', isPrimary: false } as never }
+      )
     ).toBeNull();
   });
 

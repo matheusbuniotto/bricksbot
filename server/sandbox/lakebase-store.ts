@@ -75,7 +75,7 @@ export class LakebaseSandboxStore implements SandboxStore {
       `SELECT id, chat_id, bot_id, user_id, backend, external_id, status, created_at, last_used_at, stopped_at, metadata
        FROM bricksbot.sandbox_sessions
        WHERE id = $1`,
-      [id],
+      [id]
     );
     const row = result.rows[0];
     return row ? mapSession(row) : null;
@@ -88,7 +88,7 @@ export class LakebaseSandboxStore implements SandboxStore {
        WHERE chat_id = $1 AND status IN ('creating', 'ready', 'running')
        ORDER BY created_at DESC
        LIMIT 1`,
-      [chatId],
+      [chatId]
     );
     const row = result.rows[0];
     return row ? mapSession(row) : null;
@@ -101,7 +101,7 @@ export class LakebaseSandboxStore implements SandboxStore {
        WHERE chat_id = $1
        ORDER BY created_at DESC
        LIMIT 1`,
-      [chatId],
+      [chatId]
     );
     const row = result.rows[0];
     return row ? mapSession(row) : null;
@@ -113,7 +113,7 @@ export class LakebaseSandboxStore implements SandboxStore {
        FROM bricksbot.sandbox_sessions
        WHERE user_id = $1 AND status IN ('creating', 'ready', 'running')
        ORDER BY created_at DESC`,
-      [userId],
+      [userId]
     );
     return result.rows.map(mapSession);
   }
@@ -124,7 +124,7 @@ export class LakebaseSandboxStore implements SandboxStore {
        FROM bricksbot.sandbox_sessions
        WHERE status IN ('creating', 'ready', 'running')
        ORDER BY created_at DESC`,
-      [],
+      []
     );
     return result.rows.map(mapSession);
   }
@@ -138,16 +138,7 @@ export class LakebaseSandboxStore implements SandboxStore {
          (id, chat_id, bot_id, user_id, backend, external_id, status, metadata)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
        RETURNING id, chat_id, bot_id, user_id, backend, external_id, status, created_at, last_used_at, stopped_at, metadata`,
-      [
-        id,
-        input.chatId,
-        input.botId,
-        input.userId,
-        input.backend,
-        input.externalId,
-        status,
-        metadataJson,
-      ],
+      [id, input.chatId, input.botId, input.userId, input.backend, input.externalId, status, metadataJson]
     );
     const row = result.rows[0];
     if (!row) throw new Error('Sandbox session create failed');
@@ -163,7 +154,7 @@ export class LakebaseSandboxStore implements SandboxStore {
       lastUsedAt?: string;
       stoppedAt?: string | null;
       metadata?: Record<string, unknown>;
-    },
+    }
   ): Promise<SandboxSession> {
     const existing = await this.getSession(id);
     if (!existing) {
@@ -185,7 +176,7 @@ export class LakebaseSandboxStore implements SandboxStore {
            metadata = $7::jsonb
        WHERE id = $1
        RETURNING id, chat_id, bot_id, user_id, backend, external_id, status, created_at, last_used_at, stopped_at, metadata`,
-      [id, status, backend, externalId, lastUsedAt, stoppedAt, metadataJson],
+      [id, status, backend, externalId, lastUsedAt, stoppedAt, metadataJson]
     );
     const row = result.rows[0];
     if (!row) throw new Error(`Sandbox session not found: ${id}`);
@@ -199,25 +190,21 @@ export class LakebaseSandboxStore implements SandboxStore {
        SET last_used_at = $2::timestamptz
        WHERE id = $1
        RETURNING id, chat_id, bot_id, user_id, backend, external_id, status, created_at, last_used_at, stopped_at, metadata`,
-      [id, timestamp],
+      [id, timestamp]
     );
     const row = result.rows[0];
     if (!row) throw new Error(`Sandbox session not found: ${id}`);
     return mapSession(row);
   }
 
-  async addEvent(
-    sessionId: string,
-    type: SandboxEventType,
-    payload: Record<string, unknown>,
-  ): Promise<SandboxEvent> {
+  async addEvent(sessionId: string, type: SandboxEventType, payload: Record<string, unknown>): Promise<SandboxEvent> {
     const id = randomUUID();
     const payloadJson = JSON.stringify(payload);
     const result = await this.query(
       `INSERT INTO bricksbot.sandbox_events (id, session_id, type, payload)
        VALUES ($1, $2, $3, $4::jsonb)
        RETURNING id, session_id, type, payload, created_at`,
-      [id, sessionId, type, payloadJson],
+      [id, sessionId, type, payloadJson]
     );
     const row = result.rows[0];
     if (!row) throw new Error('Sandbox event insert failed');
@@ -231,7 +218,7 @@ export class LakebaseSandboxStore implements SandboxStore {
        WHERE session_id = $1
        ORDER BY created_at DESC
        LIMIT $2`,
-      [sessionId, limit],
+      [sessionId, limit]
     );
     return result.rows.map(mapEvent);
   }

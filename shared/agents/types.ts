@@ -40,13 +40,7 @@ export interface ChatClient {
 
 export type ApprovalStatus = 'pending' | 'approved' | 'denied';
 
-export type ApprovalDecision =
-  | 'all_the_time'
-  | 'always'
-  | 'once'
-  | 'approved'
-  | 'denied'
-  | 'not_approved';
+export type ApprovalDecision = 'all_the_time' | 'always' | 'once' | 'approved' | 'denied' | 'not_approved';
 
 export interface BaseApprovalRequest {
   id: string;
@@ -68,4 +62,3 @@ export interface ResolvedApprovalRequest extends BaseApprovalRequest {
 }
 
 export type ApprovalRequest = PendingApprovalRequest | ResolvedApprovalRequest;
-
