@@ -272,14 +272,14 @@ describe('createSqlQueryTool', () => {
 
     const tool = createSqlQueryTool({
       warehouseId: 'wh',
-      host: 'dbc-562d9321-2592.cloud.databricks.com',
+      host: 'dbc-example.cloud.databricks.com',
       getToken: async () => 'tok',
       fetchImpl: fetchImpl as typeof fetch,
     });
 
     const result = await tool.execute({ statement: 'SELECT 1 AS test' });
     expect(result).toBe('test\n1');
-    expect(requestedUrl).toBe('https://dbc-562d9321-2592.cloud.databricks.com/api/2.0/sql/statements');
+    expect(requestedUrl).toBe('https://dbc-example.cloud.databricks.com/api/2.0/sql/statements');
   });
 });
 
@@ -299,9 +299,9 @@ describe('sqlQueryConfigFromEnv', () => {
 
   test('normalizes bare DATABRICKS_HOST without protocol to https', () => {
     const config = sqlQueryConfigFromEnv({
-      DATABRICKS_HOST: 'dbc-562d9321-2592.cloud.databricks.com',
+      DATABRICKS_HOST: 'dbc-example.cloud.databricks.com',
     });
-    expect(config.host).toBe('https://dbc-562d9321-2592.cloud.databricks.com');
+    expect(config.host).toBe('https://dbc-example.cloud.databricks.com');
   });
 
   test('still provides getToken so request OBO can authenticate without a PAT', async () => {
