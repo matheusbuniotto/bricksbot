@@ -30,18 +30,17 @@ Types in `shared/`, logic in `server/`, UI in `client/`. Keep changes small and 
 
 ## Secrets
 
-Never commit secrets, tokens, workspace hostnames, or personal Lakebase endpoints. Use placeholders in docs and `.env.example`. Do not invent secret values in code or tests.
+Never commit secrets, tokens, workspace hostnames, or personal Lakebase endpoints. Use placeholders in docs and `.env.example`. Put workspace-specific bundle values in gitignored `dev.local.yml` (from `dev.local.yml.example`). Do not invent secret values in code or tests.
 
 ## Deploying to a workspace (optional)
 
-Deploys use the Databricks CLI and the bundle in `databricks.yml`. Pass your own profile with `-p <profile>`:
-
 ```bash
+cp dev.local.yml.example dev.local.yml   # set lakebase_* + sql_warehouse_id
 databricks bundle validate -p <profile>
 databricks bundle deploy -p <profile> && databricks bundle run app -p <profile>
 ```
 
-The bundle's `dev` target still carries maintainer defaults for Lakebase and secrets. A self-contained install path is tracked in [docs/oss-community-release.md](docs/oss-community-release.md). Pull requests do not need a deploy.
+Full install checklist (egress, secrets, BYO Lakebase): [README.md](README.md). Pull requests do not need a deploy.
 
 ## Pull requests
 

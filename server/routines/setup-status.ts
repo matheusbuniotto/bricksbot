@@ -27,7 +27,7 @@ export function buildSetupStatus(
   provider: ChatClient['provider'],
 ): SetupStatus {
   const resolved = resolveLlmEnv(env);
-  const scope = env.LLM_SECRET_SCOPE?.trim() || 'claw';
+  const scope = env.LLM_SECRET_SCOPE?.trim() || 'bricksbot';
   const secretKey = env.LLM_SECRET_KEY?.trim() || 'openrouter-api-key';
   const lakebaseConfigured = Boolean(env.LAKEBASE_ENDPOINT || env.PGHOST);
   const hasOpenAI =

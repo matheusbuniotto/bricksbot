@@ -34,7 +34,7 @@ Improve **agent behavior** (tools, skills, prompts, trust loops) toward Grok Bot
 ## Workstreams (parallel-safe)
 
 ```text
-OSS — Community share   License, self-contained install, README  ← next (see oss-community-release.md)
+OSS — Community share   License, self-contained install, README  ← P0 docs done (see oss-community-release.md)
 A — Phase 4 UI          Bot details + routines trust             ← done
 B — Agent quality       Seeds, pin, presence, choices            ← done slice; deny / Auto Review later
 C — Lakehouse tools     volume_write, Vector Search (thin)

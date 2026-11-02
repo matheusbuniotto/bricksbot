@@ -7,8 +7,8 @@ describe('buildSetupStatus', () => {
     expect(status.needsLlmSetup).toBe(true);
     expect(status.provider).toBe('stub');
     expect(status.lakebaseConfigured).toBe(false);
-    expect(status.secretsScope).toBe('claw');
-    expect(status.putSecretExamples[1]).toContain('put-secret claw openrouter-api-key');
+    expect(status.secretsScope).toBe('bricksbot');
+    expect(status.putSecretExamples[1]).toContain('put-secret bricksbot openrouter-api-key');
     expect(status.appPublicUrl).toBeNull();
     expect(status.routineWebhookSecretPutExample[1]).toContain(
       'put-secret bricksbot routine-webhook-key',

@@ -72,7 +72,7 @@ export class StubChatClient implements ChatClient {
     return {
       content:
         `Received: “${text}”. ` +
-        `No live model yet — set scope \`claw\` secret \`openrouter-api-key\` ` +
+        `No live model yet — set scope \`bricksbot\` secret \`openrouter-api-key\` ` +
         `or local OPENROUTER_API_KEY / LLM_API_KEY, then redeploy.`,
       toolCalls: [],
     };

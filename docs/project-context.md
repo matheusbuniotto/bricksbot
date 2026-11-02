@@ -18,7 +18,7 @@ Databricks App aiming for near 1:1 Grok Bot product shape (Bot roster, durable a
 
 - **Primary share path.** **Open-source GitHub + workspace DAB deploy** for the Databricks community.
 - **Marketplace Apps / PartnerOps.** Optional later; do **not** block OSS announce on public Apps listing or closed-source packaging.
-- **Dev convenience** (clawhouse Lakebase/secret reuse) must not be the **only** documented install path.
+- **Dev convenience** (personal Lakebase/secret reuse) must not be the **only** documented install path — community path is BYO via `dev.local.yml` (see README).
 
 ## Shipped product core (through 2026-10-30)
 
@@ -28,11 +28,11 @@ Roster + presence (`waiting` / `blocked`), durable chat, dual ChatClient, lakeho
 
 - Behaviors / Grok UI: [agent-improvement-plan.md](agent-improvement-plan.md), Track B UI batch done; remaining = deny semantics, Auto Review lite, space skill publish.
 - Platform (Genie, Ontology, `system.ai` MCP): [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md), still go slow.
-- **Next must-do:** [roadmap-next.md](roadmap-next.md) → OSS hygiene first ([oss-community-release.md](oss-community-release.md)).
+- **Next:** P1 after OSS announce — [roadmap-next.md](roadmap-next.md); release checklist [oss-community-release.md](oss-community-release.md).
 
 ## Still open
 
-- License choice for public repo (Apache-2.0 vs MIT vs Databricks community norms)
 - Websocket / scaling approach for the App
 - Genie kill switch / per-Bot Genie grant UX (see platform plan open questions)
 - Whether to pursue PartnerOps Apps listing **after** OSS v0
+- Fresh-workspace smoke confirmation + optional README screenshot (see [oss-community-release.md](oss-community-release.md))

@@ -13,8 +13,8 @@ function truthy(value: string | undefined): value is string {
 
 /**
  * Normalize LLM env for deploy + local dev.
- * Workspace apps inject `OPENROUTER_API_KEY` from scope `claw`;
- * BricksBot's ChatClient still reads OpenAI-compatible `LLM_*` vars.
+ * Workspace apps inject `OPENROUTER_API_KEY` from scope `bricksbot`
+ * (override via bundle `provider_secret_scope`); ChatClient still reads `LLM_*`.
  */
 export function resolveLlmEnv(env: Env = process.env): Env {
   const apiKey = truthy(env.LLM_API_KEY) ? env.LLM_API_KEY : env.OPENROUTER_API_KEY;

@@ -8,7 +8,7 @@ env:
   - name: DATABRICKS_WAREHOUSE_ID
     valueFrom: sql-warehouse
 
-  # OpenAI-compatible LLM (scope `claw`, key `openrouter-api-key`)
+  # OpenAI-compatible LLM (default scope `bricksbot`, key `openrouter-api-key`)
   - name: OPENROUTER_API_KEY
     valueFrom: openrouter-api-key
   - name: LLM_BASE_URL
@@ -16,7 +16,7 @@ env:
   - name: LLM_MODEL
     value: openai/gpt-6-luna
   - name: LLM_SECRET_SCOPE
-    value: claw
+    value: bricksbot
   - name: LLM_SECRET_KEY
     value: openrouter-api-key
 

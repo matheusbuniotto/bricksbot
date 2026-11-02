@@ -1,10 +1,23 @@
-# Lakebase Autoscaling — wired for the `dev` target in databricks.yml.
+# Lakebase (Postgres Autoscaling) — BYO project/branch for BricksBot.
 #
-# Workspace project limit is 3, so BricksBot reuses the clawhouse project with a
-# dedicated branch (projects/clawhouse/branches/bricksbot) and owns schema
-# `bricksbot` via the App service principal (deploy-first).
+# The App binds Lakebase via variables in databricks.yml:
+#   lakebase_branch   → projects/<project>/branches/<branch>
+#   lakebase_database → …/databases/<database>
 #
-# To rebind elsewhere:
-#   1. databricks postgres list-projects -p <profile>
-#   2. list-branches / list-databases for the chosen project
-#   3. Update targets.<env>.variables.lakebase_* in databricks.yml
+# Those values are NOT committed. Put them in gitignored `dev.local.yml`
+# (copy from `dev.local.yml.example`) or pass `--var` / `BUNDLE_VAR_*`.
+#
+# Create or reuse a project (workspace project limits apply):
+#
+#   databricks postgres list-projects -p <profile>
+#   databricks postgres create-project bricksbot \
+#     --json '{"spec":{"display_name":"BricksBot"}}' -p <profile>
+#   databricks postgres list-branches projects/<project-id> -p <profile>
+#   databricks postgres list-databases projects/<project-id>/branches/<branch-id> -p <profile>
+#
+# Default database id is usually `databricks-postgres`.
+# Schema `bricksbot` is created by the App service principal on first deploy
+# (deploy the App before pointing local `npm run dev` at Lakebase).
+#
+# Without Lakebase env (`LAKEBASE_ENDPOINT` / `PGHOST`), the server uses an
+# in-memory store — fine for UI work and most unit tests.

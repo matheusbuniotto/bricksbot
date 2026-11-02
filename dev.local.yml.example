@@ -1,6 +1,22 @@
-# Copy to dev.local.yml (gitignored) and add to databricks.yml `include:` when using file-based overrides.
-# targets:
-#   dev:
-#     variables:
-#       routine_webhook_app_base_url: https://bricksbot-1234567890123456.us-west-2.databricksapps.com
-#       routine_webhook_routine_id: "<routine-uuid-from-trust-banner>"
+# Copy to `dev.local.yml` (gitignored). The bundle already includes `*.local.yml`.
+# Fill these from your own workspace — never commit real ids or hosts.
+
+targets:
+  dev:
+    # Optional: override host if the profile's default host is wrong.
+    # workspace:
+    #   host: https://dbc-xxxxxxxx-xxxx.cloud.databricks.com
+    variables:
+      # Required for App postgres + sql tools. See README → Install (Lakebase).
+      lakebase_branch: projects/<your-project>/branches/<your-branch>
+      lakebase_database: projects/<your-project>/branches/<your-branch>/databases/databricks-postgres
+      sql_warehouse_id: "<your-warehouse-id>"
+
+      # Optional: LLM secret scope/key (defaults are bricksbot / openrouter-api-key)
+      # provider_secret_scope: bricksbot
+      # provider_secret_key: openrouter-api-key
+      # app_secret_scope: bricksbot
+
+      # Optional: scheduled Job → routine webhook (after you create a routine)
+      # routine_webhook_app_base_url: https://bricksbot-….databricksapps.com
+      # routine_webhook_routine_id: "<routine-uuid>"

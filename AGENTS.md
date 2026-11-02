@@ -63,5 +63,5 @@ App URL after deploy: `databricks apps get bricksbot -p dev`. Profile: `dev`.
 - Do not use models with `fast` in the id (see `.cursor/rules/no-fast-models.mdc`).
 - Agent loop is a **thin Pi-compatible harness** (see `docs/durable-harness.md`): compaction never deletes transcript; skills index + `activate_skill` / `read_skill_resource`; `remember` / `forget` / `list_memories` / `save_skill`; durable approvals; `requestId` idempotency. Do not embed `@earendil-works/pi-durable` without a Lakebase adapter. No CodingTools / `run_skill_script` / desktop UI (Phase 5 is exec sandbox only).
 - LLM history must stay OpenAI-valid: assistant `tool_calls` **before** matching `tool` messages; wait for all sibling approvals before the next completion.
-- Secrets: scope `claw` / `openrouter-api-key`; optional `bricksbot` / `web-fetch-allowlist`. Never invent secret values.
+- Secrets: scope `bricksbot` / `openrouter-api-key` (override via bundle `provider_secret_scope`); optional `web-fetch-allowlist` on the same scope. Never invent secret values. Workspace-specific Lakebase/warehouse ids belong in gitignored `dev.local.yml`, not committed `databricks.yml`.
 - Desktop/browser "computer" UI stays out of scope; sandbox exec is opt-in via `SANDBOX_BACKEND`.

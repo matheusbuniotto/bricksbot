@@ -12,7 +12,7 @@ describe('resolveLlmEnv', () => {
 
   test('prefers explicit LLM_* overrides', () => {
     const resolved = resolveLlmEnv({
-      OPENROUTER_API_KEY: 'from-claw',
+      OPENROUTER_API_KEY: 'from-env',
       LLM_API_KEY: 'explicit',
       LLM_BASE_URL: 'https://example.com/v1',
       LLM_MODEL: 'custom/model',
@@ -22,7 +22,7 @@ describe('resolveLlmEnv', () => {
     expect(resolved.LLM_MODEL).toBe('custom/model');
   });
 
-  test('createChatClientFromEnv uses shared claw secret via OPENROUTER_API_KEY', () => {
+  test('createChatClientFromEnv uses OPENROUTER_API_KEY when LLM_API_KEY unset', () => {
     const client = createChatClientFromEnv({ OPENROUTER_API_KEY: 'sk-or-test' });
     expect(client.provider).toBe('openai-compatible');
   });

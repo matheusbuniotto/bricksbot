@@ -135,8 +135,9 @@ export interface DatabricksMcpApp {
     | 'custom';
 }
 
-export const DEFAULT_DATABRICKS_WORKSPACE_HOST = 'https://dbc-562d9321-2592.cloud.databricks.com';
-export const DEFAULT_DATABRICKS_ORG_ID = '3020310945116198';
+/** Placeholder only — pass real host/org via discovery config / DATABRICKS_HOST. */
+export const DEFAULT_DATABRICKS_WORKSPACE_HOST = 'https://dbc-example.cloud.databricks.com';
+export const DEFAULT_DATABRICKS_ORG_ID = '0000000000000000';
 
 /**
  * Direct Databricks AI Gateway MCP configuration URL.
@@ -145,7 +146,7 @@ export const DATABRICKS_AI_GATEWAY_MCP_URL = `${DEFAULT_DATABRICKS_WORKSPACE_HOS
 
 /**
  * Builds direct URL to an MCP service in Databricks Unity Catalog Explorer.
- * Example: system.ai.slack -> https://dbc-562d9321-2592.cloud.databricks.com/explore/mcp-services/system/ai/slack?o=3020310945116198&activeTab=overview
+ * Example: system.ai.slack -> https://dbc-example.cloud.databricks.com/explore/mcp-services/system/ai/slack?o=0000000000000000&activeTab=overview
  */
 export function buildDatabricksMcpServiceUrl(
   servicePath: string,

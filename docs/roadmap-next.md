@@ -1,45 +1,29 @@
 # BricksBot: Next must-do roadmap
 
-**Updated:** 2026-10-30  
-**Shipped (2026-10-29 → 30):** seed skills, `pin_artifact`, Bot details sheet, presence `waiting`/`blocked`, choice cards (`ask_choice`), routine trust polish. Genie stays opt-in only.
+**Updated:** 2026-11-02  
+**Shipped (2026-10-29 → 30):** seed skills, `pin_artifact`, Bot details sheet, presence `waiting`/`blocked`, choice cards (`ask_choice`), routine trust polish, Lakeflow Job → webhook, dataviz pins. Genie stays opt-in only.
 
 **Distribution north star:** [oss-community-release.md](oss-community-release.md), GitHub + DAB, not PartnerOps-first.
 
-## Must-do now (ordered): OSS community share
+## Must-do now: OSS community share (P0)
 
-Product UX batch is **done**. Next blockers are packaging and a stranger-safe install.
+| Step | Status |
+| --- | --- |
+| 1. License + CONTRIBUTING + scrub clawhouse-only defaults | **Done** (Apache-2.0; BYO via `dev.local.yml`) |
+| 2. Self-contained deploy docs + Lakebase stub | **Done** (README install + `resources/lakebase.postgres.yml.stub`) |
+| 3. README as community homepage | **Done** |
+| 4. Smoke path documented | **Done** (`npm test` / build / stub local + workspace deploy section) |
 
-### 1. License + CONTRIBUTING + scrub clawhouse-only defaults
-
-See OSS map P0 §1. `package.json` is still `Unlicensed`.
-
-### 2. Self-contained deploy docs + resource stubs
-
-Own Lakebase / BYO path; egress + secrets checklist; Job stub usable with App URL + webhook secret. OSS map P0 §2.
-
-### 3. README rewrite as community homepage
-
-What / not / local / deploy / smoke path. Fix stale "no UC volume tools." OSS map P0 §3 to 4.
-
-### 4. Smoke greenlight
-
-`npm test` + build + stub local chat + one documented workspace deploy with LLM secret or Serving.
-
-## In flight (P1 product: implement now)
-
-| Priority | Item | Notes |
-| --- | --- | --- |
-| 1 | **Lakeflow Job → routine webhook** | Spec: [specs/2026-10-30-lakeflow-routine-job.md](specs/2026-10-30-lakeflow-routine-job.md), bundle vars + Job resource + ping script; finishes Phase 4 schedule path |
+Remaining before announce: run the smoke path once on a **fresh** workspace (or confirm with a cold clone) and tick success checks in [oss-community-release.md](oss-community-release.md).
 
 ## After announce (P1 product)
 
 | Priority | Item | Notes |
 | --- | --- | --- |
 | 1 | Space members UI | API exists; roster/share UX missing |
-| 2 | ~~Lakeflow Job example wired~~ | → **in flight** (spec above) |
-| 3 | `volume_write` Ask-first | Biblioteca / Volume pins |
-| 4 | Deny-until-new-message | Track B trust |
-| 5 | Approval trail | Approvals → UC or structured log |
+| 2 | `volume_write` Ask-first | Biblioteca / Volume pins |
+| 3 | Deny-until-new-message | Track B trust |
+| 4 | Approval trail | Approvals → UC or structured log |
 
 ## Explicitly not next
 
@@ -47,7 +31,7 @@ What / not / local / deploy / smoke path. Fix stale "no UC volume tools." OSS ma
 | --- | --- |
 | Genie Agent / Genie One MCP | After cheap path + OSS share feel solid, [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md) |
 | `system.ai.*` broad MCP | After first opt-in Genie experiment |
-| Desktop / Playwright "computer" UI | Still deferred; **sandbox exec is shipped behind `SANDBOX_BACKEND=off`**, [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md) |
+| Desktop / Playwright "computer" UI | Still deferred; **sandbox exec shipped** behind `SANDBOX_BACKEND`, [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md) |
 | PartnerOps / Marketplace Apps listing | Optional parallel; OSS GitHub is the primary share path |
 | Vector Search | Nice; after `volume_write` / audit if needed |
 
@@ -58,14 +42,9 @@ What / not / local / deploy / smoke path. Fix stale "no UC volume tools." OSS ma
 - [specs/2026-10-29-presence-waiting.md](specs/2026-10-29-presence-waiting.md)
 - [specs/2026-10-29-choice-cards.md](specs/2026-10-29-choice-cards.md)
 - [specs/2026-10-29-routine-trust.md](specs/2026-10-29-routine-trust.md)
-
-**Open (implement next):**
-
 - [specs/2026-10-30-lakeflow-routine-job.md](specs/2026-10-30-lakeflow-routine-job.md)
-
-**Closed (Phase 5 sandbox exec, flagged off by default):**
-
 - [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md)
+- [specs/2026-10-30-dataviz-artifacts.md](specs/2026-10-30-dataviz-artifacts.md)
 
 ## One-line north star
 

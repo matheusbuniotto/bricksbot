@@ -3,19 +3,21 @@ bundle:
 
 include:
   - resources/jobs/*.yml
+  # Optional workspace overrides (gitignored). Copy from dev.local.yml.example.
+  - '*.local.yml'
 
 variables:
   lakebase_branch:
-    description: Lakebase branch resource name for BricksBot durable chat
+    description: Lakebase branch resource name (projects/<project>/branches/<branch>)
   lakebase_database:
-    description: Lakebase database resource name for BricksBot durable chat
+    description: Lakebase database resource name (…/databases/<database>)
   sql_warehouse_id:
     description: SQL warehouse id for sql_query / lakehouse_catalog (user OBO + SP CAN_USE)
   provider_secret_scope:
-    description: Secret scope holding the OpenRouter API key
-    default: claw
+    description: Secret scope holding the OpenRouter (or compatible) API key
+    default: bricksbot
   provider_secret_key:
-    description: Secret key holding the OpenRouter API key
+    description: Secret key holding the OpenRouter (or compatible) API key
     default: openrouter-api-key
   app_secret_scope:
     description: Secret scope for BricksBot-only settings (e.g. web_fetch allowlist)
@@ -43,7 +45,7 @@ resources:
   apps:
     app:
       name: "bricksbot"
-      description: "BricksBot greenfield AppKit shell (Grok-like roster later; no computer)"
+      description: "BricksBot — Grok-shaped multi-bot chat on the lakehouse"
       source_code_path: ./
 
       lifecycle:
@@ -78,16 +80,11 @@ resources:
             permission: READ
 
 targets:
+  # Workspace-specific host, Lakebase paths, and warehouse id live in a
+  # gitignored `*.local.yml` (see dev.local.yml.example) or `--var` / BUNDLE_VAR_*.
+  # Profile alone is enough for auth; host comes from ~/.databrickscfg when unset.
   dev:
     default: true
     mode: development
     workspace:
       profile: dev
-      host: https://dbc-562d9321-2592.cloud.databricks.com
-    variables:
-      lakebase_branch: projects/clawhouse/branches/bricksbot
-      lakebase_database: projects/clawhouse/branches/bricksbot/databases/databricks-postgres
-      # Serverless Starter Warehouse (dev workspace)
-      sql_warehouse_id: 95a46431cf830347
-      provider_secret_scope: claw
-      app_secret_scope: bricksbot
