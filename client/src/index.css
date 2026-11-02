@@ -683,11 +683,19 @@ select {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 12%, transparent);
 }
 
+.roster-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+
 .roster-section-name {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   margin: 0;
   padding: 8px;
   border: 0;
@@ -696,6 +704,31 @@ select {
   font-size: 14px;
   text-align: left;
   cursor: pointer;
+}
+
+.roster-section-share {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.roster-section-share:hover {
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+
+.roster-section-share:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
 }
 
 .roster-section-label {
@@ -2566,6 +2599,66 @@ textarea.field {
 .dialog-actions .dialog-primary {
   background: var(--foreground);
   color: var(--background);
+}
+
+.space-members-dialog .dialog-header-row h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.space-members-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.space-members-empty {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+.space-members-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--foreground) 4%, transparent);
+  font-size: 13px;
+}
+
+.space-members-user {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-members-role,
+.space-members-owner {
+  flex: none;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.space-members-owner {
+  font-weight: 600;
+}
+
+.space-members-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
 /* Neutral pane actions (Details / Library) — avoid AppKit coral primary */

@@ -323,7 +323,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     const r3 = await service.decideApproval(r2.pendingApprovals[0].id, 'once');
 
     // Verify CSV was written to UC Volume and pinned onto the chat transcript!
-    const expectedVolumePath = `/Volumes/main/default/bricksbot_artifacts/${chat.id}/report.csv`;
+    const expectedVolumePath = `/Volumes/main/default/bricksbot_artifacts/users/user-1/bots/${primary.id}/sandbox/${chat.id}/report.csv`;
     expect(volumeFiles.get(expectedVolumePath)).toBe('region,revenue\nNA,1200\nEU,950\n');
 
     const messagesAfterSave = await store.listMessages(chat.id);

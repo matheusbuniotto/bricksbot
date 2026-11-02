@@ -47,7 +47,7 @@ export class RoutineService {
     const chat = await this.chats.getOrCreateChatForBot(routine.botId, routine.ownerId);
     const systemNote = `[routine:${routine.name}] scheduled run`;
     await this.chats.addMessage(chat.id, 'system', systemNote);
-    const result = await this.chatService.sendUserMessage(chat.id, routine.prompt);
+    const result = await this.chatService.sendUserMessage(chat.id, routine.prompt, { routine: true });
     const updated = await this.routines.markRoutineRun(routine.id);
     return { routine: updated, chat: result };
   }

@@ -133,6 +133,19 @@ export const CHAT_SCHEMA_STATEMENTS = [
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (chat_id, tool_name)
 )`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.approval_events (
+  id UUID PRIMARY KEY,
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  approval_id UUID,
+  bot_id UUID,
+  user_id TEXT,
+  type TEXT NOT NULL CHECK (type IN ('requested', 'decided')),
+  tool_name TEXT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_approval_events_chat
+  ON bricksbot.approval_events(chat_id, created_at DESC)`,
   `CREATE TABLE IF NOT EXISTS bricksbot.message_requests (
   request_id TEXT PRIMARY KEY,
   chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
@@ -167,4 +180,11 @@ export const CHAT_SCHEMA_STATEMENTS = [
 )`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_sandbox_events_session
   ON bricksbot.sandbox_events(session_id, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.volume_usage (
+  user_id TEXT NOT NULL,
+  bot_id TEXT NOT NULL,
+  bytes_used BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, bot_id)
+)`,
 ] as const;

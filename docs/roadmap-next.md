@@ -20,10 +20,10 @@ Remaining before announce: run the smoke path once on a **fresh** workspace (or 
 
 | Priority | Item | Notes |
 | --- | --- | --- |
-| 1 | Space members UI | API exists; roster/share UX missing |
-| 2 | `volume_write` Ask-first | Biblioteca / Volume pins |
-| 3 | Deny-until-new-message | Track B trust |
-| 4 | Approval trail | Approvals → UC or structured log |
+| 1 | ~~Space members UI~~ | **Done** — roster share control + members dialog; GET/POST ACL |
+| 2 | ~~`volume_write` + bot namespaces~~ | **Done** — Ask-first `volume_write` when `BRICKSBOT_VOLUME_ROOT` is set. Per-user folders, per-bot subfolders, Lakebase quotas. [specs/2026-11-02-volume-write-bot-namespaces.md](specs/2026-11-02-volume-write-bot-namespaces.md) |
+| 3 | ~~Deny-until-new-message~~ | **Done** — deny writes tool error, no auto-`continueTurn` until next user message. [specs/2026-11-02-deny-until-new-message.md](specs/2026-11-02-deny-until-new-message.md) |
+| 4 | ~~Approval trail~~ | **Done** — append-only `bricksbot.approval_events` (requested/decided + actor). UC Delta export later. [specs/2026-11-02-approval-trail.md](specs/2026-11-02-approval-trail.md) |
 
 ## Explicitly not next
 
@@ -44,7 +44,9 @@ Remaining before announce: run the smoke path once on a **fresh** workspace (or 
 - [specs/2026-10-29-routine-trust.md](specs/2026-10-29-routine-trust.md)
 - [specs/2026-10-30-lakeflow-routine-job.md](specs/2026-10-30-lakeflow-routine-job.md)
 - [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md)
-- [specs/2026-10-30-dataviz-artifacts.md](specs/2026-10-30-dataviz-artifacts.md)
+- [specs/2026-10-30-dataviz-pins.md](specs/2026-10-30-dataviz-pins.md)
+- [specs/2026-11-02-deny-until-new-message.md](specs/2026-11-02-deny-until-new-message.md)
+- [specs/2026-11-02-approval-trail.md](specs/2026-11-02-approval-trail.md)
 
 ## One-line north star
 

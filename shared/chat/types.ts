@@ -21,6 +21,18 @@ export interface SpaceMember {
   role: SpaceRole;
 }
 
+export interface WorkspaceUser {
+  id: string;
+  userName: string;
+  displayName: string;
+  active: boolean;
+}
+
+export interface WorkspaceUserDirectory {
+  searchUsers(query: string, limit?: number): Promise<WorkspaceUser[]>;
+  findActiveUserByEmail(email: string): Promise<WorkspaceUser | null>;
+}
+
 export interface Bot {
   id: string;
   name: string;

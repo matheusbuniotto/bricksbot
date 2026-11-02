@@ -32,6 +32,11 @@ import { createMemorySkillTools } from '../agents/tools/memory-tools.js';
 import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
 import { createSqlQueryTool, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
 import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tools/volume-read.js';
+import {
+  createVolumeWriteTool,
+  isAskFirstVolumeWrite,
+  type VolumeWriteToolOptions,
+} from '../agents/tools/volume-write.js';
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
 import { createPinChartTool } from '../agents/tools/pin-chart.js';
 import { ASK_CHOICE_TOOL_NAME, createAskChoiceTool, planAskChoice } from '../agents/tools/ask-choice.js';
@@ -44,12 +49,14 @@ import {
 } from '../agents/tools/sandbox-tools.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
 import { createSystemAiMcpTools, GENIE_ASK_TOOL_NAME } from '../agents/tools/system-ai-mcp.js';
+import { isConnectedMcpTool } from '../agents/tools/mcp-tools.js';
 import type { SystemAiMcpOptions } from '../../shared/agents/mcp-types.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
 import type { ArtifactSyncService } from '../sandbox/artifact-sync.js';
 import type { SandboxSessionService } from '../sandbox/session-service.js';
+import { MemoryVolumeUsageStore } from '../volumes/usage-store.js';
 import { ApprovalStore } from './approvals.js';
 import { ChoiceStore } from './choices.js';
 
@@ -73,6 +80,10 @@ export interface ChatServiceOptions {
   sqlQuery?: SqlQueryToolOptions;
   lakehouseCatalog?: SqlQueryToolOptions;
   volumeRead?: VolumeReadToolOptions;
+  /** Registered only when a Volume root is configured. */
+  volumeWrite?: Omit<VolumeWriteToolOptions, 'chatStore' | 'usage'> & {
+    usage?: VolumeWriteToolOptions['usage'];
+  };
   /** Defaults to an in-memory store so meta tools stay on for every bot. */
   memory?: MemorySkillStore;
   /** Defaults to in-memory so schedule_routine works in tests/local without Lakebase. */
@@ -90,6 +101,11 @@ export interface ChatServiceOptions {
 export type RegisteredTool = {
   definition: ToolDefinition;
   preflight?: (args: Record<string, unknown>, ctx: HandoffTurnContext) => string | null | Promise<string | null>;
+  /** Display fields merged onto the approval card. Execute ignores them and recomputes the path. */
+  approvalArguments?: (
+    args: Record<string, unknown>,
+    ctx: HandoffTurnContext
+  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
   execute(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string>;
 };
 
@@ -147,6 +163,10 @@ function toLlmHistory(history: Message[]): LlmMessage[] {
 type ContinueTurnOptions = {
   /** Nested teammate turns from handoff auto-run tools without extra approvals. */
   autoApproveAll?: boolean;
+  /** Signed-in caller when this chat row belongs to someone else. */
+  callerUserId?: string;
+  /** Routine runs have no user OBO token. */
+  routine?: boolean;
 };
 
 export interface SendMessageResult {
@@ -161,10 +181,15 @@ export interface SendMessageResult {
 export class ChatService {
   private readonly approvals: ApprovalStore;
   private readonly choices: ChoiceStore;
-  private readonly tools: RegisteredTool[];
+  /** Lakehouse + meta + sandbox tools fixed at construction. */
+  private readonly baseTools: RegisteredTool[];
+  /** Connected Unity Gateway MCP tools; replaced when connectors change. */
+  private dynamicMcpTools: RegisteredTool[] = [];
   private readonly compactionSettings: CompactionSettings;
   private readonly memory: MemorySkillStore;
   private readonly activeTurnsByBot = new Map<string, number>();
+  /** After a deny, skip auto-continue until the next user message for that chat. */
+  private readonly denyPauseByChat = new Set<string>();
 
   constructor(private readonly options: ChatServiceOptions) {
     this.approvals = options.approvals ?? new ApprovalStore();
@@ -188,6 +213,15 @@ export class ChatService {
         }
       )
     );
+    if (options.volumeWrite?.root) {
+      tools.push(
+        createVolumeWriteTool({
+          ...options.volumeWrite,
+          chatStore: options.store,
+          usage: options.volumeWrite.usage ?? new MemoryVolumeUsageStore(),
+        })
+      );
+    }
     tools.push(createHandoffTool(options.store));
     tools.push(createCreateBotTool(options.store, this.memory));
     tools.push(...createMemorySkillTools(this.memory));
@@ -207,13 +241,30 @@ export class ChatService {
         })
       );
     }
+    this.baseTools = tools;
+    // Tests / legacy: seed Genie (or other MCP) tools without going through discovery connect.
     if (options.systemAiMcp) {
-      const mcpTools = Array.isArray(options.systemAiMcp)
+      this.dynamicMcpTools = Array.isArray(options.systemAiMcp)
         ? options.systemAiMcp
         : createSystemAiMcpTools(options.systemAiMcp);
-      tools.push(...mcpTools);
     }
-    this.tools = tools;
+  }
+
+  private get tools(): RegisteredTool[] {
+    return [...this.baseTools, ...this.dynamicMcpTools];
+  }
+
+  /**
+   * Replace connected MCP tools (Connectors dialog / discovery sync).
+   * Pass [] to disconnect everything that came from MCP.
+   */
+  replaceMcpTools(tools: RegisteredTool[]): void {
+    this.dynamicMcpTools = tools;
+  }
+
+  /** Tool names currently offered to the LLM (base + connected MCP). */
+  listToolNames(): string[] {
+    return this.tools.map((tool) => tool.definition.name);
   }
 
   getApprovals(): ApprovalStore {
@@ -232,7 +283,11 @@ export class ChatService {
     return this.options.sandbox;
   }
 
-  async sendUserMessage(chatId: string, content: string, options?: { requestId?: string }): Promise<SendMessageResult> {
+  async sendUserMessage(
+    chatId: string,
+    content: string,
+    options?: { requestId?: string; routine?: boolean }
+  ): Promise<SendMessageResult> {
     const trimmed = content.trim();
     if (!trimmed) {
       throw new Error('Message content is required');
@@ -246,8 +301,9 @@ export class ChatService {
       }
     }
 
+    this.denyPauseByChat.delete(chatId);
     const user = await this.options.store.addMessage(chatId, 'user', trimmed);
-    const result = await this.continueTurn(chatId, user);
+    const result = await this.continueTurn(chatId, user, 0, { routine: options?.routine === true });
 
     if (requestId && this.options.idempotency) {
       await this.options.idempotency.put(requestId, chatId, JSON.stringify(result));
@@ -266,7 +322,26 @@ export class ChatService {
     };
   }
 
-  async decideApproval(approvalId: string, decision: ApprovalDecision): Promise<SendMessageResult> {
+  private async trailMetaForChat(
+    chatId: string,
+    decidedBy?: string
+  ): Promise<{ botId: string | null; userId: string | null; decidedBy?: string }> {
+    const [botId, chat] = await Promise.all([
+      this.options.store.findBotIdForChat(chatId),
+      this.options.store.getChat(chatId),
+    ]);
+    return {
+      botId,
+      userId: chat?.userId ?? null,
+      ...(decidedBy ? { decidedBy } : {}),
+    };
+  }
+
+  async decideApproval(
+    approvalId: string,
+    decision: ApprovalDecision,
+    opts?: { decidedBy?: string }
+  ): Promise<SendMessageResult> {
     const pending = await this.approvals.get(approvalId);
     if (!pending) {
       throw new Error('Approval not found');
@@ -277,11 +352,15 @@ export class ChatService {
     const isAlways = effectiveDecision === 'all_the_time' || effectiveDecision === 'always';
     const isDenial = effectiveDecision === 'denied' || effectiveDecision === 'not_approved';
 
-    const { request: approval, applied } = await this.approvals.decide(approvalId, effectiveDecision);
+    const trailMeta = await this.trailMetaForChat(pending.chatId, opts?.decidedBy);
+    const { request: approval, applied } = await this.approvals.decide(approvalId, effectiveDecision, trailMeta);
     const chatId = approval.chatId;
     // Double-click / race: already settled — return current pause without re-running tools.
     if (!applied) {
       return this.decidedPauseResult(chatId);
+    }
+    if (isDenial) {
+      this.denyPauseByChat.add(chatId);
     }
     await this.applyDecidedApproval(approval, isDenial);
 
@@ -292,7 +371,11 @@ export class ChatService {
         (item) => item.id !== approval.id && item.toolCall.name === approval.toolCall.name
       );
       for (const sibling of siblings) {
-        const { request: decided, applied: siblingApplied } = await this.approvals.decide(sibling.id, 'once');
+        const { request: decided, applied: siblingApplied } = await this.approvals.decide(
+          sibling.id,
+          'once',
+          trailMeta
+        );
         if (!siblingApplied) continue;
         await this.applyDecidedApproval(decided, false);
       }
@@ -315,6 +398,13 @@ export class ChatService {
         autoApprovedTools: await this.approvals.listAutoApproved(chatId),
         provider: this.options.client.provider,
       };
+    }
+
+    // Deny-until-new-message: do not auto-retry the model after a denial wave.
+    if (this.denyPauseByChat.has(chatId)) {
+      const botId = await this.options.store.findBotIdForChat(chatId);
+      await this.syncBotPresenceAfterTurn(chatId, botId);
+      return this.decidedPauseResult(chatId);
     }
 
     return this.continueTurn(chatId);
@@ -546,23 +636,34 @@ export class ChatService {
         const needsApproval: ToolCall[] = [];
         const toAutoExecute: ToolCall[] = [];
         const refusals: Array<{ toolCall: ToolCall; reason: string }> = [];
+        const turnCtx: HandoffTurnContext = {
+          chatId,
+          bot,
+          userId: opts.callerUserId ?? chat?.userId,
+          routine: opts.routine,
+        };
 
         for (const toolCall of completion.toolCalls) {
-          const refusal = await this.refusalFor(toolCall, { chatId, bot });
+          const refusal = await this.refusalFor(toolCall, turnCtx);
           if (refusal) {
             refusals.push({ toolCall, reason: refusal });
             continue;
           }
-          // create_bot / sandbox_delete / ask_choice always Ask-first.
+          // create_bot / sandbox_delete / ask_choice / genie_ask always Ask-first.
           // Default meta + sandbox_stop never Ask-first.
-          // Handoff autoApproveAll still requires Ask-first for sandbox exec/upload/download/artifact.
+          // Handoff autoApproveAll still requires Ask-first for sandbox, volume_write, and MCP tools.
+          const handoffAuto =
+            opts.autoApproveAll &&
+            !isAskFirstSandboxTool(toolCall.name) &&
+            !isAskFirstVolumeWrite(toolCall.name) &&
+            !isConnectedMcpTool(toolCall.name);
           if (
             !requiresAlwaysAsk(toolCall.name) &&
             (isDefaultMetaTool(toolCall.name) ||
               isAutoRoutineTool(toolCall.name) ||
               isAutoSandboxTool(toolCall.name) ||
               (await this.approvals.isAutoApproved(chatId, toolCall.name)) ||
-              (opts.autoApproveAll && !isAskFirstSandboxTool(toolCall.name)))
+              handoffAuto)
           ) {
             toAutoExecute.push(toolCall);
           } else {
@@ -586,15 +687,23 @@ export class ChatService {
         }
 
         for (const toolCall of toAutoExecute) {
-          const toolResult = await this.executeTool(toolCall, { chatId, bot, userId: chat?.userId });
+          const toolResult = await this.executeTool(toolCall, turnCtx);
           await this.options.store.addMessage(chatId, 'tool', toolResult, {
             toolCallId: toolCall.id,
           });
         }
 
         if (needsApproval.length > 0) {
+          const trailMeta = {
+            botId: bot?.id ?? null,
+            userId: turnCtx.userId ?? chat?.userId ?? null,
+          };
           const pendingApprovals = await Promise.all(
-            needsApproval.map((toolCall) => this.approvals.create(chatId, toolCall))
+            needsApproval.map(async (toolCall) => {
+              const extra = await this.toolFor(toolCall.name)?.approvalArguments?.(toolCall.arguments, turnCtx);
+              const call = extra ? { ...toolCall, arguments: { ...toolCall.arguments, ...extra } } : toolCall;
+              return this.approvals.create(chatId, call, trailMeta);
+            })
           );
           const pause = await this.pauseSnapshot(chatId);
           return {
@@ -726,7 +835,8 @@ export class ChatService {
     if (!planned.ok) return planned.error;
 
     const { sender, target, brief } = planned.plan;
-    const targetChat = await this.options.store.getOrCreateChatForBot(target.id, sender.ownerId);
+    const callerId = ctx.userId?.trim() || sender.ownerId;
+    const targetChat = await this.options.store.getOrCreateChatForBot(target.id, callerId);
     const sourceChatId = ctx.chatId;
     const briefLine = handoffBriefUserLine(sender.name, brief);
 
@@ -750,7 +860,11 @@ export class ChatService {
 
     let reply: string;
     try {
-      const nested = await this.continueTurn(targetChat.id, undefined, 0, { autoApproveAll: true });
+      const nested = await this.continueTurn(targetChat.id, undefined, 0, {
+        autoApproveAll: true,
+        callerUserId: callerId,
+        routine: ctx.routine,
+      });
       reply = nested.assistant?.content?.trim() || '(no reply)';
     } catch (err) {
       reply = `(handoff failed) ${err instanceof Error ? err.message : 'Unexpected error'}`;

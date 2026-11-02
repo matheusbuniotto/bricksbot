@@ -62,3 +62,18 @@ export interface ResolvedApprovalRequest extends BaseApprovalRequest {
 }
 
 export type ApprovalRequest = PendingApprovalRequest | ResolvedApprovalRequest;
+
+export type ApprovalEventType = 'requested' | 'decided';
+
+/** Append-only approval audit row (Lakebase or in-memory). */
+export interface ApprovalEvent {
+  id: string;
+  chatId: string;
+  approvalId: string | null;
+  botId: string | null;
+  userId: string | null;
+  type: ApprovalEventType;
+  toolName: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}

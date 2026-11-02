@@ -1,4 +1,4 @@
-import type { Bot, Chat, MarketplaceBot, Message, Space, SpaceMember } from '../../../shared/chat/types';
+import type { Bot, Chat, MarketplaceBot, Message, Space, SpaceMember, WorkspaceUser } from '../../../shared/chat/types';
 import type { PendingChoice } from '../../../shared/chat/choice-notice';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
 import type { SandboxUiStatus } from '../../../shared/sandbox/types';
@@ -28,9 +28,11 @@ export async function createSpace(name: string): Promise<Space> {
   return data.space;
 }
 
-export async function fetchSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
-  const data = await readJson<{ members: SpaceMember[] }>(await fetch(`/api/spaces/${spaceId}/members`));
-  return data.members;
+export async function fetchSpaceMembers(spaceId: string): Promise<{ members: SpaceMember[]; canManage: boolean }> {
+  const data = await readJson<{ members: SpaceMember[]; canManage?: boolean }>(
+    await fetch(`/api/spaces/${spaceId}/members`)
+  );
+  return { members: data.members, canManage: data.canManage === true };
 }
 
 export async function addSpaceMember(
@@ -46,6 +48,20 @@ export async function addSpaceMember(
     })
   );
   return data.member;
+}
+
+export async function searchWorkspaceUsers(
+  spaceId: string,
+  query: string,
+  signal?: AbortSignal
+): Promise<WorkspaceUser[]> {
+  const params = new URLSearchParams({ q: query });
+  const data = await readJson<{ users: WorkspaceUser[] }>(
+    await fetch(`/api/spaces/${encodeURIComponent(spaceId)}/users/search?${params.toString()}`, {
+      signal,
+    })
+  );
+  return data.users;
 }
 
 export async function fetchBots(
@@ -264,6 +280,26 @@ export async function fetchMcps(refresh = false): Promise<DatabricksMcpApp[]> {
   const query = refresh ? '?refresh=true' : '';
   const data = await readJson<{ mcps: DatabricksMcpApp[] }>(await fetch(`/api/mcps${query}`));
   return data.mcps;
+}
+
+export async function connectMcp(service: string): Promise<DatabricksMcpApp> {
+  const data = await readJson<{ mcp: DatabricksMcpApp }>(
+    await fetch('/api/mcps/connect', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ service }),
+    })
+  );
+  return data.mcp;
+}
+
+export async function disconnectMcp(service: string): Promise<boolean> {
+  const data = await readJson<{ success: boolean }>(
+    await fetch(`/api/mcps/connect/${encodeURIComponent(service)}`, {
+      method: 'DELETE',
+    })
+  );
+  return data.success;
 }
 
 export async function registerCustomMcp(

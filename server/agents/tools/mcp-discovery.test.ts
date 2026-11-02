@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { McpDiscoveryService } from './mcp-discovery.js';
 
+function requestUrl(input: Parameters<typeof fetch>[0]): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
+function requestBody(init?: RequestInit): string {
+  return typeof init?.body === 'string' ? init.body : '{}';
+}
+
 describe('McpDiscoveryService', () => {
   it('returns default viable MCPs when host and token are absent (offline/local mode)', async () => {
     const service = new McpDiscoveryService({});
@@ -17,50 +27,53 @@ describe('McpDiscoveryService', () => {
       'system.ai.dbsql': ['execute_sql'],
     };
 
-    const mockFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === 'string' ? input : input.toString();
+    const mockFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = requestUrl(input);
 
       if (url.includes('/api/2.1/unity-catalog/mcp-services')) {
-        return new Response(
-          JSON.stringify({
-            mcp_services: [
-              { name: 'genie_one_mcp', full_name: 'system.ai.genie_one_mcp' },
-              { name: 'dbsql', full_name: 'system.ai.dbsql' },
-              { name: 'slack', full_name: 'system.ai.slack' },
-            ],
-          }),
-          { status: 200 }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              mcp_services: [
+                { name: 'genie_one_mcp', full_name: 'system.ai.genie_one_mcp' },
+                { name: 'dbsql', full_name: 'system.ai.dbsql' },
+                { name: 'slack', full_name: 'system.ai.slack' },
+              ],
+            }),
+            { status: 200 }
+          )
         );
       }
 
       if (url.includes('/ai-gateway/mcp-services/')) {
-        const bodyStr = init?.body ? String(init.body) : '{}';
-        const parsed = JSON.parse(bodyStr);
+        const parsed = JSON.parse(requestBody(init)) as { id?: number };
         const serviceMatch = url.match(/\/ai-gateway\/mcp-services\/([^?]+)/);
         const serviceName = serviceMatch ? decodeURIComponent(serviceMatch[1]) : '';
 
         if (serviceName in fakeTools) {
           const tools = fakeTools[serviceName].map((t) => ({ name: t, description: `${t} tool` }));
-          return new Response(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: parsed.id ?? 1,
-              result: { tools },
-            }),
-            { status: 200 }
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: parsed.id ?? 1,
+                result: { tools },
+              }),
+              { status: 200 }
+            )
           );
         }
 
-        return new Response('Not Found', { status: 404 });
+        return Promise.resolve(new Response('Not Found', { status: 404 }));
       }
 
-      return new Response('Not Found', { status: 404 });
-    };
+      return Promise.resolve(new Response('Not Found', { status: 404 }));
+    }) as typeof fetch;
 
     const discovery = new McpDiscoveryService({
       host: 'https://workspace.cloud.databricks.com',
-      getToken: async () => 'test-token',
-      fetchImpl: mockFetch as typeof fetch,
+      getToken: () => Promise.resolve('test-token'),
+      fetchImpl: mockFetch,
       cacheTtlMs: 50,
     });
 
@@ -84,29 +97,30 @@ describe('McpDiscoveryService', () => {
   });
 
   it('allows registering and removing custom user MCPs', async () => {
-    const mockFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === 'string' ? input : input.toString();
+    const mockFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = requestUrl(input);
 
       if (url.includes('/ai-gateway/mcp-services/main.analytics.custom_mcp')) {
-        const bodyStr = init?.body ? String(init.body) : '{}';
-        const parsed = JSON.parse(bodyStr);
-        return new Response(
-          JSON.stringify({
-            jsonrpc: '2.0',
-            id: parsed.id ?? 1,
-            result: { tools: [{ name: 'query_custom_data' }] },
-          }),
-          { status: 200 }
+        const parsed = JSON.parse(requestBody(init)) as { id?: number };
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: parsed.id ?? 1,
+              result: { tools: [{ name: 'query_custom_data' }] },
+            }),
+            { status: 200 }
+          )
         );
       }
 
-      return new Response('Not Found', { status: 404 });
-    };
+      return Promise.resolve(new Response('Not Found', { status: 404 }));
+    }) as typeof fetch;
 
     const discovery = new McpDiscoveryService({
       host: 'https://workspace.cloud.databricks.com',
-      getToken: async () => 'test-token',
-      fetchImpl: mockFetch as typeof fetch,
+      getToken: () => Promise.resolve('test-token'),
+      fetchImpl: mockFetch,
     });
 
     const custom = await discovery.registerCustomMcp('main.analytics.custom_mcp', {
@@ -126,5 +140,40 @@ describe('McpDiscoveryService', () => {
 
     const afterDelete = await discovery.listViableMcps({ refresh: true });
     expect(afterDelete.some((m) => m.service === 'main.analytics.custom_mcp')).toBe(false);
+  });
+
+  it('connect marks service connected and disconnect clears it', async () => {
+    const mockFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.includes('/ai-gateway/mcp-services/system.ai.web_search')) {
+        const parsed = JSON.parse(requestBody(init)) as { id?: number };
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: parsed.id ?? 1,
+              result: { tools: [{ name: 'web_search', description: 'Search the web' }] },
+            }),
+            { status: 200 }
+          )
+        );
+      }
+      return Promise.resolve(new Response('Not Found', { status: 404 }));
+    }) as typeof fetch;
+
+    const discovery = new McpDiscoveryService({
+      host: 'https://workspace.cloud.databricks.com',
+      getToken: () => Promise.resolve('test-token'),
+      fetchImpl: mockFetch,
+    });
+
+    expect(discovery.isConnected('system.ai.web_search')).toBe(false);
+    const connected = await discovery.connect('system.ai.web_search');
+    expect(connected.connected).toBe(true);
+    expect(connected.tools).toEqual(['web_search']);
+    expect(discovery.listConnectedServices()).toEqual(['system.ai.web_search']);
+
+    expect(discovery.disconnect('system.ai.web_search')).toBe(true);
+    expect(discovery.isConnected('system.ai.web_search')).toBe(false);
   });
 });

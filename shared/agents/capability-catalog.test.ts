@@ -76,6 +76,17 @@ describe('capability-catalog', () => {
     expect(prompt).toContain('no secrets');
   });
 
+  test('capability prompt prefers volume_write for durable files when registered', () => {
+    const catalog = buildCapabilityCatalog({
+      toolNames: ['volume_write', 'pin_artifact', 'sandbox_save_artifact'],
+    });
+    const prompt = formatCapabilityPrompt(catalog);
+    expect(prompt).toContain('volume_write');
+    expect(prompt).toContain('durable files');
+    expect(prompt).toContain('routine runs');
+    expect(prompt).toContain('volume files (volume_write)');
+  });
+
   test('capability prompt encodes cite-fresh-data and save_skill habits', () => {
     const catalog = buildCapabilityCatalog({
       toolNames: ['activate_skill', 'save_skill', 'sql_query'],

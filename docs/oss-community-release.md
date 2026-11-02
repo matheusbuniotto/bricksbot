@@ -65,10 +65,10 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 
 | Item | Why |
 | --- | --- |
-| Space invite / members UI (API already exists) | Team story without curling APIs |
-| `volume_write` (Ask-first) | Biblioteca / pin-to-Volume without leaving chat |
-| Deny-until-new-message semantics | Trust polish Grok-shaped |
-| Audit trail of tool approvals → UC table or log | Enterprise community ask |
+| ~~Space invite / members UI~~ | **Done** (roster share + dialog) |
+| ~~`volume_write` + per-bot Volume namespaces~~ | **Done** — [specs/2026-11-02-volume-write-bot-namespaces.md](specs/2026-11-02-volume-write-bot-namespaces.md) |
+| ~~Deny-until-new-message semantics~~ | **Done** — [specs/2026-11-02-deny-until-new-message.md](specs/2026-11-02-deny-until-new-message.md) |
+| ~~Audit trail of tool approvals~~ | **Done** (Lakebase `approval_events`; UC export later) — [specs/2026-11-02-approval-trail.md](specs/2026-11-02-approval-trail.md) |
 
 ## Explicitly later (P2+): do not block OSS v0
 
@@ -89,12 +89,12 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 | High-fidelity UI + approvals + Spaces | **Done** (sharing UI thin) |
 | Durable harness on Lakebase | **Done** (thin Pi-compatible) |
 | OpenAI-compatible + Serving option | **Done** |
-| SQL / UC volume / Vector / web_fetch / optional Genie | **Partial**, SQL + catalog + `volume_read` + web_fetch; no `volume_write`, no Vector, Genie not registered |
+| SQL / UC volume / Vector / web_fetch / optional Genie | **Partial**, SQL + catalog + `volume_read` + `volume_write` (when `BRICKSBOT_VOLUME_ROOT` is set) + web_fetch; no Vector, Genie not registered |
 | Per-Bot memory; Space sharing | **Partial**, memory + seeds done; Space members API, weak UI |
 | Routines via Job → webhook | **Done** (App webhook + example Job) |
 | Bot-to-Bot + Primary router | **Done** (`handoff_to_bot`, `create_bot`) |
 | Install wizard + Partner listing | **Partial**, setup status / wizard; Partner listing → **OSS GitHub instead** |
-| Audit log to UC / MLflow | **Not started** |
+| Audit log to UC / MLflow | **Partial** — Lakebase `approval_events`; UC/MLflow export later |
 
 ## Success checks for "community ready"
 

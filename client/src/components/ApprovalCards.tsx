@@ -59,6 +59,23 @@ function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
     );
   }
 
+  if (name === 'volume_write') {
+    const relative = readStr(args.relative_path);
+    const resolved = readStr(args.resolved_path);
+    const botName = readStr(args.bot_name);
+    const bytes = typeof args.byte_size === 'number' ? args.byte_size : Number(args.byte_size);
+    const remaining = typeof args.remaining_bytes === 'number' ? args.remaining_bytes : Number(args.remaining_bytes);
+    return (
+      <div className="approval-details">
+        {botName ? <span className="approval-chip">{botName}</span> : null}
+        {relative ? <span className="approval-path">{relative}</span> : null}
+        {resolved ? <span className="approval-path">{resolved}</span> : null}
+        {Number.isFinite(bytes) ? <span className="approval-target">{bytes} bytes</span> : null}
+        {Number.isFinite(remaining) ? <span className="approval-target">{remaining} bytes left</span> : null}
+      </div>
+    );
+  }
+
   if (name === 'web_fetch' && typeof args.url === 'string') {
     return (
       <div className="approval-details">

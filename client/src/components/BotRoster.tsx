@@ -16,6 +16,7 @@ import {
   Sun,
   Trash2,
   Palette,
+  Users,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -23,6 +24,7 @@ import type { Bot, MarketplaceBot, Space } from '../../../shared/chat/types';
 import type { Theme } from '../lib/theme';
 import { presenceTooltip, rosterPreviewForPresence } from '../lib/user-facing';
 import { ConnectorsDialog } from './ConnectorsDialog';
+import { SpaceMembersDialog } from './SpaceMembersDialog';
 import { BotFace, botColor, botLook, decodeLook, encodeLook, COLORS, DEFAULT_BOT, type BotConfig } from './BotFace';
 import { BotPicker } from './BotPicker';
 
@@ -118,6 +120,8 @@ export function BotRoster({
   const [menu, setMenu] = useState<MenuState>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [membersSpaceId, setMembersSpaceId] = useState<string | null>(null);
+  const membersSpace = membersSpaceId ? (spaces.find((space) => space.id === membersSpaceId) ?? null) : null;
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [pendingDropBotId, setPendingDropBotId] = useState<string | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
@@ -427,16 +431,32 @@ export function BotRoster({
               onDragLeave={() => setDropTarget((prev) => (prev === section.id ? null : prev))}
               onDrop={(event) => void handleDropOnSection(section.id, section.bots.length, event)}
             >
-              <button
-                type="button"
-                className="roster-section-name"
-                aria-expanded={!isCollapsed}
-                onClick={() => setCollapsed((prev) => ({ ...prev, [section.id]: !prev[section.id] }))}
-              >
-                <ChevronRight className="roster-section-chevron" size={14} strokeWidth={2} aria-hidden="true" />
-                <span className="roster-section-label">{section.name}</span>
-                {isCollapsed ? <span className="roster-section-count">{section.bots.length}</span> : null}
-              </button>
+              <div className="roster-section-heading">
+                <button
+                  type="button"
+                  className="roster-section-name"
+                  aria-expanded={!isCollapsed}
+                  onClick={() => setCollapsed((prev) => ({ ...prev, [section.id]: !prev[section.id] }))}
+                >
+                  <ChevronRight className="roster-section-chevron" size={14} strokeWidth={2} aria-hidden="true" />
+                  <span className="roster-section-label">{section.name}</span>
+                  {isCollapsed ? <span className="roster-section-count">{section.bots.length}</span> : null}
+                </button>
+                {section.id !== '__none' ? (
+                  <button
+                    type="button"
+                    className="roster-section-share"
+                    aria-label={`Share ${section.name}`}
+                    title="Space members"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMembersSpaceId(section.id);
+                    }}
+                  >
+                    <Users size={14} strokeWidth={2} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
               {isCollapsed ? null : (
                 <>
                   {createOpen && (botSpaceId || defaultSpaceId) === section.id ? (
@@ -1006,6 +1026,12 @@ export function BotRoster({
         isOpen={connectorsOpen}
         onClose={() => setConnectorsOpen(false)}
         onOpenMarketplace={() => onMarketplaceOpenChange?.(true)}
+      />
+
+      <SpaceMembersDialog
+        space={membersSpace}
+        isOpen={membersSpaceId !== null}
+        onClose={() => setMembersSpaceId(null)}
       />
     </aside>
   );

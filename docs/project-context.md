@@ -26,7 +26,7 @@ Roster + presence (`waiting` / `blocked`), durable chat, dual ChatClient, lakeho
 
 ## Agent / platform tracks
 
-- Behaviors / Grok UI: [agent-improvement-plan.md](agent-improvement-plan.md), Track B UI batch done; remaining = deny semantics, Auto Review lite, space skill publish.
+- Behaviors / Grok UI: [agent-improvement-plan.md](agent-improvement-plan.md), Track B UI batch + deny-until-new-message done; remaining = Auto Review lite, space skill publish. Approval trail: Lakebase `approval_events`.
 - Platform (Genie, Ontology, `system.ai` MCP): [databricks-platform-integration-plan.md](databricks-platform-integration-plan.md), still go slow.
 - **Next:** P1 after OSS announce — [roadmap-next.md](roadmap-next.md); release checklist [oss-community-release.md](oss-community-release.md).
 

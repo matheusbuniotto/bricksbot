@@ -132,6 +132,11 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
       ' Use pin_artifact (Ask-first) for durable shareable findings on this chat; use remember for lasting rules and preferences.';
   }
 
+  if (catalog.tools.some((tool) => tool.name === 'volume_write')) {
+    blocks[0] +=
+      ' Use volume_write (Ask-first) for durable files under this user and bot on the Volume; use pin_artifact for short findings; sandbox_save_artifact saves sandbox outputs into the same tree. volume_write is unavailable on routine runs.';
+  }
+
   if (catalog.tools.some((tool) => tool.name === 'pin_chart')) {
     blocks[0] +=
       ' Interactive charts, tables, and diagrams render directly in the chat UI: use pin_chart for sql_query results, or pin_artifact (kind "chart" with a Vega-Lite v5 spec and inline data.values, "table", or "mermaid") for any other data. Always use a chart tool when asked for a plot—never draw ASCII/text charts or claim you cannot attach images.';
@@ -157,6 +162,11 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
       ' Genie (Databricks One via genie_ask) is available for natural-language analytics grounded in the Genie Ontology. Prefer cheap tools (sql_query, lakehouse_catalog) for direct exploration; escalate to genie_ask for business metrics and definitions. genie_ask always requires approval.';
   }
 
+  if (catalog.tools.some((tool) => tool.name.startsWith('mcp_'))) {
+    blocks[0] +=
+      ' Connected Unity Catalog MCP tools (names starting with mcp_) are Ask-first; prefer cheap lakehouse tools when they cover the need.';
+  }
+
   const creatable: string[] = [];
   if (catalog.tools.some((tool) => tool.name === 'schedule_routine')) {
     creatable.push('routines (schedule_routine)');
@@ -166,6 +176,9 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
   }
   if (catalog.tools.some((tool) => tool.name === 'pin_artifact')) {
     creatable.push('artifact pins (pin_artifact)');
+  }
+  if (catalog.tools.some((tool) => tool.name === 'volume_write')) {
+    creatable.push('volume files (volume_write)');
   }
   if (catalog.tools.some((tool) => tool.name === 'pin_chart')) {
     creatable.push('charts from query results (pin_chart)');

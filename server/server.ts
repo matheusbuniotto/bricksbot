@@ -3,6 +3,7 @@ import type { ChatStore } from '../shared/chat/types.js';
 import type { CompactionStore, IdempotencyStore } from '../shared/durable/types.js';
 import type { MemorySkillStore } from '../shared/agents/memory/types.js';
 import type { RoutineStore } from '../shared/routines/types.js';
+import type { VolumeUsageStore } from '../shared/agents/volume-namespace.js';
 import type { SandboxStore } from '../shared/sandbox/types.js';
 import { ApprovalStore } from './chat/approvals.js';
 import { LakebaseChatStore, type LakebaseQuery } from './chat/lakebase-store.js';
@@ -12,9 +13,11 @@ import { ChatService } from './chat/service.js';
 import { LakebaseCompactionStore, MemoryCompactionStore } from './durable/compaction-store.js';
 import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idempotency-store.js';
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
+import { parseVolumeQuotaLimits, resolveVolumeRoot } from './agents/tools/volume-namespace.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
-import { systemAiMcpConfigFromEnv } from './agents/tools/system-ai-mcp.js';
+import { DEFAULT_GENIE_SERVICE_NAME, systemAiMcpConfigFromEnv } from './agents/tools/system-ai-mcp.js';
 import { McpDiscoveryService } from './agents/tools/mcp-discovery.js';
+import { buildConnectedMcpTools } from './agents/tools/mcp-tools.js';
 import { parseAllowlist } from './agents/tools/web-fetch.js';
 import { LakebaseMemorySkillStore } from './agents/memory/lakebase-store.js';
 import { MemoryMemorySkillStore } from './agents/memory/memory-store.js';
@@ -28,6 +31,7 @@ import { MemorySandboxStore } from './sandbox/memory-store.js';
 import { SandboxReaper } from './sandbox/reaper.js';
 import { createSandboxRegistryFromEnv } from './sandbox/registry.js';
 import { SandboxSessionService } from './sandbox/session-service.js';
+import { LakebaseVolumeUsageStore, MemoryVolumeUsageStore } from './volumes/usage-store.js';
 
 function lakebaseConfigured(): boolean {
   return Boolean(process.env.LAKEBASE_ENDPOINT || process.env.PGHOST);
@@ -41,6 +45,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   idempotency: IdempotencyStore;
   approvals: ApprovalStore;
   sandbox: SandboxStore;
+  volumeUsage: VolumeUsageStore;
 }> {
   const ownerId = process.env.BRICKSBOT_USER_ID?.trim() || 'workspace-user';
   if (lakebaseConfigured() && query) {
@@ -55,6 +60,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       idempotency: new LakebaseIdempotencyStore(query),
       approvals: new ApprovalStore(query),
       sandbox: new LakebaseSandboxStore(query),
+      volumeUsage: new LakebaseVolumeUsageStore(query),
     };
   }
 
@@ -69,6 +75,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     idempotency: new MemoryIdempotencyStore(),
     approvals: new ApprovalStore(),
     sandbox: new MemorySandboxStore(),
+    volumeUsage: new MemoryVolumeUsageStore(),
   };
 }
 
@@ -81,7 +88,9 @@ createApp({
       'lakebase' in appkit && appkit.lakebase
         ? (sql: string, params?: unknown[]) => appkit.lakebase.query(sql, params)
         : undefined;
-    const { chats, routines, memory, compaction, idempotency, approvals, sandbox } = await createStores(query);
+    const { chats, routines, memory, compaction, idempotency, approvals, sandbox, volumeUsage } =
+      await createStores(query);
+    const volumeRoot = resolveVolumeRoot(process.env);
     const client = createChatClientFromEnv(process.env);
     console.info(`[bricksbot] ChatClient provider=${client.provider}`);
     const sqlQuery = sqlQueryConfigFromEnv(process.env);
@@ -117,6 +126,19 @@ createApp({
         systemAiMcp.host = sqlQuery.host;
       }
     }
+    const mcpDiscovery = new McpDiscoveryService({
+      host: systemAiMcp?.host || sqlQuery.host,
+      getToken: systemAiMcp?.getToken || sqlQuery.getToken,
+      workspaceId: systemAiMcp?.workspaceId,
+      userSchemas: process.env.DATABRICKS_MCP_SCHEMAS
+        ? process.env.DATABRICKS_MCP_SCHEMAS.split(',').map((s) => s.trim())
+        : undefined,
+    });
+    // Env opt-in Genie: mark connected so tools register without a UI click.
+    // Connectors dialog is the path for additional system.ai / custom MCPs.
+    if (systemAiMcp) {
+      mcpDiscovery.markConnected(systemAiMcp.serviceName ?? DEFAULT_GENIE_SERVICE_NAME);
+    }
     const chatService = new ChatService({
       store: chats,
       client,
@@ -128,16 +150,29 @@ createApp({
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
       sqlQuery,
       sandbox: sandboxService,
-      systemAiMcp,
-    });
-    const mcpDiscovery = new McpDiscoveryService({
-      host: systemAiMcp?.host || sqlQuery.host,
-      getToken: systemAiMcp?.getToken || sqlQuery.getToken,
-      workspaceId: systemAiMcp?.workspaceId,
-      userSchemas: process.env.DATABRICKS_MCP_SCHEMAS
-        ? process.env.DATABRICKS_MCP_SCHEMAS.split(',').map((s) => s.trim())
+      volumeWrite: volumeRoot
+        ? {
+            root: volumeRoot,
+            host: sqlQuery.host,
+            getToken: sqlQuery.getToken,
+            usage: volumeUsage,
+            limits: parseVolumeQuotaLimits(process.env),
+          }
         : undefined,
     });
+    try {
+      const mcpTools = await buildConnectedMcpTools(mcpDiscovery, {
+        ...mcpDiscovery.getClientConfig(),
+        maxPollSeconds: systemAiMcp?.maxPollSeconds,
+        pollIntervalMs: systemAiMcp?.pollIntervalMs,
+      });
+      chatService.replaceMcpTools(mcpTools);
+      if (mcpTools.length > 0) {
+        console.info(`[bricksbot] Connected MCP tools: ${mcpTools.map((t) => t.definition.name).join(', ')}`);
+      }
+    } catch (err) {
+      console.warn(`[bricksbot] Failed to register connected MCP tools: ${err instanceof Error ? err.message : err}`);
+    }
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {
       registerChatRoutes(app, chats, chatService, { mcpDiscovery });

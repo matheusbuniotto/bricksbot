@@ -1,4 +1,5 @@
 import type { BackendId, SandboxBackendSetting } from '../../shared/sandbox/types.js';
+import { resolveVolumeRoot } from '../agents/tools/volume-namespace.js';
 import { createM2mTokenProvider } from '../chat/databricks-auth.js';
 import type { ExecutionBackend } from './backend.js';
 import { DatabricksSandboxBackend } from './databricks-backend.js';
@@ -56,7 +57,7 @@ export function resolveSandboxConfigFromEnv(env: Record<string, string | undefin
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
-  const artifactVolumeRoot = presentEnv(env.SANDBOX_ARTIFACT_VOLUME_PATH);
+  const artifactVolumeRoot = resolveVolumeRoot(env);
 
   const secretsToRedact = [
     presentEnv(env.DATABRICKS_TOKEN),

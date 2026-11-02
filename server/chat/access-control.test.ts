@@ -265,4 +265,61 @@ describe('security and access control (review blockers)', () => {
       expect(bobMemories).toEqual([expect.objectContaining({ key: 'favorite_color', content: 'red', userId: 'bob' })]);
     });
   });
+
+  test('space members: outsiders cannot list or invite; members can list; only admin/owner can invite', async () => {
+    await withChatApp(async (baseUrl) => {
+      const spaceRes = await fetch(`${baseUrl}/api/spaces`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'alice' },
+        body: JSON.stringify({ name: 'Shared Ops' }),
+      });
+      const { space } = (await spaceRes.json()) as { space: { id: string } };
+
+      const outsiderList = await fetch(`${baseUrl}/api/spaces/${space.id}/members`, {
+        headers: { 'x-forwarded-user': 'eve' },
+      });
+      expect(outsiderList.status).toBe(403);
+
+      const outsiderAdd = await fetch(`${baseUrl}/api/spaces/${space.id}/members`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'eve' },
+        body: JSON.stringify({ userId: 'mallory@example.com', role: 'admin' }),
+      });
+      expect(outsiderAdd.status).toBe(403);
+
+      const ownerAdd = await fetch(`${baseUrl}/api/spaces/${space.id}/members`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'alice' },
+        body: JSON.stringify({ userId: 'Bob@Example.com', role: 'member' }),
+      });
+      expect(ownerAdd.status).toBe(201);
+      const { member } = (await ownerAdd.json()) as { member: { userId: string; role: string } };
+      expect(member.userId).toBe('bob@example.com');
+      expect(member.role).toBe('member');
+
+      const bobList = await fetch(`${baseUrl}/api/spaces/${space.id}/members`, {
+        headers: { 'x-forwarded-user': 'bob@example.com' },
+      });
+      expect(bobList.status).toBe(200);
+      const bobBody = (await bobList.json()) as {
+        members: Array<{ userId: string }>;
+        canManage: boolean;
+      };
+      expect(bobBody.canManage).toBe(false);
+      expect(bobBody.members.some((m) => m.userId === 'bob@example.com')).toBe(true);
+
+      const bobInvite = await fetch(`${baseUrl}/api/spaces/${space.id}/members`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-user': 'bob@example.com' },
+        body: JSON.stringify({ userId: 'carol@example.com', role: 'viewer' }),
+      });
+      expect(bobInvite.status).toBe(403);
+
+      const aliceList = await fetch(`${baseUrl}/api/spaces/${space.id}/members`, {
+        headers: { 'x-forwarded-user': 'alice' },
+      });
+      const aliceBody = (await aliceList.json()) as { canManage: boolean };
+      expect(aliceBody.canManage).toBe(true);
+    });
+  });
 });

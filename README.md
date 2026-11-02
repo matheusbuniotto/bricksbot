@@ -79,6 +79,7 @@ databricks secrets put-secret bricksbot web-fetch-allowlist --string-value 'docs
 | LLM egress | OpenRouter (`openrouter.ai`) or your compatible base URL; or bind Serving (see `app.yaml` comments) |
 | SQL tools | Warehouse `CAN_USE` for the App SP; user needs UC grants (OBO via `sql:restricted-query`) |
 | `volume_read` | User needs Volume read; App declares `files.files` |
+| `volume_write` | Set `BRICKSBOT_VOLUME_ROOT` to a `/Volumes/...` path. The signed-in user needs write on that volume. Each user gets `users/{user}/bots/{bot}/`. Default caps are 8 MiB per write and 256 MiB per user. Routine runs cannot call `volume_write`. |
 | Sandbox | `SANDBOX_BACKEND=databricks` in `app.yaml` (falls back to `python_exec` if Sandboxes preview is off). Set `off` to disable. |
 
 Serving instead of OpenRouter: bind a `serving-endpoint` resource and set `LLM_PROVIDER=databricks` (comments in `app.yaml`).
@@ -103,7 +104,7 @@ Open the App URL → chat with **Primary**. First-run wizard appears when the pr
 
 - Spaces, bot roster, presence (`online` / `thinking` / `working` / `waiting` / `blocked`), transcript, composer, 3-way approvals
 - Durable chat on Lakebase (memory fallback locally); compaction; `requestId` idempotency
-- Tools: `sql_query`, `lakehouse_catalog`, `volume_read`, `web_fetch`, `handoff_to_bot`, `create_bot`, pins / charts, meta skills & memory
+- Tools: `sql_query`, `lakehouse_catalog`, `volume_read`, `volume_write` (when `BRICKSBOT_VOLUME_ROOT` is set), `web_fetch`, `handoff_to_bot`, `create_bot`, pins / charts, meta skills & memory
 - Routines (cron metadata + webhook + Test) and example Lakeflow Job → webhook ([`resources/jobs/routine-webhook.job.yml`](resources/jobs/routine-webhook.job.yml))
 - Optional Phase 5 sandbox exec behind `SANDBOX_BACKEND`
 

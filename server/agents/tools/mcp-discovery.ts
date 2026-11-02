@@ -35,6 +35,8 @@ const DEFAULT_SCHEMAS = ['system.ai', 'main.default'];
 export class McpDiscoveryService {
   private cache: { timestamp: number; mcps: DatabricksMcpApp[] } | null = null;
   private customServices: Map<string, Partial<DatabricksMcpApp>> = new Map();
+  /** Services whose tools should be registered on ChatService. */
+  private connectedServices = new Set<string>();
   private readonly client: UnityGatewayMcpClient;
   private readonly config: McpDiscoveryConfig;
 
@@ -54,6 +56,71 @@ export class McpDiscoveryService {
 
   clearCache(): void {
     this.cache = null;
+  }
+
+  getClientConfig(): {
+    host: string;
+    getToken?: () => Promise<string>;
+    workspaceId?: string;
+    fetchImpl?: typeof fetch;
+  } {
+    return {
+      host: this.config.host ?? DEFAULT_DATABRICKS_WORKSPACE_HOST,
+      getToken: this.config.getToken,
+      workspaceId: this.config.workspaceId ?? DEFAULT_DATABRICKS_ORG_ID,
+      fetchImpl: this.config.fetchImpl,
+    };
+  }
+
+  listConnectedServices(): string[] {
+    return [...this.connectedServices].sort((a, b) => a.localeCompare(b));
+  }
+
+  isConnected(serviceName: string): boolean {
+    const clean = serviceName.trim().replace(/^\/+/, '');
+    return this.connectedServices.has(clean);
+  }
+
+  /**
+   * Mark connected without probing (env bootstrap / tests). Prefer `connect()` for UI.
+   */
+  markConnected(serviceName: string): void {
+    const clean = serviceName.trim().replace(/^\/+/, '');
+    if (!clean) return;
+    this.connectedServices.add(clean);
+    this.clearCache();
+  }
+
+  /**
+   * Probe viability, then mark connected so ChatService can register tools.
+   */
+  async connect(serviceName: string): Promise<DatabricksMcpApp> {
+    const cleanService = serviceName.trim().replace(/^\/+/, '');
+    if (!cleanService) {
+      throw new Error('MCP service name is required');
+    }
+
+    const probe = await this.probeService(cleanService);
+    if (!probe.isViable) {
+      throw new Error(
+        `MCP service "${cleanService}" is not viable or not reachable: ${probe.error ?? 'unknown error'}`
+      );
+    }
+
+    this.connectedServices.add(cleanService);
+    this.clearCache();
+
+    const custom = this.customServices.get(cleanService);
+    return this.buildMcpAppFromService(cleanService, probe.tools, custom?.name, custom?.description, custom?.source);
+  }
+
+  disconnect(serviceName: string): boolean {
+    const cleanService = serviceName.trim().replace(/^\/+/, '');
+    const removed = this.connectedServices.delete(cleanService);
+    if (removed) {
+      this.clearCache();
+    }
+    return removed;
   }
 
   async probeService(service: string): Promise<{ isViable: boolean; tools: string[]; error?: string }> {
@@ -91,17 +158,20 @@ export class McpDiscoveryService {
     const app = this.buildMcpAppFromService(cleanService, probe.tools, metadata?.name, metadata?.description, 'custom');
 
     this.customServices.set(cleanService, app);
+    // Registering a custom MCP also connects it so tools become available immediately.
+    this.connectedServices.add(cleanService);
     this.clearCache();
-    return app;
+    return { ...app, connected: true };
   }
 
   removeCustomMcp(serviceName: string): boolean {
     const cleanService = serviceName.trim().replace(/^\/+/, '');
-    const removed = this.customServices.delete(cleanService);
-    if (removed) {
+    const removedCustom = this.customServices.delete(cleanService);
+    const removedConnected = this.connectedServices.delete(cleanService);
+    if (removedCustom || removedConnected) {
       this.clearCache();
     }
-    return removed;
+    return removedCustom || removedConnected;
   }
 
   private async fetchUnityCatalogMcpServices(schema: string): Promise<UnityCatalogMcpServiceItem[]> {
@@ -152,6 +222,8 @@ export class McpDiscoveryService {
     const shortName = parts[parts.length - 1] ?? service;
     const source: McpSource = forcedSource ?? (service.startsWith('system.ai') ? 'system' : 'user');
 
+    const connected = this.connectedServices.has(service);
+
     if (known) {
       return {
         ...known,
@@ -159,6 +231,7 @@ export class McpDiscoveryService {
         isViable: true,
         status: 'active',
         source,
+        connected,
       };
     }
 
@@ -184,6 +257,7 @@ export class McpDiscoveryService {
       tools,
       status: 'active',
       isViable: true,
+      connected,
       recommended: false,
       connectUrl: buildDatabricksMcpServiceUrl(service, {
         host: this.config.host,
@@ -202,9 +276,25 @@ export class McpDiscoveryService {
     }
 
     if (!this.config.host || !this.config.getToken) {
-      const viable = AVAILABLE_DATABRICKS_MCPS.filter((app) => app.isViable);
-      const custom = Array.from(this.customServices.values()) as DatabricksMcpApp[];
-      const combined = [...viable, ...custom];
+      const viable = AVAILABLE_DATABRICKS_MCPS.filter((app) => app.isViable).map((app) => ({
+        ...app,
+        connected: this.connectedServices.has(app.service),
+      }));
+      const custom = Array.from(this.customServices.values()).map((meta) => {
+        const service = meta.service!;
+        return this.buildMcpAppFromService(
+          service,
+          meta.tools ?? [],
+          meta.name,
+          meta.description,
+          meta.source ?? 'custom'
+        );
+      });
+      const byService = new Map<string, DatabricksMcpApp>();
+      for (const app of [...viable, ...custom]) {
+        byService.set(app.service, app);
+      }
+      const combined = [...byService.values()];
       this.cache = { timestamp: now, mcps: combined };
       return combined;
     }

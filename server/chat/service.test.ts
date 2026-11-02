@@ -407,7 +407,7 @@ describe('ChatService', () => {
         content: null,
         toolCalls: [{ id: 'call_sql', name: 'sql_query', arguments: { statement: 'SELECT 1' } }],
       },
-      { content: 'denied', toolCalls: [] },
+      { content: 'ok after user message', toolCalls: [] },
     ]);
     const service = new ChatService({
       store,
@@ -422,9 +422,18 @@ describe('ChatService', () => {
     });
 
     const pending = await service.sendUserMessage(chat.id, 'count');
-    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'denied');
+    const afterDeny = await service.decideApproval(pending.pendingApprovals[0].id, 'denied');
     expect(calls).toEqual([]);
-    expect(continued.assistant?.content).toBe('denied');
+    expect(client.requests).toHaveLength(1);
+    expect(afterDeny.pendingApprovals).toEqual([]);
+    expect(afterDeny.assistant?.toolCalls?.[0]?.name).toBe('sql_query');
+    const messages = await store.listMessages(chat.id);
+    expect(messages.some((m) => m.role === 'tool' && /User denied tool call/.test(m.content))).toBe(true);
+    expect(await store.getBot(bot.id)).toEqual(expect.objectContaining({ presence: 'online' }));
+
+    const resumed = await service.sendUserMessage(chat.id, 'try something else');
+    expect(client.requests).toHaveLength(2);
+    expect(resumed.assistant?.content).toBe('ok after user message');
   });
 
   test('primary hands off after approval and the target chat receives the brief', async () => {
@@ -594,11 +603,72 @@ describe('ChatService', () => {
     const service = new ChatService({ store, client });
 
     const pending = await service.sendUserMessage(chat.id, 'hand it off');
-    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'denied');
-    expect(continued.assistant?.content).toBe('staying here');
+    const afterDeny = await service.decideApproval(pending.pendingApprovals[0].id, 'denied');
+    expect(client.requests).toHaveLength(1);
+    expect(afterDeny.pendingApprovals).toEqual([]);
     expect(await store.listMessages(targetChat.id)).toEqual([]);
     const source = await store.listMessages(chat.id);
     expect(source.some((message) => message.role === 'system')).toBe(false);
+    expect(source.some((message) => message.role === 'tool' && /User denied tool call/.test(message.content))).toBe(
+      true
+    );
+
+    const resumed = await service.sendUserMessage(chat.id, 'stay with me');
+    expect(client.requests).toHaveLength(2);
+    expect(resumed.assistant?.content).toBe('staying here');
+  });
+
+  test('records an approval trail for request and decide', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const client = new ScriptedClient([
+      {
+        content: null,
+        toolCalls: [{ id: 'call_sql', name: 'sql_query', arguments: { statement: 'SELECT 1' } }],
+      },
+      { content: 'done', toolCalls: [] },
+    ]);
+    const service = new ChatService({
+      store,
+      client,
+      sqlQuery: { warehouseId: 'wh-1', executeImpl: async () => 'n\n1' },
+    });
+
+    const pending = await service.sendUserMessage(chat.id, 'count');
+    const approvalId = pending.pendingApprovals[0].id;
+    let events = await service.getApprovals().listEvents(chat.id);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual(
+      expect.objectContaining({
+        type: 'requested',
+        toolName: 'sql_query',
+        approvalId,
+        botId: bot.id,
+        userId: chat.userId,
+      })
+    );
+
+    await service.decideApproval(approvalId, 'once', { decidedBy: 'alice@example.com' });
+    events = await service.getApprovals().listEvents(chat.id);
+    expect(events).toHaveLength(2);
+    expect(events[0]).toEqual(
+      expect.objectContaining({
+        type: 'decided',
+        toolName: 'sql_query',
+        approvalId,
+        botId: bot.id,
+        userId: chat.userId,
+      })
+    );
+    expect(events[0]?.payload).toEqual(
+      expect.objectContaining({
+        decision: 'once',
+        status: 'approved',
+        decidedBy: 'alice@example.com',
+        toolCallId: 'call_sql',
+      })
+    );
   });
 
   test('a non-primary bot cannot hand off', async () => {

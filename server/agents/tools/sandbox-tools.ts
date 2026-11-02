@@ -140,7 +140,7 @@ export const sandboxSaveArtifactToolDefinition: ToolDefinition = {
       volume_path: {
         type: 'string',
         description:
-          'Target Unity Catalog Volume path starting with /Volumes/... (optional when SANDBOX_ARTIFACT_VOLUME_PATH is set)',
+          'Target Unity Catalog Volume path starting with /Volumes/... (optional when BRICKSBOT_VOLUME_ROOT is set; default is users/{user}/bots/{bot}/sandbox/{chat}/)',
       },
       title: {
         type: 'string',
@@ -415,7 +415,8 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
           sourcePath,
           ctx.chatId,
           volumePath,
-          sessionService.getArtifactVolumeRoot()
+          sessionService.getArtifactVolumeRoot(),
+          ctx.userId && ctx.bot ? { userId: ctx.userId, botId: ctx.bot.id } : undefined
         );
         return resolved.ok ? null : resolved.error;
       },

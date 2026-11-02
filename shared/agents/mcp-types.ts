@@ -116,6 +116,8 @@ export interface DatabricksMcpApp {
   tools: string[];
   status: McpStatus;
   isViable?: boolean;
+  /** True when this service is connected and its tools are registered on ChatService. */
+  connected?: boolean;
   recommended?: boolean;
   connectUrl?: string;
   iconBg: string;

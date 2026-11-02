@@ -108,29 +108,6 @@
       "count": 2
     }
   },
-  "server/agents/tools/mcp-discovery.test.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
-    },
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 9
-    },
-    "@typescript-eslint/require-await": {
-      "count": 4
-    }
-  },
   "server/agents/tools/pi-skills-tools.test.ts": {
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 9
@@ -183,9 +160,19 @@
       "count": 4
     }
   },
+  "server/agents/tools/volume-write.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 7
+    }
+  },
   "server/agents/tools/web-fetch.test.ts": {
     "@typescript-eslint/require-await": {
       "count": 2
+    }
+  },
+  "server/chat/approvals.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
     }
   },
   "server/chat/approvals.ts": {
@@ -237,21 +224,21 @@
       "count": 2
     },
     "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
+      "count": 3
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 4
+      "count": 5
     },
     "@typescript-eslint/no-unsafe-call": {
-      "count": 1
+      "count": 2
     },
     "@typescript-eslint/no-unsafe-member-access": {
-      "count": 8
+      "count": 10
     }
   },
   "server/chat/service.test.ts": {
     "@typescript-eslint/require-await": {
-      "count": 11
+      "count": 12
     }
   },
   "server/chat/service.ts": {
@@ -290,6 +277,14 @@
       "count": 7
     }
   },
+  "server/sandbox/artifact-sync.test.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 3
+    }
+  },
   "server/sandbox/backends.contract.test.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 6
@@ -324,6 +319,21 @@
     },
     "@typescript-eslint/require-await": {
       "count": 8
+    }
+  },
+  "server/server.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "server/volumes/usage-store.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "server/volumes/usage-store.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 2
     }
   },
   "shared/chat/vega-spec.ts": {
