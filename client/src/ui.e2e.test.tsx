@@ -40,6 +40,9 @@ describe('UI End-to-End Tests', () => {
     expect(html).toContain('Personal');
     expect(html).toContain('Invite teammates by Databricks user email');
     expect(html).toContain('aria-label="Close"');
+    // Until fetch resolves, do not flash the deny/invite footer (canManage is null).
+    expect(html).not.toContain('Only space owners and admins can invite people');
+    expect(html).not.toContain('Add member');
   });
 
   it('verifies ConnectorsDialog E2E: renders only viable MCPs with English defaults', () => {

@@ -26,7 +26,8 @@ export function SpaceMembersDialog({
   onClose: () => void;
 }) {
   const [members, setMembers] = useState<SpaceMember[]>([]);
-  const [canManage, setCanManage] = useState(false);
+  /** null = not loaded yet (do not show invite vs deny). */
+  const [canManage, setCanManage] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState('');
@@ -36,6 +37,7 @@ export function SpaceMembersDialog({
   const load = useCallback(async () => {
     if (!space) return;
     setLoading(true);
+    setCanManage(null);
     setError(null);
     try {
       const data = await fetchSpaceMembers(space.id);
@@ -56,7 +58,16 @@ export function SpaceMembersDialog({
     }
     if (isOpen) {
       window.addEventListener('keydown', handleKeyDown);
+      // Synchronously enter loading before paint so we never flash the deny copy.
+      setLoading(true);
+      setCanManage(null);
+      setMembers([]);
       void load();
+    } else {
+      setLoading(false);
+      setCanManage(null);
+      setMembers([]);
+      setError(null);
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, load]);
@@ -125,7 +136,7 @@ export function SpaceMembersDialog({
           </ul>
         )}
 
-        {canManage ? (
+        {loading || canManage === null ? null : canManage ? (
           <form className="space-members-form" onSubmit={(event) => void handleAdd(event)}>
             <label className="dialog-field">
               User email
