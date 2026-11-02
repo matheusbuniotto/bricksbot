@@ -101,8 +101,8 @@ After a successful lakehouse explore when the user (or you) should keep a **shar
 
 ## Required inputs and access
 - A clear title and \`pin_artifact\` kind: \`note\` | \`sql\` | \`volume_path\` | \`link\`
-- Short \`body\` (markdown, SQL, path, or URL). Large blobs belong on a Volume — pin the path with kind \`volume_path\`.
-- Tool access to \`pin_artifact\` (Ask-first until the user allows it for this chat)
+- Short \`body\` (markdown, SQL, path, or URL). Large files belong on a Volume. Call \`volume_write\` with a relative path under this bot folder, then pin kind \`volume_path\` (pin defaults on).
+- Tool access to \`pin_artifact\` and, when \`BRICKSBOT_VOLUME_ROOT\` is set, \`volume_write\`. Both are Ask-first until the user allows them for this chat.
 
 ## Sequence of work
 1. Finish the explore with tools (\`sql_query\`, \`lakehouse_catalog\`, \`volume_read\`) and validate the answer.
@@ -119,7 +119,7 @@ After a successful lakehouse explore when the user (or you) should keep a **shar
 
 ## What requires approval
 - Every \`pin_artifact\` call until the user allows the tool for this chat.
-- Never pin secrets; never skip approval by stuffing large content into \`body\` — use a Volume path instead.
+- Every \`volume_write\` call until the user allows it. Pass \`relative_path\` only. Do not pass absolute \`/Volumes\` paths, another user, or another bot. Do not write secrets. Routine runs cannot call \`volume_write\`.
 `;
 
 const DATAVIZ = `# dataviz

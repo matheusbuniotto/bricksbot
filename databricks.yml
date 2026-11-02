@@ -51,8 +51,8 @@ resources:
       lifecycle:
         started: true
 
-      # Interactive sql_query / lakehouse_catalog / volume_read use the signed-in
-      # user's token (OBO). sql:restricted-query matches read-only tool policy.
+      # Interactive sql_query / lakehouse_catalog / volume_read / volume_write use the signed-in
+      # user's token (OBO). sql:restricted-query matches read-only SQL. files.files covers Volume read and write.
       user_api_scopes:
         - sql:restricted-query
         - files.files

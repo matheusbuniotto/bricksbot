@@ -1,6 +1,6 @@
 # Spec: `volume_write`, per-user quotas, per-bot Volume namespaces
 
-**Status:** plan (not implemented)  
+**Status:** implemented. Slice F, the Library hint, is not done.  
 **Date:** 2026-11-02  
 **Roadmap:** [roadmap-next.md](../roadmap-next.md) P1 #2  
 **Depends on:** [2026-10-29-pin-artifact.md](2026-10-29-pin-artifact.md), [2026-10-30-phase5-sandbox-execution.md](2026-10-30-phase5-sandbox-execution.md)  
@@ -159,12 +159,12 @@ UC: operator grants the signed-in users (and optionally the App SP) write on the
 
 ## Acceptance
 
-- [ ] Model cannot write outside `{root}/users/{userId}/bots/{botId}/`
-- [ ] Over-quota and over-size writes fail before PUT with clear tool errors
-- [ ] Successful write can pin `volume_path`; Library lists the pin
-- [ ] Sandbox default save lands under `.../bots/{botId}/sandbox/{chatId}/`
-- [ ] Handoff does not auto-approve `volume_write`
-- [ ] `npm test` green; no Workspace Files writer
+- [x] Model cannot write outside `{root}/users/{userId}/bots/{botId}/`
+- [x] Over-quota and over-size writes fail before PUT with clear tool errors
+- [x] Successful write can pin `volume_path`; Library lists the pin
+- [x] Sandbox default save lands under `.../bots/{botId}/sandbox/{chatId}/`
+- [x] Handoff does not auto-approve `volume_write`
+- [x] `npm test` green; no Workspace Files writer
 
 ## Open product calls (defaults chosen)
 

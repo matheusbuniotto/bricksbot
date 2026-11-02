@@ -44,5 +44,15 @@ env:
   #   value: "120"
   # - name: SANDBOX_MAX_ACTIVE_PER_USER
   #   value: "3"
-  # - name: SANDBOX_ARTIFACT_VOLUME_PATH
-  #   value: /Volumes/main/default/bricksbot_artifacts
+  # UC Volume root for volume_write and sandbox artifact saves.
+  # Files land at {root}/users/{user}/bots/{bot}/. SANDBOX_ARTIFACT_VOLUME_PATH is a legacy alias.
+  # Operator creates the volume and grants WRITE. This app does not create the volume.
+  # - name: BRICKSBOT_VOLUME_ROOT
+  #   value: /Volumes/main/default/bricksbot_artifacts/bricksbot
+  # - name: BRICKSBOT_VOLUME_WRITE_MAX_BYTES
+  #   value: "8388608"
+  # - name: BRICKSBOT_VOLUME_USER_QUOTA_BYTES
+  #   value: "268435456"
+  # Per-bot cap is off when unset.
+  # - name: BRICKSBOT_VOLUME_BOT_QUOTA_BYTES
+  #   value: "67108864"

@@ -89,7 +89,7 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 | High-fidelity UI + approvals + Spaces | **Done** (sharing UI thin) |
 | Durable harness on Lakebase | **Done** (thin Pi-compatible) |
 | OpenAI-compatible + Serving option | **Done** |
-| SQL / UC volume / Vector / web_fetch / optional Genie | **Partial**, SQL + catalog + `volume_read` + web_fetch; no `volume_write`, no Vector, Genie not registered |
+| SQL / UC volume / Vector / web_fetch / optional Genie | **Partial**, SQL + catalog + `volume_read` + `volume_write` (when `BRICKSBOT_VOLUME_ROOT` is set) + web_fetch; no Vector, Genie not registered |
 | Per-Bot memory; Space sharing | **Partial**, memory + seeds done; Space members API, weak UI |
 | Routines via Job → webhook | **Done** (App webhook + example Job) |
 | Bot-to-Bot + Primary router | **Done** (`handoff_to_bot`, `create_bot`) |
