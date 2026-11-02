@@ -184,6 +184,8 @@ export class ChatService {
   private readonly compactionSettings: CompactionSettings;
   private readonly memory: MemorySkillStore;
   private readonly activeTurnsByBot = new Map<string, number>();
+  /** After a deny, skip auto-continue until the next user message for that chat. */
+  private readonly denyPauseByChat = new Set<string>();
 
   constructor(private readonly options: ChatServiceOptions) {
     this.approvals = options.approvals ?? new ApprovalStore();
@@ -278,6 +280,7 @@ export class ChatService {
       }
     }
 
+    this.denyPauseByChat.delete(chatId);
     const user = await this.options.store.addMessage(chatId, 'user', trimmed);
     const result = await this.continueTurn(chatId, user, 0, { routine: options?.routine === true });
 
@@ -298,7 +301,26 @@ export class ChatService {
     };
   }
 
-  async decideApproval(approvalId: string, decision: ApprovalDecision): Promise<SendMessageResult> {
+  private async trailMetaForChat(
+    chatId: string,
+    decidedBy?: string
+  ): Promise<{ botId: string | null; userId: string | null; decidedBy?: string }> {
+    const [botId, chat] = await Promise.all([
+      this.options.store.findBotIdForChat(chatId),
+      this.options.store.getChat(chatId),
+    ]);
+    return {
+      botId,
+      userId: chat?.userId ?? null,
+      ...(decidedBy ? { decidedBy } : {}),
+    };
+  }
+
+  async decideApproval(
+    approvalId: string,
+    decision: ApprovalDecision,
+    opts?: { decidedBy?: string }
+  ): Promise<SendMessageResult> {
     const pending = await this.approvals.get(approvalId);
     if (!pending) {
       throw new Error('Approval not found');
@@ -309,11 +331,19 @@ export class ChatService {
     const isAlways = effectiveDecision === 'all_the_time' || effectiveDecision === 'always';
     const isDenial = effectiveDecision === 'denied' || effectiveDecision === 'not_approved';
 
-    const { request: approval, applied } = await this.approvals.decide(approvalId, effectiveDecision);
+    const trailMeta = await this.trailMetaForChat(pending.chatId, opts?.decidedBy);
+    const { request: approval, applied } = await this.approvals.decide(
+      approvalId,
+      effectiveDecision,
+      trailMeta
+    );
     const chatId = approval.chatId;
     // Double-click / race: already settled — return current pause without re-running tools.
     if (!applied) {
       return this.decidedPauseResult(chatId);
+    }
+    if (isDenial) {
+      this.denyPauseByChat.add(chatId);
     }
     await this.applyDecidedApproval(approval, isDenial);
 
@@ -324,7 +354,11 @@ export class ChatService {
         (item) => item.id !== approval.id && item.toolCall.name === approval.toolCall.name
       );
       for (const sibling of siblings) {
-        const { request: decided, applied: siblingApplied } = await this.approvals.decide(sibling.id, 'once');
+        const { request: decided, applied: siblingApplied } = await this.approvals.decide(
+          sibling.id,
+          'once',
+          trailMeta
+        );
         if (!siblingApplied) continue;
         await this.applyDecidedApproval(decided, false);
       }
@@ -347,6 +381,13 @@ export class ChatService {
         autoApprovedTools: await this.approvals.listAutoApproved(chatId),
         provider: this.options.client.provider,
       };
+    }
+
+    // Deny-until-new-message: do not auto-retry the model after a denial wave.
+    if (this.denyPauseByChat.has(chatId)) {
+      const botId = await this.options.store.findBotIdForChat(chatId);
+      await this.syncBotPresenceAfterTurn(chatId, botId);
+      return this.decidedPauseResult(chatId);
     }
 
     return this.continueTurn(chatId);
@@ -633,11 +674,15 @@ export class ChatService {
         }
 
         if (needsApproval.length > 0) {
+          const trailMeta = {
+            botId: bot?.id ?? null,
+            userId: turnCtx.userId ?? chat?.userId ?? null,
+          };
           const pendingApprovals = await Promise.all(
             needsApproval.map(async (toolCall) => {
               const extra = await this.toolFor(toolCall.name)?.approvalArguments?.(toolCall.arguments, turnCtx);
               const call = extra ? { ...toolCall, arguments: { ...toolCall.arguments, ...extra } } : toolCall;
-              return this.approvals.create(chatId, call);
+              return this.approvals.create(chatId, call, trailMeta);
             })
           );
           const pause = await this.pauseSnapshot(chatId);

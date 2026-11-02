@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { ApprovalDecision, ApprovalRequest, ApprovalStatus, ToolCall } from '../../shared/agents/types.js';
+import type {
+  ApprovalDecision,
+  ApprovalEvent,
+  ApprovalEventType,
+  ApprovalRequest,
+  ApprovalStatus,
+  ToolCall,
+} from '../../shared/agents/types.js';
 import type { LakebaseQuery } from './lakebase-store.js';
 
 function asString(value: unknown): string {
@@ -16,10 +23,37 @@ function parseToolCall(raw: unknown): ToolCall {
   return { id: row.id, name: row.name, arguments: row.arguments ?? {} };
 }
 
+function parsePayload(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return { raw };
+    }
+  }
+  return {};
+}
+
+/** Optional context attached to create / decide for the approval trail. */
+export interface ApprovalTrailMeta {
+  botId?: string | null;
+  userId?: string | null;
+  decidedBy?: string | null;
+}
+
+const MAX_IN_MEMORY_EVENTS = 500;
+
 /** Durable + in-memory approval / auto-allow store (Pi “hooks that survive restart”). */
 export class ApprovalStore {
   private readonly byId = new Map<string, ApprovalRequest>();
   private readonly autoApprovedByChat = new Map<string, Set<string>>();
+  private readonly events: ApprovalEvent[] = [];
   private hydratedChats = new Set<string>();
 
   constructor(private readonly query?: LakebaseQuery) {}
@@ -54,7 +88,53 @@ export class ApprovalStore {
     }
   }
 
-  async create(chatId: string, toolCall: ToolCall): Promise<ApprovalRequest> {
+  private async appendEvent(
+    input: {
+      chatId: string;
+      approvalId: string | null;
+      botId?: string | null;
+      userId?: string | null;
+      type: ApprovalEventType;
+      toolName: string;
+      payload: Record<string, unknown>;
+    }
+  ): Promise<ApprovalEvent> {
+    const event: ApprovalEvent = {
+      id: randomUUID(),
+      chatId: input.chatId,
+      approvalId: input.approvalId,
+      botId: input.botId ?? null,
+      userId: input.userId ?? null,
+      type: input.type,
+      toolName: input.toolName,
+      payload: input.payload,
+      createdAt: new Date().toISOString(),
+    };
+    this.events.push(event);
+    if (this.events.length > MAX_IN_MEMORY_EVENTS) {
+      this.events.splice(0, this.events.length - MAX_IN_MEMORY_EVENTS);
+    }
+    if (this.query) {
+      await this.query(
+        `INSERT INTO bricksbot.approval_events
+         (id, chat_id, approval_id, bot_id, user_id, type, tool_name, payload)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+        [
+          event.id,
+          event.chatId,
+          event.approvalId,
+          event.botId,
+          event.userId,
+          event.type,
+          event.toolName,
+          JSON.stringify(event.payload),
+        ]
+      );
+    }
+    return event;
+  }
+
+  async create(chatId: string, toolCall: ToolCall, meta?: ApprovalTrailMeta): Promise<ApprovalRequest> {
     await this.hydrateChat(chatId);
     const request: ApprovalRequest = {
       id: randomUUID(),
@@ -71,6 +151,18 @@ export class ApprovalStore {
         [request.id, chatId, JSON.stringify(toolCall)]
       );
     }
+    await this.appendEvent({
+      chatId,
+      approvalId: request.id,
+      botId: meta?.botId,
+      userId: meta?.userId,
+      type: 'requested',
+      toolName: toolCall.name,
+      payload: {
+        toolCallId: toolCall.id,
+        arguments: toolCall.arguments ?? {},
+      },
+    });
     return request;
   }
 
@@ -168,7 +260,11 @@ export class ApprovalStore {
    * Settle a pending approval. Idempotent for races/double-clicks: returns
    * `{ applied: false }` when the row was already decided.
    */
-  async decide(id: string, decision: ApprovalDecision): Promise<{ request: ApprovalRequest; applied: boolean }> {
+  async decide(
+    id: string,
+    decision: ApprovalDecision,
+    meta?: ApprovalTrailMeta
+  ): Promise<{ request: ApprovalRequest; applied: boolean }> {
     const existing = (await this.get(id)) ?? this.byId.get(id);
     if (!existing) {
       throw new Error('Approval not found');
@@ -202,6 +298,51 @@ export class ApprovalStore {
         [id, status, decisionKind]
       );
     }
+    await this.appendEvent({
+      chatId: existing.chatId,
+      approvalId: existing.id,
+      botId: meta?.botId,
+      userId: meta?.userId,
+      type: 'decided',
+      toolName: existing.toolCall.name,
+      payload: {
+        toolCallId: existing.toolCall.id,
+        decision: decisionKind,
+        status,
+        decidedBy: meta?.decidedBy ?? null,
+      },
+    });
     return { request: updated, applied: true };
+  }
+
+  /** Newest-first trail for a chat (Lakebase when configured, else in-memory). */
+  async listEvents(chatId: string, limit: number = 50): Promise<ApprovalEvent[]> {
+    const capped = Math.max(1, Math.min(limit, 200));
+    if (this.query) {
+      const result = await this.query(
+        `SELECT id, chat_id, approval_id, bot_id, user_id, type, tool_name, payload, created_at
+         FROM bricksbot.approval_events
+         WHERE chat_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [chatId, capped]
+      );
+      return result.rows.map((row) => ({
+        id: asString(row.id),
+        chatId: asString(row.chat_id),
+        approvalId: row.approval_id == null ? null : asString(row.approval_id),
+        botId: row.bot_id == null ? null : asString(row.bot_id),
+        userId: row.user_id == null ? null : asString(row.user_id),
+        type: asString(row.type) as ApprovalEventType,
+        toolName: asString(row.tool_name),
+        payload: parsePayload(row.payload),
+        createdAt: asString(row.created_at),
+      }));
+    }
+    return this.events
+      .filter((event) => event.chatId === chatId)
+      .slice()
+      .reverse()
+      .slice(0, capped);
   }
 }

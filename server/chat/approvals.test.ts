@@ -105,4 +105,89 @@ describe('ApprovalStore', () => {
     expect(second.request.status).toBe('approved');
     expect(second.request.decision).toBe('once');
   });
+
+  test('appends requested and decided trail events in memory', async () => {
+    const store = new ApprovalStore();
+    const req = await store.create('chat-1', toolCall, {
+      botId: 'bot-1',
+      userId: 'user-1',
+    });
+    await store.decide(req.id, 'denied', {
+      botId: 'bot-1',
+      userId: 'user-1',
+      decidedBy: 'user-1',
+    });
+
+    const events = await store.listEvents('chat-1');
+    expect(events).toHaveLength(2);
+    expect(events.map((e) => e.type)).toEqual(['decided', 'requested']);
+    expect(events[0]?.payload).toEqual(
+      expect.objectContaining({
+        decision: 'denied',
+        status: 'denied',
+        decidedBy: 'user-1',
+        toolCallId: 'call_1',
+      })
+    );
+    expect(events[1]).toEqual(
+      expect.objectContaining({
+        type: 'requested',
+        toolName: 'sql_query',
+        botId: 'bot-1',
+        userId: 'user-1',
+        approvalId: req.id,
+      })
+    );
+  });
+
+  test('persists trail events when a Lakebase query is provided', async () => {
+    const inserts: Array<{ sql: string; params: unknown[] }> = [];
+    const store = new ApprovalStore(async (sql, params = []) => {
+      if (sql.includes('FROM bricksbot.approvals') && sql.includes("status = 'pending'")) {
+        return { rows: [] };
+      }
+      if (sql.includes('FROM bricksbot.auto_approvals')) {
+        return { rows: [] };
+      }
+      if (sql.startsWith('INSERT INTO bricksbot.approvals')) {
+        return { rows: [] };
+      }
+      if (sql.startsWith('UPDATE bricksbot.approvals')) {
+        return { rows: [] };
+      }
+      if (sql.startsWith('INSERT INTO bricksbot.approval_events')) {
+        inserts.push({ sql, params: [...params] });
+        return { rows: [] };
+      }
+      if (sql.includes('FROM bricksbot.approval_events')) {
+        return {
+          rows: inserts
+            .map((row) => ({
+              id: row.params[0],
+              chat_id: row.params[1],
+              approval_id: row.params[2],
+              bot_id: row.params[3],
+              user_id: row.params[4],
+              type: row.params[5],
+              tool_name: row.params[6],
+              payload: row.params[7],
+              created_at: new Date().toISOString(),
+            }))
+            .reverse(),
+        };
+      }
+      return { rows: [] };
+    });
+
+    const req = await store.create('chat-1', toolCall, { botId: 'bot-1', userId: 'u1' });
+    await store.decide(req.id, 'once', { botId: 'bot-1', userId: 'u1', decidedBy: 'u1' });
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]?.params[5]).toBe('requested');
+    expect(inserts[1]?.params[5]).toBe('decided');
+
+    const events = await store.listEvents('chat-1');
+    expect(events).toHaveLength(2);
+    expect(events[0]?.type).toBe('decided');
+    expect(events[1]?.type).toBe('requested');
+  });
 });

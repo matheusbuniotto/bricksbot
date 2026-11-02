@@ -685,7 +685,7 @@ export function registerChatRoutes(
         return;
       }
       const result = await runWithDatabricksRequestAuth(req, () =>
-        service.decideApproval(approvalId, parsed.data.decision)
+        service.decideApproval(approvalId, parsed.data.decision, { decidedBy: callerId })
       );
       res.json(result);
     } catch (err) {

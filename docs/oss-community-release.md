@@ -66,9 +66,9 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 | Item | Why |
 | --- | --- |
 | ~~Space invite / members UI~~ | **Done** (roster share + dialog) |
-| `volume_write` + per-bot Volume namespaces | Plan: [specs/2026-11-02-volume-write-bot-namespaces.md](specs/2026-11-02-volume-write-bot-namespaces.md) |
-| Deny-until-new-message semantics | Trust polish Grok-shaped |
-| Audit trail of tool approvals → UC table or log | Enterprise community ask |
+| ~~`volume_write` + per-bot Volume namespaces~~ | **Done** — [specs/2026-11-02-volume-write-bot-namespaces.md](specs/2026-11-02-volume-write-bot-namespaces.md) |
+| ~~Deny-until-new-message semantics~~ | **Done** — [specs/2026-11-02-deny-until-new-message.md](specs/2026-11-02-deny-until-new-message.md) |
+| ~~Audit trail of tool approvals~~ | **Done** (Lakebase `approval_events`; UC export later) — [specs/2026-11-02-approval-trail.md](specs/2026-11-02-approval-trail.md) |
 
 ## Explicitly later (P2+): do not block OSS v0
 
@@ -94,7 +94,7 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 | Routines via Job → webhook | **Done** (App webhook + example Job) |
 | Bot-to-Bot + Primary router | **Done** (`handoff_to_bot`, `create_bot`) |
 | Install wizard + Partner listing | **Partial**, setup status / wizard; Partner listing → **OSS GitHub instead** |
-| Audit log to UC / MLflow | **Not started** |
+| Audit log to UC / MLflow | **Partial** — Lakebase `approval_events`; UC/MLflow export later |
 
 ## Success checks for "community ready"
 

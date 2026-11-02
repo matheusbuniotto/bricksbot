@@ -59,7 +59,7 @@ Seed skills, capability prompt habits (`sql_query` / catalog prefer, `save_skill
 4. ~~Wire Routines into details~~ **done** (Memory stays chat-driven; no orphan MemoryPanel mount)
 5. **Auto Review lite**, second model pass on risky tools
 6. **Space-scoped skill publish**, later team copy of skills
-7. **Deny semantics**, no auto-retry until a new user message
+7. ~~**Deny semantics**, no auto-retry until a new user message~~ **done**
 
 ### Explicitly out of Track B
 
@@ -84,7 +84,7 @@ Cheap lakehouse tools default; Genie Ask-first / opt-in; Ontology only via Genie
 
 ### Track B (still open)
 
-- [ ] Deny-until-new-message
+- [x] Deny-until-new-message
 - [ ] Auto Review lite
 - [ ] Space-scoped skill publish
 
