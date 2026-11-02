@@ -35,7 +35,7 @@ env:
 
   # Phase 5 Sandbox — Databricks Sandboxes (Public Beta); falls back to system.ai.python_exec if preview is off:
   - name: SANDBOX_BACKEND
-    value: "databricks"
+    value: 'databricks'
   # - name: SANDBOX_IDLE_MINUTES
   #   value: "15"
   # - name: SANDBOX_EXEC_TIMEOUT_SEC
@@ -46,4 +46,3 @@ env:
   #   value: "3"
   # - name: SANDBOX_ARTIFACT_VOLUME_PATH
   #   value: /Volumes/main/default/bricksbot_artifacts
-

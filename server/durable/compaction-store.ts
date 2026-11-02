@@ -29,11 +29,7 @@ export class MemoryCompactionStore implements CompactionStore {
     return this.byChat.get(chatId) ?? null;
   }
 
-  async save(input: {
-    chatId: string;
-    summary: string;
-    keepFromMessageId: string;
-  }): Promise<CompactionRecord> {
+  async save(input: { chatId: string; summary: string; keepFromMessageId: string }): Promise<CompactionRecord> {
     const record: CompactionRecord = {
       id: randomUUID(),
       chatId: input.chatId,
@@ -56,23 +52,19 @@ export class LakebaseCompactionStore implements CompactionStore {
        WHERE chat_id = $1
        ORDER BY created_at DESC
        LIMIT 1`,
-      [chatId],
+      [chatId]
     );
     return result.rows[0] ? mapCompaction(result.rows[0]) : null;
   }
 
-  async save(input: {
-    chatId: string;
-    summary: string;
-    keepFromMessageId: string;
-  }): Promise<CompactionRecord> {
+  async save(input: { chatId: string; summary: string; keepFromMessageId: string }): Promise<CompactionRecord> {
     const id = randomUUID();
     const result = await this.query(
       `INSERT INTO bricksbot.compactions (id, chat_id, summary, keep_from_message_id)
        VALUES ($1, $2, $3, $4)
        RETURNING id, chat_id, summary, keep_from_message_id, created_at`,
-      [id, input.chatId, input.summary.trim(), input.keepFromMessageId],
+      [id, input.chatId, input.summary.trim(), input.keepFromMessageId]
     );
-    return mapCompaction(result.rows[0]!);
+    return mapCompaction(result.rows[0]);
   }
 }

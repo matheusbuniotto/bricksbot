@@ -67,9 +67,7 @@ export function parseChoiceAnswerNotice(content: string): ChoiceAnswerNotice | n
     if (!('kind' in parsed) || parsed.kind !== 'choice_answer') return null;
     if (!('choiceId' in parsed) || typeof parsed.choiceId !== 'string' || !parsed.choiceId) return null;
     const selectedOption =
-      'selectedOption' in parsed && typeof parsed.selectedOption === 'string'
-        ? parsed.selectedOption.trim()
-        : '';
+      'selectedOption' in parsed && typeof parsed.selectedOption === 'string' ? parsed.selectedOption.trim() : '';
     if (!selectedOption) return null;
     const prompt = 'prompt' in parsed && typeof parsed.prompt === 'string' ? parsed.prompt : '';
     return {
@@ -90,18 +88,14 @@ export function choiceAnswerPreviewLine(notice: ChoiceAnswerNotice): string {
 
 export function normalizeOptions(raw: unknown): string[] | null {
   if (!Array.isArray(raw)) return null;
-  const options = raw
-    .map((value) => (typeof value === 'string' ? value.trim() : ''))
-    .filter(Boolean);
+  const options = raw.map((value) => (typeof value === 'string' ? value.trim() : '')).filter(Boolean);
   if (options.length < 2 || options.length > 5) return null;
   if (new Set(options).size !== options.length) return null;
   return options;
 }
 
 /** Map choiceId → selected option from answer notices in a message list. */
-export function indexChoiceAnswers(
-  messages: Array<{ role: string; content: string }>,
-): Map<string, string> {
+export function indexChoiceAnswers(messages: Array<{ role: string; content: string }>): Map<string, string> {
   const map = new Map<string, string>();
   for (const message of messages) {
     if (message.role !== 'system') continue;

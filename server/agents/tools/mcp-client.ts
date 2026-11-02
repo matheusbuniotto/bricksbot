@@ -28,11 +28,7 @@ export class UnityGatewayMcpClient {
     return base;
   }
 
-  private async fetchRpc<T>(
-    serviceName: string,
-    method: string,
-    params: Record<string, unknown> = {},
-  ): Promise<T> {
+  private async fetchRpc<T>(serviceName: string, method: string, params: Record<string, unknown> = {}): Promise<T> {
     const url = this.getUrl(serviceName);
     const id = ++this.requestId;
     const body: McpJsonRpcRequest = {
@@ -86,9 +82,7 @@ export class UnityGatewayMcpClient {
     }
 
     if (parsed.error) {
-      throw new Error(
-        `Unity Gateway MCP RPC error (${parsed.error.code}): ${parsed.error.message}`,
-      );
+      throw new Error(`Unity Gateway MCP RPC error (${parsed.error.code}): ${parsed.error.message}`);
     }
 
     if (parsed.result === undefined) {
@@ -99,18 +93,14 @@ export class UnityGatewayMcpClient {
   }
 
   async listTools(serviceName: string): Promise<McpToolDefinition[]> {
-    const result = await this.fetchRpc<{ tools?: McpToolDefinition[] }>(
-      serviceName,
-      'tools/list',
-      {},
-    );
+    const result = await this.fetchRpc<{ tools?: McpToolDefinition[] }>(serviceName, 'tools/list', {});
     return result.tools ?? [];
   }
 
   async callTool(
     serviceName: string,
     toolName: string,
-    args: Record<string, unknown> = {},
+    args: Record<string, unknown> = {}
   ): Promise<McpToolCallResult> {
     return this.fetchRpc<McpToolCallResult>(serviceName, 'tools/call', {
       name: toolName,

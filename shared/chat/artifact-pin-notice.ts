@@ -1,14 +1,6 @@
 /** Structured artifact pin notice stored in system message content. */
 
-export const ARTIFACT_PIN_KINDS = [
-  'note',
-  'sql',
-  'volume_path',
-  'link',
-  'table',
-  'chart',
-  'mermaid',
-] as const;
+export const ARTIFACT_PIN_KINDS = ['note', 'sql', 'volume_path', 'link', 'table', 'chart', 'mermaid'] as const;
 
 export type ArtifactPinKind = (typeof ARTIFACT_PIN_KINDS)[number];
 
@@ -55,14 +47,8 @@ export function parseArtifactPinNotice(content: string): ArtifactPinNotice | nul
       artifactKind,
       body,
       summary: 'summary' in parsed && typeof parsed.summary === 'string' ? parsed.summary : undefined,
-      pinnedByBotId:
-        'pinnedByBotId' in parsed && typeof parsed.pinnedByBotId === 'string'
-          ? parsed.pinnedByBotId
-          : '',
-      pinnedByName:
-        'pinnedByName' in parsed && typeof parsed.pinnedByName === 'string'
-          ? parsed.pinnedByName
-          : '',
+      pinnedByBotId: 'pinnedByBotId' in parsed && typeof parsed.pinnedByBotId === 'string' ? parsed.pinnedByBotId : '',
+      pinnedByName: 'pinnedByName' in parsed && typeof parsed.pinnedByName === 'string' ? parsed.pinnedByName : '',
     };
   } catch {
     return null;

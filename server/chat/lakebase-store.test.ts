@@ -93,35 +93,27 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
         const accessibleSpaceIds = new Set(
           [...spaces.values()]
             .filter(
-              (s) =>
-                s.owner_id === viewerId ||
-                members.some((m) => m.space_id === s.id && m.user_id === viewerId),
+              (s) => s.owner_id === viewerId || members.some((m) => m.space_id === s.id && m.user_id === viewerId)
             )
-            .map((s) => String(s.id)),
+            .map((s) => String(s.id))
         );
         rows = rows.filter(
           (b) =>
             b.owner_id === viewerId ||
-            (!b.is_primary && b.space_id != null && accessibleSpaceIds.has(String(b.space_id))),
+            (!b.is_primary && b.space_id != null && accessibleSpaceIds.has(String(b.space_id)))
         );
       } else if (params.length >= 1 && normalized.includes('owner_id =')) {
         const ownerParam = hasSpaceFilter ? params[1] : params[0];
         rows = rows.filter((b) => b.owner_id === ownerParam);
       }
-      rows.sort(
-        (a, b) =>
-          Number(b.is_primary) - Number(a.is_primary) ||
-          Number(a.sort_order) - Number(b.sort_order),
-      );
+      rows.sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || Number(a.sort_order) - Number(b.sort_order));
       return { rows };
     }
 
     if (normalized.includes('FROM bricksbot.spaces s')) {
       const ownerId = String(params[0]);
       const rows = [...spaces.values()].filter(
-        (s) =>
-          s.owner_id === ownerId ||
-          members.some((m) => m.space_id === s.id && m.user_id === ownerId),
+        (s) => s.owner_id === ownerId || members.some((m) => m.space_id === s.id && m.user_id === ownerId)
       );
       return { rows };
     }
@@ -171,14 +163,9 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
     if (normalized.includes('COALESCE(MAX(sort_order)')) {
       const [ownerId, spaceId] = params;
       const siblings = [...bots.values()].filter(
-        (b) =>
-          b.owner_id === ownerId &&
-          b.space_id === spaceId &&
-          !b.is_primary &&
-          b.archived_at == null,
+        (b) => b.owner_id === ownerId && b.space_id === spaceId && !b.is_primary && b.archived_at == null
       );
-      const next =
-        siblings.length === 0 ? 0 : Math.max(...siblings.map((b) => Number(b.sort_order))) + 1;
+      const next = siblings.length === 0 ? 0 : Math.max(...siblings.map((b) => Number(b.sort_order))) + 1;
       return { rows: [{ next }] };
     }
 
@@ -204,7 +191,7 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
 
     if (normalized.includes('FROM bricksbot.bots') && normalized.includes('WHERE name =')) {
       const row = [...bots.values()].find(
-        (b) => b.name === params[0] && (params.length < 2 || b.owner_id === params[1]),
+        (b) => b.name === params[0] && (params.length < 2 || b.owner_id === params[1])
       );
       return { rows: row ? [row] : [] };
     }
@@ -269,11 +256,7 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       const rows = [...bots.values()]
         .filter(
           (b) =>
-            b.owner_id === ownerId &&
-            b.space_id === spaceId &&
-            !b.is_primary &&
-            b.archived_at == null &&
-            b.id !== botId,
+            b.owner_id === ownerId && b.space_id === spaceId && !b.is_primary && b.archived_at == null && b.id !== botId
         )
         .sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
       return { rows };
@@ -281,7 +264,7 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
 
     if (normalized.includes('FROM bricksbot.chats WHERE bot_id =')) {
       const row = [...chats.values()].find(
-        (c) => c.bot_id === params[0] && (params.length < 2 || c.user_id === params[1]),
+        (c) => c.bot_id === params[0] && (params.length < 2 || c.user_id === params[1])
       );
       return { rows: row ? [row] : [] };
     }
@@ -327,7 +310,7 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
 
     if (normalized.startsWith('INSERT INTO bricksbot.messages')) {
       const [id, chat_id, role, content, tool_call_id, tool_calls] = params.map((p) =>
-        p === null || p === undefined ? null : String(p),
+        p === null || p === undefined ? null : String(p)
       );
       const row = {
         id,
@@ -397,9 +380,7 @@ describe('LakebaseChatStore', () => {
 
     const again = new LakebaseChatStore(fake.query);
     const messages = await again.listMessages(chat.id);
-    expect(messages[0]?.toolCalls).toEqual([
-      { id: 'call_1', name: 'sql_query', arguments: { statement: 'SELECT 1' } },
-    ]);
+    expect(messages[0]?.toolCalls).toEqual([{ id: 'call_1', name: 'sql_query', arguments: { statement: 'SELECT 1' } }]);
   });
 
   test('shares space bots across members without exposing Primary or stealing Primary on bootstrap', async () => {

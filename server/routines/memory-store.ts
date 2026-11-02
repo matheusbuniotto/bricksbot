@@ -31,9 +31,7 @@ export class MemoryRoutineStore implements RoutineStore {
     return this.routines.get(routineId) ?? null;
   }
 
-  async getRoutineAuth(
-    routineId: string,
-  ): Promise<{ routine: Routine; webhookKeyHash: string } | null> {
+  async getRoutineAuth(routineId: string): Promise<{ routine: Routine; webhookKeyHash: string } | null> {
     const routine = this.routines.get(routineId);
     const webhookKeyHash = this.hashes.get(routineId);
     if (!routine || !webhookKeyHash) return null;
@@ -64,11 +62,7 @@ export class MemoryRoutineStore implements RoutineStore {
     return { routine, webhookSecret };
   }
 
-  async updateRoutine(
-    routineId: string,
-    ownerId: string,
-    patch: UpdateRoutineInput,
-  ): Promise<Routine> {
+  async updateRoutine(routineId: string, ownerId: string, patch: UpdateRoutineInput): Promise<Routine> {
     const routine = this.routines.get(routineId);
     if (!routine || routine.ownerId !== ownerId) {
       throw new Error('Routine not found');
@@ -78,8 +72,7 @@ export class MemoryRoutineStore implements RoutineStore {
       enabled: patch.enabled ?? routine.enabled,
       name: patch.name !== undefined ? patch.name.trim() || routine.name : routine.name,
       cron: patch.cron !== undefined ? patch.cron.trim() || routine.cron : routine.cron,
-      prompt:
-        patch.prompt !== undefined ? patch.prompt.trim() || routine.prompt : routine.prompt,
+      prompt: patch.prompt !== undefined ? patch.prompt.trim() || routine.prompt : routine.prompt,
     };
     if (patch.name !== undefined && !patch.name.trim()) {
       throw new Error('Routine name is required');

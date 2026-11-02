@@ -2,14 +2,7 @@
 
 import type { ToolCall } from '../agents/types.js';
 
-export type Presence =
-  | 'online'
-  | 'away'
-  | 'offline'
-  | 'thinking'
-  | 'working'
-  | 'waiting'
-  | 'blocked';
+export type Presence = 'online' | 'away' | 'offline' | 'thinking' | 'working' | 'waiting' | 'blocked';
 
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
@@ -143,6 +136,6 @@ export interface ChatStore {
     chatId: string,
     role: MessageRole,
     content: string,
-    options?: { toolCallId?: string; toolCalls?: ToolCall[] },
+    options?: { toolCallId?: string; toolCalls?: ToolCall[] }
   ): Promise<Message>;
 }

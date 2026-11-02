@@ -126,12 +126,10 @@ function renderToolDetails(toolCall: ApprovalRequest['toolCall']) {
   }
 
   if (name === 'update_routine') {
-    const label =
-      readStr(args.new_name) || readStr(args.name) || readStr(args.routine_id) || 'routine';
+    const label = readStr(args.new_name) || readStr(args.name) || readStr(args.routine_id) || 'routine';
     const cron = readStr(args.cron);
     const prompt = readStr(args.prompt);
-    const enabled =
-      args.enabled === undefined ? '' : args.enabled ? 'enable' : 'pause';
+    const enabled = args.enabled === undefined ? '' : args.enabled ? 'enable' : 'pause';
     return (
       <div className="approval-details">
         <span className="approval-chip">{label}</span>
@@ -246,11 +244,7 @@ export function ApprovalCards({
     function handleKeyDown(event: KeyboardEvent) {
       // Don't intercept if user is typing in an input or textarea
       const target = event.target as HTMLElement | null;
-      if (
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.isContentEditable
-      ) {
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
         return;
       }
 
@@ -284,28 +278,20 @@ export function ApprovalCards({
 
   if (!firstApproval || approvals.length === 0) return null;
 
-  const sameToolPending = approvals.filter(
-    (item) => item.toolCall.name === firstApproval.toolCall.name,
-  ).length;
+  const sameToolPending = approvals.filter((item) => item.toolCall.name === firstApproval.toolCall.name).length;
   const otherPending = approvals.length - 1;
   const onceOnly = isOnceOnlyApproval(firstApproval.toolCall.name);
 
   return (
     <div className="approvals" role="region" aria-label="Approval requests">
-      <article
-        key={firstApproval.id}
-        className="approval-card"
-        aria-busy={busyId === firstApproval.id}
-      >
+      <article key={firstApproval.id} className="approval-card" aria-busy={busyId === firstApproval.id}>
         <div className="approval-header">
           <span className="approval-tag">Approval needed</span>
           <p className="approval-title">{approvalTitle(firstApproval.toolCall.name)}</p>
           {sameToolPending > 1 ? (
             <p className="approval-queue">
               {sameToolPending} similar requests in this turn
-              {onceOnly
-                ? ' — Once applies to this one'
-                : ' — Always allow clears all of them'}
+              {onceOnly ? ' — Once applies to this one' : ' — Always allow clears all of them'}
             </p>
           ) : otherPending > 0 ? (
             <p className="approval-queue">

@@ -16,8 +16,7 @@ function createVirtualSandboxRunner() {
 
   function evalBash(script: string): { stdout: string; stderr: string; exitCode: number } {
     // Handle upload pattern: mkdir -p ... && printf '%s' '<b64>' | base64 -d > '<dest>'
-    const uploadMatch =
-      /printf '%s' '([^']*)' \| base64 -d > '([^']+)'/.exec(script);
+    const uploadMatch = /printf '%s' '([^']*)' \| base64 -d > '([^']+)'/.exec(script);
     if (uploadMatch) {
       const b64 = uploadMatch[1] ?? '';
       const dest = uploadMatch[2] ?? '';
@@ -76,7 +75,7 @@ function createDatabricksMockBackend() {
           exit_code: res.exitCode,
           duration_ms: 15,
         }),
-        { status: 200 },
+        { status: 200 }
       );
     }
 
@@ -128,7 +127,7 @@ function createE2BMockBackend() {
           exitCode: res.exitCode,
           durationMs: 18,
         }),
-        { status: 200 },
+        { status: 200 }
       );
     }
 
@@ -167,7 +166,7 @@ function createPythonExecMockBackend() {
           error_code: 'NOT_FOUND',
           message: 'The requested API is not available',
         }),
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -176,7 +175,7 @@ function createPythonExecMockBackend() {
       const code = params.arguments?.code ?? '';
       // Extract JSON payload inside `json.loads("...")`
       const match = /_cfg = json\.loads\(("(?:\\.|[^"\\])*")\)/.exec(code);
-      const cfgJson = match ? (JSON.parse(match[1]!) as string) : '{}';
+      const cfgJson = match ? (JSON.parse(match[1]) as string) : '{}';
       const cfg = JSON.parse(cfgJson) as {
         script?: string;
         cwd?: string;
@@ -202,7 +201,7 @@ function createPythonExecMockBackend() {
             },
           },
         }),
-        { status: 200 },
+        { status: 200 }
       );
     }
 
@@ -253,19 +252,16 @@ describe.each([
     const uploadedPath = await backend.uploadFile(
       externalId,
       'id,name\n1,alice\n2,bob\n',
-      '/home/sandbox-agent/users.csv',
+      '/home/sandbox-agent/users.csv'
     );
     expect(uploadedPath).toBe('/home/sandbox-agent/users.csv');
 
-    const downloadedBytes = await backend.downloadFile(
-      externalId,
-      '/home/sandbox-agent/users.csv',
-    );
+    const downloadedBytes = await backend.downloadFile(externalId, '/home/sandbox-agent/users.csv');
     expect(Buffer.from(downloadedBytes).toString('utf8')).toBe('id,name\n1,alice\n2,bob\n');
 
-    await expect(
-      backend.downloadFile(externalId, '/home/sandbox-agent/missing.csv'),
-    ).rejects.toThrow(/download failed/i);
+    await expect(backend.downloadFile(externalId, '/home/sandbox-agent/missing.csv')).rejects.toThrow(
+      /download failed/i
+    );
 
     await backend.stopSession(externalId);
     await backend.deleteSession(externalId);
@@ -273,9 +269,7 @@ describe.each([
 });
 
 const runLiveDatabricks = Boolean(
-  process.env.DATABRICKS_SANDBOX_INTEGRATION_TEST &&
-    process.env.DATABRICKS_HOST &&
-    process.env.DATABRICKS_TOKEN,
+  process.env.DATABRICKS_SANDBOX_INTEGRATION_TEST && process.env.DATABRICKS_HOST && process.env.DATABRICKS_TOKEN
 );
 
 describe.skipIf(!runLiveDatabricks)('DatabricksSandboxBackend live workspace integration', () => {

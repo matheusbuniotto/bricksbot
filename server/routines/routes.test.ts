@@ -8,9 +8,7 @@ import { registerRoutineRoutes } from './routes.js';
 import { RoutineService } from './service.js';
 import { WEBHOOK_HEADER } from './webhook-auth.js';
 
-async function withRoutineApp(
-  run: (ctx: { baseUrl: string; botId: string }) => Promise<void>,
-) {
+async function withRoutineApp(run: (ctx: { baseUrl: string; botId: string }) => Promise<void>) {
   const chats = new MemoryChatStore();
   const { primary } = await chats.ensureBootstrap('workspace-user');
   const routines = new MemoryRoutineStore();
@@ -94,10 +92,7 @@ describe('routines HTTP API', () => {
         body: JSON.stringify({ enabled: true }),
       });
 
-      const badHook = await fetch(
-        `${baseUrl}/api/webhooks/routines/${created.routine.id}`,
-        { method: 'POST' },
-      );
+      const badHook = await fetch(`${baseUrl}/api/webhooks/routines/${created.routine.id}`, { method: 'POST' });
       expect(badHook.status).toBe(401);
 
       const okHook = await fetch(`${baseUrl}/api/webhooks/routines/${created.routine.id}`, {

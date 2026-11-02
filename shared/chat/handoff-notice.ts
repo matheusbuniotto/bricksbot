@@ -52,8 +52,7 @@ export function parseHandoffNotice(content: string): HandoffNotice | null {
     if (!('kind' in parsed) || parsed.kind !== 'handoff') return null;
     if (!('targetName' in parsed) || typeof parsed.targetName !== 'string' || !parsed.targetName) return null;
     const rawDir = 'direction' in parsed && typeof parsed.direction === 'string' ? parsed.direction : '';
-    const direction: HandoffDirection =
-      rawDir === 'received' || rawDir === 'thread' ? rawDir : 'sent';
+    const direction: HandoffDirection = rawDir === 'received' || rawDir === 'thread' ? rawDir : 'sent';
     return {
       kind: 'handoff',
       direction,
@@ -63,8 +62,10 @@ export function parseHandoffNotice(content: string): HandoffNotice | null {
       senderBotId: 'senderBotId' in parsed && typeof parsed.senderBotId === 'string' ? parsed.senderBotId : '',
       senderName: 'senderName' in parsed && typeof parsed.senderName === 'string' ? parsed.senderName : '',
       brief: 'brief' in parsed && typeof parsed.brief === 'string' ? parsed.brief : '',
-      messageCount: 'messageCount' in parsed && typeof parsed.messageCount === 'number' ? parsed.messageCount : undefined,
-      replyPreview: 'replyPreview' in parsed && typeof parsed.replyPreview === 'string' ? parsed.replyPreview : undefined,
+      messageCount:
+        'messageCount' in parsed && typeof parsed.messageCount === 'number' ? parsed.messageCount : undefined,
+      replyPreview:
+        'replyPreview' in parsed && typeof parsed.replyPreview === 'string' ? parsed.replyPreview : undefined,
       threadBotId: 'threadBotId' in parsed && typeof parsed.threadBotId === 'string' ? parsed.threadBotId : undefined,
     };
   } catch {
@@ -75,7 +76,7 @@ export function parseHandoffNotice(content: string): HandoffNotice | null {
 /** Collapse consecutive notices about the same peer — keep the latest (usually “N messages with”). */
 export function collapseHandoffNotices<T extends { content: string }>(
   messages: T[],
-  isSystem: (message: T) => boolean,
+  isSystem: (message: T) => boolean
 ): T[] {
   const out: T[] = [];
   for (const message of messages) {
@@ -119,13 +120,17 @@ function isHandoffBriefUserLine(content: string, brief: string, senderName?: str
  */
 export function sliceHandoffThread(
   messages: Message[],
-  notice: Pick<HandoffNotice, 'senderName' | 'brief'>,
+  notice: Pick<HandoffNotice, 'senderName' | 'brief'>
 ): Message[] {
   if (!notice.brief) return messages;
   let start = -1;
   for (let i = 0; i < messages.length; i += 1) {
     const message = messages[i];
-    if (message && message.role === 'user' && isHandoffBriefUserLine(message.content, notice.brief, notice.senderName)) {
+    if (
+      message &&
+      message.role === 'user' &&
+      isHandoffBriefUserLine(message.content, notice.brief, notice.senderName)
+    ) {
       start = i;
     }
   }

@@ -104,9 +104,8 @@ export function createWebFetchTool(options: {
         }
         const contentType = response.headers?.get?.('content-type') ?? '';
         const rawText = await response.text();
-        const text = contentType.includes('text/html') || /<html[\s>]/i.test(rawText)
-          ? cleanHtmlText(rawText)
-          : rawText;
+        const text =
+          contentType.includes('text/html') || /<html[\s>]/i.test(rawText) ? cleanHtmlText(rawText) : rawText;
         return text.length > maxChars ? `${text.slice(0, maxChars)}\n…[truncated]` : text;
       } finally {
         if (timer) clearTimeout(timer);

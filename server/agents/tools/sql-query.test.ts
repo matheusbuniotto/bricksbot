@@ -89,7 +89,7 @@ describe('createSqlQueryTool', () => {
             isError: false,
           },
         }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
+        { status: 200, headers: { 'content-type': 'application/json' } }
       );
     });
     const tool = createSqlQueryTool({
@@ -188,7 +188,7 @@ describe('createSqlQueryTool', () => {
             statement_id: 'stmt_123',
             status: { state: 'PENDING' },
           }),
-          { status: 200 },
+          { status: 200 }
         );
       }
       expect(href).toContain('/api/2.0/sql/statements/stmt_123');
@@ -199,7 +199,7 @@ describe('createSqlQueryTool', () => {
           manifest: { schema: { columns: [{ name: 'val' }] } },
           result: { data_array: [['hello world']] },
         }),
-        { status: 200 },
+        { status: 200 }
       );
     });
 
@@ -239,7 +239,7 @@ describe('createSqlQueryTool', () => {
             ],
           },
         }),
-        { status: 200 },
+        { status: 200 }
       );
     });
 
@@ -251,7 +251,9 @@ describe('createSqlQueryTool', () => {
     });
 
     const result = await tool.execute({ statement: 'SELECT * FROM metrics' });
-    expect(result).toBe('dt\tts\tamt\tnotes\n2026-11-01\t2026-11-01T18:34:00Z\t123.45\tline1 line2 item'.replace('18:34:00Z', '12:00:00Z'));
+    expect(result).toBe(
+      'dt\tts\tamt\tnotes\n2026-11-01\t2026-11-01T18:34:00Z\t123.45\tline1 line2 item'.replace('18:34:00Z', '12:00:00Z')
+    );
   });
 
   test('normalizes bare host without scheme to https URL', async () => {
@@ -264,22 +266,20 @@ describe('createSqlQueryTool', () => {
           manifest: { schema: { columns: [{ name: 'test' }] } },
           result: { data_array: [['1']] },
         }),
-        { status: 200 },
+        { status: 200 }
       );
     });
 
     const tool = createSqlQueryTool({
       warehouseId: 'wh',
-      host: 'dbc-562d9321-2592.cloud.databricks.com',
+      host: 'dbc-example.cloud.databricks.com',
       getToken: async () => 'tok',
       fetchImpl: fetchImpl as typeof fetch,
     });
 
     const result = await tool.execute({ statement: 'SELECT 1 AS test' });
     expect(result).toBe('test\n1');
-    expect(requestedUrl).toBe(
-      'https://dbc-562d9321-2592.cloud.databricks.com/api/2.0/sql/statements',
-    );
+    expect(requestedUrl).toBe('https://dbc-example.cloud.databricks.com/api/2.0/sql/statements');
   });
 });
 
@@ -299,9 +299,9 @@ describe('sqlQueryConfigFromEnv', () => {
 
   test('normalizes bare DATABRICKS_HOST without protocol to https', () => {
     const config = sqlQueryConfigFromEnv({
-      DATABRICKS_HOST: 'dbc-562d9321-2592.cloud.databricks.com',
+      DATABRICKS_HOST: 'dbc-example.cloud.databricks.com',
     });
-    expect(config.host).toBe('https://dbc-562d9321-2592.cloud.databricks.com');
+    expect(config.host).toBe('https://dbc-example.cloud.databricks.com');
   });
 
   test('still provides getToken so request OBO can authenticate without a PAT', async () => {

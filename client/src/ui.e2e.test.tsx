@@ -34,9 +34,7 @@ describe('UI End-to-End Tests', () => {
   };
 
   it('verifies ConnectorsDialog E2E: renders only viable MCPs with English defaults', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} onOpenMarketplace={() => {}} />,
-    );
+    const html = renderToString(<ConnectorsDialog isOpen={true} onClose={() => {}} onOpenMarketplace={() => {}} />);
 
     expect(html).toContain('Connect Applications');
     expect(html).toContain('connected');
@@ -89,7 +87,7 @@ describe('UI End-to-End Tests', () => {
               full_name: service,
             })),
           }),
-          { status: 200 },
+          { status: 200 }
         );
       }
 
@@ -106,7 +104,7 @@ describe('UI End-to-End Tests', () => {
               id: parsed.id ?? 1,
               result: { tools: fakeTools[service].map((name) => ({ name })) },
             }),
-            { status: 200 },
+            { status: 200 }
           );
         }
         return new Response('Not Found', { status: 404 });
@@ -123,10 +121,7 @@ describe('UI End-to-End Tests', () => {
     });
 
     const initial = await discovery.listViableMcps({ refresh: true });
-    expect(initial.map((m) => m.service)).toEqual([
-      'system.ai.genie_one_mcp',
-      'system.ai.dbsql',
-    ]);
+    expect(initial.map((m) => m.service)).toEqual(['system.ai.genie_one_mcp', 'system.ai.dbsql']);
 
     fakeTools['system.ai.slack'] = ['search_messages', 'read_channel'];
     const afterAdd = await discovery.listViableMcps({ refresh: true });
@@ -164,7 +159,7 @@ describe('UI End-to-End Tests', () => {
         onCreateOpenChange={() => {}}
         marketplaceOpen={true}
         onMarketplaceOpenChange={() => {}}
-      />,
+      />
     );
 
     expect(html).toContain('Create new Bot');
@@ -178,12 +173,12 @@ describe('UI End-to-End Tests', () => {
 
     expect(html).toContain('Bot Marketplace');
     expect(html).toContain(
-      'Bots are personal by default. When using a Marketplace Bot, you receive its behavior, instructions, and skills in a 100% private chat.',
+      'Bots are personal by default. When using a Marketplace Bot, you receive its behavior, instructions, and skills in a 100% private chat.'
     );
     expect(html).toContain('Add to section:');
     expect(html).toContain('No bots published to the Marketplace yet.');
     expect(html).toContain(
-      'Share one of your bots from the actions menu or details sheet to make it available to teammates.',
+      'Share one of your bots from the actions menu or details sheet to make it available to teammates.'
     );
   });
 
@@ -227,7 +222,7 @@ describe('UI End-to-End Tests', () => {
         onClose={() => {}}
         onChangeLook={() => {}}
         onUpdateBotConfig={async () => {}}
-      />,
+      />
     );
 
     expect(htmlDetails).toContain('Details');
@@ -264,7 +259,7 @@ describe('UI End-to-End Tests', () => {
         onClose={() => {}}
         onChangeLook={() => {}}
         onUpdateBotConfig={async () => {}}
-      />,
+      />
     );
     expect(htmlApprovals).toContain('Permissions');
     expect(htmlApprovals).toContain('Tool permissions');
@@ -292,16 +287,14 @@ describe('UI End-to-End Tests', () => {
         onDeleteRoutine={async () => {}}
         onClose={() => {}}
         onChangeLook={() => {}}
-      />,
+      />
     );
     expect(htmlLibrary).toContain('Details');
     expect(htmlLibrary).toContain('Library');
   });
 
   it('verifies BotPicker accessory chip labels and presence tooltips in English', () => {
-    const htmlPicker = renderToString(
-      <BotPicker value={DEFAULT_BOT} onChange={() => {}} />,
-    );
+    const htmlPicker = renderToString(<BotPicker value={DEFAULT_BOT} onChange={() => {}} />);
 
     expect(htmlPicker).toContain('aria-label="Shape"');
     expect(htmlPicker).toContain('aria-label="Color"');

@@ -3,8 +3,8 @@ import type { Request } from 'express';
 export function isDatabricksProxyEnvironment(): boolean {
   return Boolean(
     process.env.DATABRICKS_APP_NAME ||
-    process.env.DATABRICKS_APP_ID ||
-    (process.env.DATABRICKS_HOST && process.env.NODE_ENV === 'production')
+      process.env.DATABRICKS_APP_ID ||
+      (process.env.DATABRICKS_HOST && process.env.NODE_ENV === 'production')
   );
 }
 
@@ -13,9 +13,7 @@ export function resolveOwnerId(req?: Request): string {
   const headerEmail =
     req?.header?.('x-forwarded-email') ||
     req?.header?.('x-forwarded-user') ||
-    (req as { headers?: Record<string, string | string[] | undefined> } | undefined)?.headers?.[
-      'x-forwarded-email'
-    ];
+    (req as { headers?: Record<string, string | string[] | undefined> } | undefined)?.headers?.['x-forwarded-email'];
   if (typeof headerEmail === 'string' && headerEmail.trim()) {
     return headerEmail.trim().toLowerCase();
   }

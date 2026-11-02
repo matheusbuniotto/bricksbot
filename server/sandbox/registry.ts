@@ -43,14 +43,10 @@ export function parseSandboxBackendSetting(raw: string | undefined): SandboxBack
   if (clean === 'databricks' || clean === 'python_exec' || clean === 'e2b') {
     return clean;
   }
-  throw new Error(
-    `Invalid SANDBOX_BACKEND="${raw}": expected "off", "databricks", "python_exec", or "e2b"`,
-  );
+  throw new Error(`Invalid SANDBOX_BACKEND="${raw}": expected "off", "databricks", "python_exec", or "e2b"`);
 }
 
-export function resolveSandboxConfigFromEnv(
-  env: Record<string, string | undefined> = process.env,
-): SandboxConfig {
+export function resolveSandboxConfigFromEnv(env: Record<string, string | undefined> = process.env): SandboxConfig {
   const backend = parseSandboxBackendSetting(env.SANDBOX_BACKEND);
   const idleMinutes = parsePositiveInt(env.SANDBOX_IDLE_MINUTES, 15);
   const execTimeoutSec = parsePositiveInt(env.SANDBOX_EXEC_TIMEOUT_SEC, 120);
@@ -87,7 +83,7 @@ export class SandboxRegistry {
 
   constructor(
     private readonly activeBackend: SandboxBackendSetting = 'off',
-    initialBackends?: Partial<Record<BackendId, ExecutionBackend>>,
+    initialBackends?: Partial<Record<BackendId, ExecutionBackend>>
   ) {
     if (
       activeBackend !== 'off' &&
@@ -148,7 +144,7 @@ export function createSandboxRegistryFromEnv(
   options?: {
     fetchImpl?: typeof fetch;
     getDatabricksToken?: () => Promise<string>;
-  },
+  }
 ): { config: SandboxConfig; registry: SandboxRegistry } {
   const config = resolveSandboxConfigFromEnv(env);
   const registry = new SandboxRegistry(config.backend);
@@ -178,7 +174,7 @@ export function createSandboxRegistryFromEnv(
         inactivityTimeoutSec: config.idleMinutes * 60,
         imageUri: presentEnv(env.SANDBOX_DATABRICKS_IMAGE_URI),
         fetchImpl: options?.fetchImpl,
-      }),
+      })
     );
     registry.register(
       'python_exec',
@@ -186,7 +182,7 @@ export function createSandboxRegistryFromEnv(
         host,
         getToken,
         fetchImpl: options?.fetchImpl,
-      }),
+      })
     );
   }
 
@@ -200,7 +196,7 @@ export function createSandboxRegistryFromEnv(
         templateId: presentEnv(env.E2B_TEMPLATE_ID),
         timeoutSec: config.idleMinutes * 60,
         fetchImpl: options?.fetchImpl,
-      }),
+      })
     );
   }
 
@@ -212,7 +208,7 @@ export function createSandboxRegistryFromEnv(
     console.warn(
       `[bricksbot] SANDBOX_BACKEND=${config.backend} but backend is not usable: ${reason}. ` +
         'On Databricks Apps, DATABRICKS_HOST + CLIENT_ID/SECRET are injected automatically. ' +
-        'Locally set DATABRICKS_HOST and DATABRICKS_TOKEN (or CLIENT_ID/SECRET).',
+        'Locally set DATABRICKS_HOST and DATABRICKS_TOKEN (or CLIENT_ID/SECRET).'
     );
   }
 

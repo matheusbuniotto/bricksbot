@@ -24,10 +24,10 @@ variables:
     default: bricksbot
   routine_webhook_app_base_url:
     description: Deployed App origin without trailing slash (databricks apps get bricksbot)
-    default: ""
+    default: ''
   routine_webhook_routine_id:
     description: Routine UUID from Routines trust banner / list row
-    default: ""
+    default: ''
   routine_webhook_secret_scope:
     description: Secret scope holding the routine webhook shared secret
     default: ${var.app_secret_scope}
@@ -36,7 +36,7 @@ variables:
     default: routine-webhook-key
   routine_webhook_quartz_cron:
     description: Quartz 6-field cron for the example Lakeflow Job
-    default: "0 0 9 * * ?"
+    default: '0 0 9 * * ?'
   routine_webhook_timezone_id:
     description: Timezone for the example Job schedule
     default: America/Sao_Paulo
@@ -44,8 +44,8 @@ variables:
 resources:
   apps:
     app:
-      name: "bricksbot"
-      description: "BricksBot — Grok-shaped multi-bot chat on the lakehouse"
+      name: 'bricksbot'
+      description: 'BricksBot — Grok-shaped multi-bot chat on the lakehouse'
       source_code_path: ./
 
       lifecycle:

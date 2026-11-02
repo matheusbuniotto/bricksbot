@@ -22,23 +22,21 @@ describe('memory skill tools', () => {
       },
     };
 
-    await remember!.execute({ key: 'timezone', content: 'America/Sao_Paulo' }, ctx);
+    await remember.execute({ key: 'timezone', content: 'America/Sao_Paulo' }, ctx);
     expect(await memory.listMemories('bot-1')).toEqual([
       expect.objectContaining({ key: 'timezone', content: 'America/Sao_Paulo' }),
     ]);
 
-    await forget!.execute({ key: 'timezone' }, ctx);
+    await forget.execute({ key: 'timezone' }, ctx);
     expect(await memory.listMemories('bot-1')).toEqual([]);
 
-    await saveSkill!.execute(
+    await saveSkill.execute(
       {
         name: 'Weekly health',
         body: '## When\nMondays\n## Steps\n1. Query\n2. Summarize',
       },
-      ctx,
+      ctx
     );
-    expect(await memory.listSkills('bot-1')).toEqual([
-      expect.objectContaining({ name: 'Weekly health' }),
-    ]);
+    expect(await memory.listSkills('bot-1')).toEqual([expect.objectContaining({ name: 'Weekly health' })]);
   });
 });

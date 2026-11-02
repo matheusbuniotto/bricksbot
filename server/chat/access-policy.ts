@@ -3,7 +3,7 @@ import type { Bot, Space, SpaceMember } from '../../shared/chat/types.js';
 export function canViewerAccessSpace(
   space: Pick<Space, 'id' | 'ownerId'>,
   members: ReadonlyArray<Pick<SpaceMember, 'spaceId' | 'userId'>>,
-  viewerId: string,
+  viewerId: string
 ): boolean {
   if (space.ownerId === viewerId) return true;
   return members.some((m) => m.spaceId === space.id && m.userId === viewerId);
@@ -12,7 +12,7 @@ export function canViewerAccessSpace(
 export function isBotVisibleToViewer(
   bot: Pick<Bot, 'ownerId' | 'spaceId' | 'isPrimary'> & { isShared?: boolean },
   viewerId: string,
-  accessibleSpaceIds: ReadonlySet<string>,
+  accessibleSpaceIds: ReadonlySet<string>
 ): boolean {
   if (bot.ownerId === viewerId) return true;
   if (bot.isPrimary) return false;

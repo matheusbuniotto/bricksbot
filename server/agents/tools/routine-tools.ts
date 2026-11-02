@@ -42,7 +42,7 @@ function summarize(routine: Routine) {
 async function resolveRoutineForBot(
   routines: RoutineStore,
   bot: Bot,
-  args: Record<string, unknown>,
+  args: Record<string, unknown>
 ): Promise<{ ok: true; routine: Routine } | { ok: false; error: string }> {
   const id = readText(args.routine_id) || readText(args.id);
   const name = readText(args.name);
@@ -63,9 +63,7 @@ async function resolveRoutineForBot(
   }
 
   const listed = await routines.listRoutines(bot.ownerId);
-  const matches = listed.filter(
-    (r) => r.botId === bot.id && r.name.toLowerCase() === name.toLowerCase(),
-  );
+  const matches = listed.filter((r) => r.botId === bot.id && r.name.toLowerCase() === name.toLowerCase());
   if (matches.length === 0) {
     return { ok: false, error: `No routine named ${name} on this bot` };
   }
@@ -75,7 +73,7 @@ async function resolveRoutineForBot(
       error: `Multiple routines named ${name}; pass routine_id instead`,
     };
   }
-  return { ok: true, routine: matches[0]! };
+  return { ok: true, routine: matches[0] };
 }
 
 export const listRoutinesToolDefinition: ToolDefinition = {
@@ -198,8 +196,7 @@ export function createUpdateRoutineTool(routines: RoutineStore, store: ChatStore
         await store.addMessage(
           ctx.chatId,
           'system',
-          `[routine:${updated.name}] updated — ${summary.scheduleLabel}` +
-            (updated.enabled ? ' (On)' : ' (Off)'),
+          `[routine:${updated.name}] updated — ${summary.scheduleLabel}` + (updated.enabled ? ' (On)' : ' (Off)')
         );
         return JSON.stringify({ ok: true, routine: summary });
       } catch (err) {
@@ -225,11 +222,7 @@ export function createDeleteRoutineTool(routines: RoutineStore, store: ChatStore
       const { routine } = resolved;
       try {
         await routines.deleteRoutine(routine.id, bot.ownerId);
-        await store.addMessage(
-          ctx.chatId,
-          'system',
-          `[routine:${routine.name}] deleted`,
-        );
+        await store.addMessage(ctx.chatId, 'system', `[routine:${routine.name}] deleted`);
         return JSON.stringify({
           ok: true,
           deleted: { id: routine.id, name: routine.name },

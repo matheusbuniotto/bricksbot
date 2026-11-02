@@ -1,10 +1,6 @@
 import type { ExecutionResult } from '../../shared/sandbox/types.js';
 import type { ExecutionBackend, RunCommandOptions } from './backend.js';
-import {
-  buildShellScript,
-  shellQuote,
-  validateSandboxFilePath,
-} from './databricks-backend.js';
+import { buildShellScript, shellQuote, validateSandboxFilePath } from './databricks-backend.js';
 
 export interface E2BSandboxConfig {
   apiKey: string;
@@ -59,9 +55,7 @@ export class E2BSandboxBackend implements ExecutionBackend {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(
-        `E2B sandbox create failed (${response.status}): ${detail || response.statusText}`,
-      );
+      throw new Error(`E2B sandbox create failed (${response.status}): ${detail || response.statusText}`);
     }
 
     const payload = (await response.json()) as {
@@ -76,11 +70,7 @@ export class E2BSandboxBackend implements ExecutionBackend {
     return payload.clientID ? `${id}-${payload.clientID}` : id;
   }
 
-  async runCommand(
-    externalId: string,
-    cmd: string[],
-    opts: RunCommandOptions,
-  ): Promise<ExecutionResult> {
+  async runCommand(externalId: string, cmd: string[], opts: RunCommandOptions): Promise<ExecutionResult> {
     if (!externalId?.trim()) {
       throw new Error('Sandbox identifier is required');
     }
@@ -103,9 +93,7 @@ export class E2BSandboxBackend implements ExecutionBackend {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(
-        `E2B sandbox command failed (${response.status}): ${detail || response.statusText}`,
-      );
+      throw new Error(`E2B sandbox command failed (${response.status}): ${detail || response.statusText}`);
     }
 
     const payload = (await response.json()) as {
@@ -138,17 +126,11 @@ export class E2BSandboxBackend implements ExecutionBackend {
       stderr: typeof payload.stderr === 'string' ? payload.stderr : '',
       exitCode,
       durationMs,
-      artifactPaths: Array.isArray(artifacts)
-        ? artifacts.filter((p): p is string => typeof p === 'string')
-        : [],
+      artifactPaths: Array.isArray(artifacts) ? artifacts.filter((p): p is string => typeof p === 'string') : [],
     };
   }
 
-  async uploadFile(
-    externalId: string,
-    data: Uint8Array | string,
-    dest: string,
-  ): Promise<string> {
+  async uploadFile(externalId: string, data: Uint8Array | string, dest: string): Promise<string> {
     const targetPath = validateSandboxFilePath(dest, 'Destination');
     const bytes = typeof data === 'string' ? Buffer.from(data, 'utf8') : Buffer.from(data);
     const encoded = bytes.toString('base64');
@@ -159,7 +141,7 @@ export class E2BSandboxBackend implements ExecutionBackend {
     });
     if (result.exitCode !== 0) {
       throw new Error(
-        `E2B sandbox upload failed (exit ${result.exitCode}): ${result.stderr || 'unable to write file'}`,
+        `E2B sandbox upload failed (exit ${result.exitCode}): ${result.stderr || 'unable to write file'}`
       );
     }
     return targetPath;
@@ -173,7 +155,7 @@ export class E2BSandboxBackend implements ExecutionBackend {
     });
     if (result.exitCode !== 0) {
       throw new Error(
-        `E2B sandbox download failed (exit ${result.exitCode}): ${result.stderr || 'unable to read file'}`,
+        `E2B sandbox download failed (exit ${result.exitCode}): ${result.stderr || 'unable to read file'}`
       );
     }
     return new Uint8Array(Buffer.from(result.stdout.trim(), 'base64'));
@@ -190,9 +172,7 @@ export class E2BSandboxBackend implements ExecutionBackend {
     });
     if (!response.ok && response.status !== 404) {
       const detail = await response.text().catch(() => '');
-      throw new Error(
-        `E2B sandbox stop failed (${response.status}): ${detail || response.statusText}`,
-      );
+      throw new Error(`E2B sandbox stop failed (${response.status}): ${detail || response.statusText}`);
     }
   }
 
@@ -207,9 +187,7 @@ export class E2BSandboxBackend implements ExecutionBackend {
     });
     if (!response.ok && response.status !== 404) {
       const detail = await response.text().catch(() => '');
-      throw new Error(
-        `E2B sandbox delete failed (${response.status}): ${detail || response.statusText}`,
-      );
+      throw new Error(`E2B sandbox delete failed (${response.status}): ${detail || response.statusText}`);
     }
   }
 }

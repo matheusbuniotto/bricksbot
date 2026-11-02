@@ -4,16 +4,12 @@ import { ConnectorsDialog, CONNECTOR_APPS } from './ConnectorsDialog';
 
 describe('ConnectorsDialog Component', () => {
   test('renders nothing when isOpen is false', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={false} onClose={() => {}} />,
-    );
+    const html = renderToString(<ConnectorsDialog isOpen={false} onClose={() => {}} />);
     expect(html).toBe('');
   });
 
   test('renders dialog container with accessibility attributes when open', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
-    );
+    const html = renderToString(<ConnectorsDialog isOpen={true} onClose={() => {}} />);
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-labelledby="connectors-dialog-title"');
     expect(html).toContain('class="dialog connectors-dialog"');
@@ -21,9 +17,7 @@ describe('ConnectorsDialog Component', () => {
   });
 
   test('renders title and connected badge in English', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
-    );
+    const html = renderToString(<ConnectorsDialog isOpen={true} onClose={() => {}} />);
     expect(html).toContain('Connect Applications');
     expect(html).toContain('id="connectors-dialog-title"');
     expect(html).toContain('class="connectors-badge"');
@@ -31,40 +25,26 @@ describe('ConnectorsDialog Component', () => {
   });
 
   test('renders search input bar with placeholder', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
-    );
+    const html = renderToString(<ConnectorsDialog isOpen={true} onClose={() => {}} />);
     expect(html).toContain('class="connectors-search-input"');
     expect(html).toContain('placeholder="Search apps and skills"');
     expect(html).not.toContain('class="connectors-search-clear"');
   });
 
   test('renders Bot Templates button only when onOpenMarketplace is passed', () => {
-    const withoutMarketplace = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
-    );
+    const withoutMarketplace = renderToString(<ConnectorsDialog isOpen={true} onClose={() => {}} />);
     expect(withoutMarketplace).not.toContain('Bot Templates');
 
     const withMarketplace = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} onOpenMarketplace={() => {}} />,
+      <ConnectorsDialog isOpen={true} onClose={() => {}} onOpenMarketplace={() => {}} />
     );
     expect(withMarketplace).toContain('Bot Templates');
     expect(withMarketplace).toContain('class="connectors-marketplace-btn"');
   });
 
   test('renders category filter pills in English', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
-    );
-    const expectedCategories = [
-      'All',
-      'Lakehouse',
-      'Productivity',
-      'Communication',
-      'Code',
-      'Search',
-      'Custom',
-    ];
+    const html = renderToString(<ConnectorsDialog isOpen={true} onClose={() => {}} />);
+    const expectedCategories = ['All', 'Lakehouse', 'Productivity', 'Communication', 'Code', 'Search', 'Custom'];
     for (const label of expectedCategories) {
       expect(html).toContain(`>${label}<`);
     }
@@ -72,9 +52,7 @@ describe('ConnectorsDialog Component', () => {
   });
 
   test('renders only viable Databricks MCPs with clean recommended section', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
-    );
+    const html = renderToString(<ConnectorsDialog isOpen={true} onClose={() => {}} />);
     expect(html).toContain('Recommended for you');
     expect(html).toContain('Databricks One (Genie)');
     expect(html).toContain('Databricks SQL');
@@ -93,9 +71,7 @@ describe('ConnectorsDialog Component', () => {
   });
 
   test('renders close and utility controls with accessibility labels', () => {
-    const html = renderToString(
-      <ConnectorsDialog isOpen={true} onClose={() => {}} />,
-    );
+    const html = renderToString(<ConnectorsDialog isOpen={true} onClose={() => {}} />);
     expect(html).toContain('aria-label="Close"');
     expect(html).toContain('class="dialog-close-btn"');
     expect(html).toContain('aria-label="Refresh connectors"');

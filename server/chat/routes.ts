@@ -46,7 +46,7 @@ const updateBotSchema = z
       value.isShared !== undefined,
     {
       message: 'At least one field is required',
-    },
+    }
   );
 
 const installBotSchema = z.object({
@@ -108,7 +108,7 @@ export function registerChatRoutes(
   service: ChatService,
   options?: {
     mcpDiscovery?: McpDiscoveryService;
-  },
+  }
 ): void {
   app.get('/api/spaces', async (req: Request, res: Response) => {
     try {
@@ -388,7 +388,9 @@ export function registerChatRoutes(
       await store.addMessage(chat.id, 'assistant', greeting);
       res.status(201).json({ bot: installed });
     } catch (err) {
-      res.status(isUnauthorized(err) ? 401 : isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+      res
+        .status(isUnauthorized(err) ? 401 : isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500)
+        .json({ error: errorMessage(err) });
     }
   });
 
@@ -467,13 +469,7 @@ export function registerChatRoutes(
       const bot = await assertBotAccess(botId, req, res);
       if (!bot) return;
       const chat = await store.getOrCreateChatForBot(botId, resolveOwnerId(req));
-      const [
-        messages,
-        pendingApprovals,
-        pendingChoices,
-        autoApprovedTools,
-        sandboxStatus,
-      ] = await Promise.all([
+      const [messages, pendingApprovals, pendingChoices, autoApprovedTools, sandboxStatus] = await Promise.all([
         store.listMessages(chat.id),
         service.getApprovals().listPending(chat.id),
         service.getChoices().listPending(chat.id),
@@ -625,7 +621,7 @@ export function registerChatRoutes(
       const result = await runWithDatabricksRequestAuth(req, () =>
         service.sendUserMessage(chatId, parsed.data.content, {
           requestId: parsed.data.requestId,
-        }),
+        })
       );
       res.status(201).json(result);
     } catch (err) {
@@ -662,7 +658,7 @@ export function registerChatRoutes(
         return;
       }
       const result = await runWithDatabricksRequestAuth(req, () =>
-        service.decideApproval(approvalId, parsed.data.decision),
+        service.decideApproval(approvalId, parsed.data.decision)
       );
       res.json(result);
     } catch (err) {
@@ -692,7 +688,7 @@ export function registerChatRoutes(
         return;
       }
       const result = await runWithDatabricksRequestAuth(req, () =>
-        service.submitChoice(choiceId, parsed.data.selectedOption),
+        service.submitChoice(choiceId, parsed.data.selectedOption)
       );
       res.json(result);
     } catch (err) {

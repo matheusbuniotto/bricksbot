@@ -7,7 +7,10 @@ import { ChatService } from './service.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 
 async function withChatApp(
-  run: (baseUrl: string, ctx: { store: MemoryChatStore; service: ChatService; memory: MemoryMemorySkillStore }) => Promise<void>,
+  run: (
+    baseUrl: string,
+    ctx: { store: MemoryChatStore; service: ChatService; memory: MemoryMemorySkillStore }
+  ) => Promise<void>
 ) {
   const store = new MemoryChatStore();
   const memory = new MemoryMemorySkillStore();
@@ -259,9 +262,7 @@ describe('security and access control (review blockers)', () => {
       expect(aliceMemories).toEqual([
         expect.objectContaining({ key: 'favorite_color', content: 'blue', userId: 'alice' }),
       ]);
-      expect(bobMemories).toEqual([
-        expect.objectContaining({ key: 'favorite_color', content: 'red', userId: 'bob' }),
-      ]);
+      expect(bobMemories).toEqual([expect.objectContaining({ key: 'favorite_color', content: 'red', userId: 'bob' })]);
     });
   });
 });

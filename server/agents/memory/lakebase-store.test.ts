@@ -102,12 +102,9 @@ function createFakeLakebase(): { query: LakebaseQuery; bots: Set<string> } {
       const botIds = (params[0] as string[]) ?? [];
       const set = new Set(botIds);
       return {
-        rows: skills
-          .filter((s) => set.has(String(s.bot_id)))
-          .map((s) => ({ bot_id: s.bot_id, name: s.name })),
+        rows: skills.filter((s) => set.has(String(s.bot_id))).map((s) => ({ bot_id: s.bot_id, name: s.name })),
       };
     }
-
 
     if (normalized.includes('FROM bricksbot.bot_skills') && normalized.includes('AND name =')) {
       const [botId, name] = params.map(String);

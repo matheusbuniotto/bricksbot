@@ -1,14 +1,6 @@
 import { useRef, useMemo, useSyncExternalStore } from 'react';
 import type { Presence } from '../../../shared/chat/types';
-import {
-  type BotConfig,
-  DEFAULT_BOT,
-  COLORS,
-  SHAPES,
-  renderBot,
-  decodeBot,
-  encodeBot,
-} from './bricksbot-avatar';
+import { type BotConfig, DEFAULT_BOT, COLORS, SHAPES, renderBot, decodeBot, encodeBot } from './bricksbot-avatar';
 
 export {
   type BotConfig,
@@ -42,8 +34,8 @@ export const decodeLook = (s: string | undefined): BotLook | null => {
   }
   // Migrate prior 2-char avatarLabel → brick config (hat/glasses none).
   if (s.length === 2) {
-    const shape = LEGACY_SHAPE.indexOf(s[0]!);
-    const color = LEGACY_COLOR.indexOf(s[1]!);
+    const shape = LEGACY_SHAPE.indexOf(s[0]);
+    const color = LEGACY_COLOR.indexOf(s[1]);
     if (shape >= 0 && shape < SHAPES.length && color >= 0 && color < COLORS.length) {
       return { shape, color, hat: 0, glasses: 0 };
     }
@@ -153,12 +145,12 @@ export function BotFace({
   const storedLabel = useSyncExternalStore(
     subscribeLookChanges,
     () => (botId ? labels.get(botId) : undefined),
-    () => (botId ? labels.get(botId) : undefined),
+    () => (botId ? labels.get(botId) : undefined)
   );
   const isPrimary = useSyncExternalStore(
     subscribeLookChanges,
     () => (botId ? primaryIds.has(botId) : false),
-    () => (botId ? primaryIds.has(botId) : false),
+    () => (botId ? primaryIds.has(botId) : false)
   );
 
   const resolvedConfig = useMemo<BotConfig>(() => {
@@ -170,7 +162,7 @@ export function BotFace({
 
   const svgHtml = useMemo(
     () => renderBot(resolvedConfig, size),
-    [resolvedConfig.shape, resolvedConfig.color, resolvedConfig.hat, resolvedConfig.glasses, size],
+    [resolvedConfig.shape, resolvedConfig.color, resolvedConfig.hat, resolvedConfig.glasses, size]
   );
 
   // color/track kept for call-site compatibility (global mouse-follow + config-driven color).

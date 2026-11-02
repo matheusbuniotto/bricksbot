@@ -60,7 +60,7 @@ function readText(value: unknown): string {
 export async function planCreateBot(
   store: ChatStore,
   creator: Bot | null,
-  args: Record<string, unknown>,
+  args: Record<string, unknown>
 ): Promise<Planned> {
   if (!creator?.isPrimary) {
     return { ok: false, error: 'Only the Primary bot can create bots. Ask the user to have Primary create one.' };
@@ -93,7 +93,7 @@ export async function planCreateBot(
     if (matches.length > 1) {
       return { ok: false, error: `create_bot found more than one section named ${sectionName}` };
     }
-    spaceId = matches[0]!.id;
+    spaceId = matches[0].id;
   }
 
   const active = await store.listBots({ ownerId: creator.ownerId, archived: 'active' });
@@ -122,7 +122,7 @@ export async function executeCreateBot(
   memory: MemorySkillStore,
   creator: Bot | null,
   sourceChatId: string,
-  args: Record<string, unknown>,
+  args: Record<string, unknown>
 ): Promise<string> {
   const planned = await planCreateBot(store, creator, args);
   if (!planned.ok) return planned.error;
@@ -156,7 +156,7 @@ export async function executeCreateBot(
       job: plan.job || undefined,
       createdByBotId: plan.creator.id,
       createdByName: plan.creator.name,
-    }),
+    })
   );
 
   return JSON.stringify({

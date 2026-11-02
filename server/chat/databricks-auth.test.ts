@@ -9,9 +9,7 @@ import {
 } from './databricks-auth.js';
 
 function fakeReq(headers: Record<string, string>): Request {
-  const lower = Object.fromEntries(
-    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
-  );
+  const lower = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
   return {
     header: (name: string) => lower[name.toLowerCase()],
     headers: lower,
@@ -20,9 +18,7 @@ function fakeReq(headers: Record<string, string>): Request {
 
 describe('resolveForwardedAccessToken', () => {
   test('reads x-forwarded-access-token', () => {
-    expect(resolveForwardedAccessToken(fakeReq({ 'x-forwarded-access-token': ' user-tok ' }))).toBe(
-      'user-tok',
-    );
+    expect(resolveForwardedAccessToken(fakeReq({ 'x-forwarded-access-token': ' user-tok ' }))).toBe('user-tok');
   });
 
   test('returns undefined when missing', () => {
@@ -91,7 +87,7 @@ describe('createM2mTokenProvider', () => {
       'https://dbc.example.cloud.databricks.com/',
       'cid',
       'sec',
-      fetchImpl as typeof fetch,
+      fetchImpl as typeof fetch
     );
     await expect(getToken()).resolves.toBe('m2m');
     await expect(getToken()).resolves.toBe('m2m');

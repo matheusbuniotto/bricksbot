@@ -58,11 +58,7 @@ export function CodeBlock({ code, language }: { code: string; language?: string 
         </button>
       </div>
       <pre>
-        {html === null ? (
-          <code>{code}</code>
-        ) : (
-          <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} />
-        )}
+        {html === null ? <code>{code}</code> : <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} />}
       </pre>
     </div>
   );

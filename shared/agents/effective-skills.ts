@@ -33,7 +33,7 @@ function toSeedEffective(seed: SeedSkill, botId: string): EffectiveSkill {
 export function mergeEffectiveSkills(
   botId: string,
   botSkills: Array<Pick<BotSkill, 'id' | 'botId' | 'name' | 'body' | 'createdAt'>>,
-  seeds: readonly SeedSkill[] = SEED_SKILLS,
+  seeds: readonly SeedSkill[] = SEED_SKILLS
 ): EffectiveSkill[] {
   const byName = new Map<string, EffectiveSkill>();
 
@@ -60,7 +60,7 @@ export function resolveEffectiveSkill(
   botId: string,
   botSkills: Array<Pick<BotSkill, 'id' | 'botId' | 'name' | 'body' | 'createdAt'>>,
   name: string,
-  seeds: readonly SeedSkill[] = SEED_SKILLS,
+  seeds: readonly SeedSkill[] = SEED_SKILLS
 ): EffectiveSkill | undefined {
   const needle = name.trim().toLowerCase();
   if (!needle) return undefined;

@@ -62,8 +62,7 @@ export function toolResultView(content: string, toolNameHint = ''): ToolResultVi
   const fallback = toolNameHint ? toolLabel(toolNameHint) : 'Tool';
   try {
     const parsed = JSON.parse(content) as Record<string, unknown>;
-    const tool =
-      typeof parsed.tool === 'string' ? parsed.tool : toolNameHint;
+    const tool = typeof parsed.tool === 'string' ? parsed.tool : toolNameHint;
     const label = tool ? toolLabel(tool) : fallback;
 
     if (typeof parsed.error === 'string' && parsed.error.trim()) {

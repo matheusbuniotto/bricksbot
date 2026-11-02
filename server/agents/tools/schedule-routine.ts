@@ -49,10 +49,7 @@ export interface ScheduleRoutineArgs {
 
 type Planned = { ok: true; args: ScheduleRoutineArgs } | { ok: false; error: string };
 
-export function planScheduleRoutine(
-  args: Record<string, unknown>,
-  bot: HandoffTurnContext['bot'],
-): Planned {
+export function planScheduleRoutine(args: Record<string, unknown>, bot: HandoffTurnContext['bot']): Planned {
   if (!bot) {
     return { ok: false, error: 'schedule_routine requires an active Bot' };
   }
@@ -88,7 +85,7 @@ export async function executeScheduleRoutine(
   routines: RoutineStore,
   store: ChatStore,
   ctx: HandoffTurnContext,
-  args: Record<string, unknown>,
+  args: Record<string, unknown>
 ): Promise<string> {
   const planned = planScheduleRoutine(args, ctx.bot);
   if (!planned.ok) return planned.error;
@@ -110,8 +107,7 @@ export async function executeScheduleRoutine(
   await store.addMessage(
     ctx.chatId,
     'system',
-    `[routine:${created.routine.name}] created — ${scheduleLabel}` +
-      (created.routine.enabled ? ' (On)' : ' (Off)'),
+    `[routine:${created.routine.name}] created — ${scheduleLabel}` + (created.routine.enabled ? ' (On)' : ' (Off)')
   );
 
   return JSON.stringify({

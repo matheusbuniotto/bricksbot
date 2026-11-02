@@ -110,7 +110,7 @@ export function planPinArtifact(args: Record<string, unknown>, bot: HandoffTurnC
 export async function executePinArtifact(
   store: ChatStore,
   ctx: HandoffTurnContext,
-  args: Record<string, unknown>,
+  args: Record<string, unknown>
 ): Promise<string> {
   const planned = planPinArtifact(args, ctx.bot);
   if (!planned.ok) return planned.error;
@@ -129,7 +129,7 @@ export async function executePinArtifact(
       summary,
       pinnedByBotId: bot.id,
       pinnedByName: bot.name,
-    }),
+    })
   );
 
   return JSON.stringify({

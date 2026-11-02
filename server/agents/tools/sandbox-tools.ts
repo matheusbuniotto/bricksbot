@@ -1,10 +1,7 @@
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { ChatStore } from '../../../shared/chat/types.js';
 import type { HandoffTurnContext } from '../handoff.js';
-import {
-  ArtifactSyncService,
-  resolveArtifactVolumePath,
-} from '../../sandbox/artifact-sync.js';
+import { ArtifactSyncService, resolveArtifactVolumePath } from '../../sandbox/artifact-sync.js';
 import type { SandboxSessionService } from '../../sandbox/session-service.js';
 
 export const SANDBOX_EXEC_TOOL_NAME = 'sandbox_exec';
@@ -94,8 +91,7 @@ export const sandboxPythonExecToolDefinition: ToolDefinition = {
 
 export const sandboxUploadToolDefinition: ToolDefinition = {
   name: SANDBOX_UPLOAD_TOOL_NAME,
-  description:
-    'Write a UTF-8 file into the chat’s sandbox filesystem. Requires user approval.',
+  description: 'Write a UTF-8 file into the chat’s sandbox filesystem. Requires user approval.',
   parameters: {
     type: 'object',
     additionalProperties: false,
@@ -115,8 +111,7 @@ export const sandboxUploadToolDefinition: ToolDefinition = {
 
 export const sandboxDownloadToolDefinition: ToolDefinition = {
   name: SANDBOX_DOWNLOAD_TOOL_NAME,
-  description:
-    'Read a file from the chat’s sandbox filesystem. Requires user approval.',
+  description: 'Read a file from the chat’s sandbox filesystem. Requires user approval.',
   parameters: {
     type: 'object',
     additionalProperties: false,
@@ -173,8 +168,7 @@ export const sandboxStopToolDefinition: ToolDefinition = {
 
 export const sandboxDeleteToolDefinition: ToolDefinition = {
   name: SANDBOX_DELETE_TOOL_NAME,
-  description:
-    'Permanently delete the chat’s sandbox session and its home directory. Always requires user approval.',
+  description: 'Permanently delete the chat’s sandbox session and its home directory. Always requires user approval.',
   parameters: {
     type: 'object',
     additionalProperties: false,
@@ -230,9 +224,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
         }
         const cwd = typeof args.cwd === 'string' && args.cwd.trim() ? args.cwd.trim() : undefined;
         const timeoutSec =
-          typeof args.timeout_sec === 'number' && Number.isFinite(args.timeout_sec)
-            ? args.timeout_sec
-            : undefined;
+          typeof args.timeout_sec === 'number' && Number.isFinite(args.timeout_sec) ? args.timeout_sec : undefined;
 
         try {
           const result = await sessionService.exec(
@@ -245,7 +237,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
               cmd: [command],
               cwd,
               timeoutSec,
-            },
+            }
           );
           return JSON.stringify({
             ok: true,
@@ -291,9 +283,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
           });
         }
         const timeoutSec =
-          typeof args.timeout_sec === 'number' && Number.isFinite(args.timeout_sec)
-            ? args.timeout_sec
-            : undefined;
+          typeof args.timeout_sec === 'number' && Number.isFinite(args.timeout_sec) ? args.timeout_sec : undefined;
 
         try {
           const result = await sessionService.exec(
@@ -305,7 +295,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
             {
               cmd: ['python3', '-c', code],
               timeoutSec,
-            },
+            }
           );
           return JSON.stringify({
             ok: true,
@@ -352,7 +342,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
               botId: ctx.bot.id,
               userId: ctx.bot.ownerId,
             },
-            { data: content, dest },
+            { data: content, dest }
           );
           return JSON.stringify({
             ok: true,
@@ -394,7 +384,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
               botId: ctx.bot.id,
               userId: ctx.bot.ownerId,
             },
-            { src },
+            { src }
           );
           const text = Buffer.from(downloaded.data).toString('utf8');
           return JSON.stringify({
@@ -425,15 +415,14 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
           sourcePath,
           ctx.chatId,
           volumePath,
-          sessionService.getArtifactVolumeRoot(),
+          sessionService.getArtifactVolumeRoot()
         );
         return resolved.ok ? null : resolved.error;
       },
       async execute(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string> {
         try {
           const sourcePath = typeof args.source_path === 'string' ? args.source_path.trim() : '';
-          const volumePath =
-            typeof args.volume_path === 'string' ? args.volume_path.trim() : undefined;
+          const volumePath = typeof args.volume_path === 'string' ? args.volume_path.trim() : undefined;
           const title = typeof args.title === 'string' ? args.title.trim() : undefined;
           const summary = typeof args.summary === 'string' ? args.summary.trim() : undefined;
 

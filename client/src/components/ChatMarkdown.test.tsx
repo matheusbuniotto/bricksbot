@@ -5,7 +5,7 @@ import { ChatMarkdown } from './ChatMarkdown';
 describe('ChatMarkdown', () => {
   it('renders fenced sql blocks with language header and copy button and escapes raw HTML', () => {
     const html = renderToStaticMarkup(
-      <ChatMarkdown content={'```sql\nSELECT * FROM t WHERE a < 1;\n```\n\n<script>alert(1)</script>'} />,
+      <ChatMarkdown content={'```sql\nSELECT * FROM t WHERE a < 1;\n```\n\n<script>alert(1)</script>'} />
     );
     expect(html).toContain('class="code-block"');
     expect(html).toContain('<span>sql</span>');

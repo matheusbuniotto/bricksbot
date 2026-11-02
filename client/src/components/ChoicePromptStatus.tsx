@@ -17,7 +17,9 @@ export function ChoicePromptStatus({
           return (
             <li
               key={option}
-              className={picked ? 'choice-transcript-option choice-transcript-option-picked' : 'choice-transcript-option'}
+              className={
+                picked ? 'choice-transcript-option choice-transcript-option-picked' : 'choice-transcript-option'
+              }
             >
               {option}
               {picked ? <span className="choice-transcript-picked-mark"> ✓</span> : null}

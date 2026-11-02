@@ -22,9 +22,7 @@ describe('buildCatalogStatement', () => {
   });
 
   test('builds list_tables statement with catalog and schema', () => {
-    expect(
-      buildCatalogStatement({ action: 'list_tables', catalog: 'samples', schema: 'nyctaxi' })
-    ).toEqual({
+    expect(buildCatalogStatement({ action: 'list_tables', catalog: 'samples', schema: 'nyctaxi' })).toEqual({
       statement: 'SHOW TABLES IN `samples`.`nyctaxi`',
     });
   });
@@ -59,7 +57,7 @@ describe('buildCatalogStatement', () => {
         catalog: 'dev-catalog',
         schema: 'sales-2024',
         table: '`trips-data`',
-      }),
+      })
     ).toEqual({
       statement: 'DESCRIBE TABLE `dev-catalog`.`sales-2024`.`trips-data`',
     });
@@ -105,8 +103,6 @@ describe('createLakehouseCatalogTool', () => {
       return `executed: ${req.statement} on ${req.warehouseId}`;
     });
     const tool = createLakehouseCatalogTool({ executeImpl });
-    await expect(tool.execute({ action: 'list_catalogs' })).resolves.toBe(
-      'executed: SHOW CATALOGS on mcp',
-    );
+    await expect(tool.execute({ action: 'list_catalogs' })).resolves.toBe('executed: SHOW CATALOGS on mcp');
   });
 });

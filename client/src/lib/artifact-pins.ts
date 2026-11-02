@@ -1,7 +1,4 @@
-import {
-  parseArtifactPinNotice,
-  type ArtifactPinNotice,
-} from '../../../shared/chat/artifact-pin-notice';
+import { parseArtifactPinNotice, type ArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import type { Message } from '../../../shared/chat/types';
 
 export interface ArtifactPinListItem {

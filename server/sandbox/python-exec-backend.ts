@@ -1,11 +1,7 @@
 import * as path from 'node:path';
 import type { ExecutionResult } from '../../shared/sandbox/types.js';
 import type { ExecutionBackend, RunCommandOptions } from './backend.js';
-import {
-  buildShellScript,
-  formatDatabricksSandboxId,
-  validateSandboxFilePath,
-} from './databricks-backend.js';
+import { buildShellScript, formatDatabricksSandboxId, validateSandboxFilePath } from './databricks-backend.js';
 
 export interface SystemAiPythonConfig {
   host: string;
@@ -55,7 +51,7 @@ export function rewriteHomePaths(input: string): string {
 export function buildPythonExecHarness(
   script: string,
   filesB64: Record<string, string>,
-  opts: { cwd?: string; timeoutSec: number; env?: Record<string, string> },
+  opts: { cwd?: string; timeoutSec: number; env?: Record<string, string> }
 ): string {
   const payload = JSON.stringify({
     script: rewriteHomePaths(script),
@@ -191,11 +187,7 @@ export class SystemAiPythonBackend implements ExecutionBackend {
     return externalId;
   }
 
-  async runCommand(
-    externalId: string,
-    cmd: string[],
-    opts: RunCommandOptions,
-  ): Promise<ExecutionResult> {
+  async runCommand(externalId: string, cmd: string[], opts: RunCommandOptions): Promise<ExecutionResult> {
     if (!externalId?.trim()) {
       throw new Error('Sandbox identifier is required');
     }
@@ -230,9 +222,7 @@ export class SystemAiPythonBackend implements ExecutionBackend {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(
-        `system.ai.python_exec failed (${response.status}): ${detail || response.statusText}`,
-      );
+      throw new Error(`system.ai.python_exec failed (${response.status}): ${detail || response.statusText}`);
     }
 
     const rpcPayload = (await response.json()) as McpToolCallResponse;
@@ -277,11 +267,7 @@ export class SystemAiPythonBackend implements ExecutionBackend {
     }
   }
 
-  async uploadFile(
-    externalId: string,
-    data: Uint8Array | string,
-    dest: string,
-  ): Promise<string> {
+  async uploadFile(externalId: string, data: Uint8Array | string, dest: string): Promise<string> {
     const validated = validateSandboxFilePath(dest, 'Destination');
     const rel = normalizeVirtualRelPath(validated);
     const bytes = typeof data === 'string' ? Buffer.from(data, 'utf8') : Buffer.from(data);

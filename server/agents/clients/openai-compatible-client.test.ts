@@ -10,7 +10,7 @@ describe('OpenAICompatibleChatClient', () => {
     const fetchMock = vi.fn(async () =>
       Response.json({
         choices: [{ message: { role: 'assistant', content: 'hello from openrouter' } }],
-      }),
+      })
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -27,7 +27,7 @@ describe('OpenAICompatibleChatClient', () => {
     expect(result.content).toBe('hello from openrouter');
     expect(result.toolCalls).toEqual([]);
     expect(fetchMock).toHaveBeenCalledOnce();
-    const call = fetchMock.mock.calls[0]!;
+    const call = fetchMock.mock.calls[0];
     const url = String(call[0]);
     const init = call[1] as RequestInit;
     expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
@@ -61,8 +61,8 @@ describe('OpenAICompatibleChatClient', () => {
               },
             },
           ],
-        }),
-      ),
+        })
+      )
     );
 
     const client = new OpenAICompatibleChatClient({
@@ -83,15 +83,11 @@ describe('OpenAICompatibleChatClient', () => {
     });
 
     expect(result.content).toBeNull();
-    expect(result.toolCalls).toEqual([
-      { id: 'call_1', name: 'web_fetch', arguments: { url: 'https://example.com' } },
-    ]);
+    expect(result.toolCalls).toEqual([{ id: 'call_1', name: 'web_fetch', arguments: { url: 'https://example.com' } }]);
   });
 
   test('serializes assistant tool_calls before tool results', async () => {
-    const fetchMock = vi.fn(async () =>
-      Response.json({ choices: [{ message: { content: 'done' } }] }),
-    );
+    const fetchMock = vi.fn(async () => Response.json({ choices: [{ message: { content: 'done' } }] }));
     vi.stubGlobal('fetch', fetchMock);
 
     const client = new OpenAICompatibleChatClient({
@@ -112,7 +108,7 @@ describe('OpenAICompatibleChatClient', () => {
       ],
     });
 
-    const body = JSON.parse(String((fetchMock.mock.calls[0]![1] as RequestInit).body)) as {
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)) as {
       messages: Array<Record<string, unknown>>;
     };
     expect(body.messages[1]).toEqual({
@@ -134,9 +130,7 @@ describe('OpenAICompatibleChatClient', () => {
   });
 
   test('normalizes base URL without trailing /v1', async () => {
-    const fetchMock = vi.fn(async () =>
-      Response.json({ choices: [{ message: { content: 'ok' } }] }),
-    );
+    const fetchMock = vi.fn(async () => Response.json({ choices: [{ message: { content: 'ok' } }] }));
     vi.stubGlobal('fetch', fetchMock);
 
     const client = new OpenAICompatibleChatClient({
@@ -148,4 +142,3 @@ describe('OpenAICompatibleChatClient', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://api.x.ai/v1/chat/completions');
   });
 });
-

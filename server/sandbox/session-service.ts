@@ -7,13 +7,7 @@ import type {
   SandboxUiEvent,
   SandboxUiStatus,
 } from '../../shared/sandbox/types.js';
-import {
-  redactSecrets,
-  safeArtifactName,
-  sanitizeEventPayload,
-  stripSandboxPaths,
-  truncatePreview,
-} from './redact.js';
+import { redactSecrets, safeArtifactName, sanitizeEventPayload, stripSandboxPaths, truncatePreview } from './redact.js';
 import type { SandboxConfig, SandboxRegistry } from './registry.js';
 
 export interface SandboxActorContext {
@@ -22,8 +16,7 @@ export interface SandboxActorContext {
   userId: string;
 }
 
-const FORBIDDEN_ENV_KEY_PATTERN =
-  /(?:TOKEN|SECRET|PASSWORD|API_KEY|PRIVATE_KEY|CREDENTIAL|AUTHORIZATION)/i;
+const FORBIDDEN_ENV_KEY_PATTERN = /(?:TOKEN|SECRET|PASSWORD|API_KEY|PRIVATE_KEY|CREDENTIAL|AUTHORIZATION)/i;
 
 /**
  * Infer the actual backend when create falls back (e.g. Databricks → python_exec).
@@ -37,7 +30,7 @@ export function inferBackendIdFromExternalId(externalId: string): BackendId | nu
  */
 export function sanitizeSandboxEnv(
   env: Record<string, string> | undefined,
-  secrets: Iterable<string> = [],
+  secrets: Iterable<string> = []
 ): Record<string, string> {
   if (!env) return {};
   const secretList = [...secrets].map((s) => s.trim()).filter(Boolean);
@@ -181,10 +174,7 @@ export class SandboxSessionService {
     return at.getTime() - createdMs > this.maxSessionMinutes * 60_000;
   }
 
-  private resolveActualBackend(
-    configured: BackendId,
-    externalId: string,
-  ): BackendId {
+  private resolveActualBackend(configured: BackendId, externalId: string): BackendId {
     return inferBackendIdFromExternalId(externalId) ?? configured;
   }
 
@@ -196,10 +186,7 @@ export class SandboxSessionService {
     try {
       return this.registry.getBackend(session.backend);
     } catch (err) {
-      if (
-        session.backend === 'python_exec' &&
-        inferBackendIdFromExternalId(session.externalId) === 'python_exec'
-      ) {
+      if (session.backend === 'python_exec' && inferBackendIdFromExternalId(session.externalId) === 'python_exec') {
         return this.registry.getBackend('databricks');
       }
       throw err;
@@ -224,21 +211,14 @@ export class SandboxSessionService {
     }
 
     const latest = await this.store.getLatestSessionForChat(ctx.chatId);
-    if (
-      latest &&
-      latest.status === 'stopped' &&
-      !this.isPastMaxAge(latest)
-    ) {
+    if (latest && latest.status === 'stopped' && !this.isPastMaxAge(latest)) {
       return this.resumeStoppedSession(ctx, latest);
     }
 
     return this.createFreshSession(ctx);
   }
 
-  private async resumeStoppedSession(
-    ctx: SandboxActorContext,
-    session: SandboxSession,
-  ): Promise<SandboxSession> {
+  private async resumeStoppedSession(ctx: SandboxActorContext, session: SandboxSession): Promise<SandboxSession> {
     const backend = this.backendForSession(session);
     try {
       // Same chatId → same remote id; Databricks home / python_exec file map persist across stop.
@@ -254,10 +234,7 @@ export class SandboxSessionService {
       await this.store.addEvent(
         ready.id,
         'create',
-        sanitizeEventPayload(
-          { backend: actualBackend, externalId, resumed: true },
-          this.secrets,
-        ),
+        sanitizeEventPayload({ backend: actualBackend, externalId, resumed: true }, this.secrets)
       );
       return ready;
     } catch (err) {
@@ -265,7 +242,7 @@ export class SandboxSessionService {
       await this.store.addEvent(
         session.id,
         'error',
-        sanitizeEventPayload({ stage: 'resume', error: message }, this.secrets),
+        sanitizeEventPayload({ stage: 'resume', error: message }, this.secrets)
       );
       // Fall through to a fresh session if resume fails.
       await this.deleteSession(ctx.chatId, 'resume_failed');
@@ -277,7 +254,7 @@ export class SandboxSessionService {
     const activeForUser = await this.store.listActiveSessionsForUser(ctx.userId);
     if (activeForUser.length >= this.maxActivePerUser) {
       throw new Error(
-        `Sandbox limit reached: user already has ${activeForUser.length} active sandboxes (max ${this.maxActivePerUser}). Stop or delete an existing sandbox first.`,
+        `Sandbox limit reached: user already has ${activeForUser.length} active sandboxes (max ${this.maxActivePerUser}). Stop or delete an existing sandbox first.`
       );
     }
 
@@ -304,7 +281,7 @@ export class SandboxSessionService {
       await this.store.addEvent(
         ready.id,
         'create',
-        sanitizeEventPayload({ backend: actualBackend, externalId }, this.secrets),
+        sanitizeEventPayload({ backend: actualBackend, externalId }, this.secrets)
       );
       return ready;
     } catch (err) {
@@ -315,7 +292,7 @@ export class SandboxSessionService {
       await this.store.addEvent(
         placeholder.id,
         'error',
-        sanitizeEventPayload({ stage: 'create', error: message }, this.secrets),
+        sanitizeEventPayload({ stage: 'create', error: message }, this.secrets)
       );
       throw new Error(redactSecrets(message, this.secrets));
     }
@@ -331,7 +308,7 @@ export class SandboxSessionService {
       cwd?: string;
       timeoutSec?: number;
       env?: Record<string, string>;
-    },
+    }
   ): Promise<ExecutionResult> {
     const session = await this.ensureSession(ctx);
     const backend = this.backendForSession(session);
@@ -376,16 +353,13 @@ export class SandboxSessionService {
             stdoutPreview: truncatePreview(stdout, this.secrets),
             stderrPreview: truncatePreview(stderr, this.secrets),
           },
-          this.secrets,
-        ),
+          this.secrets
+        )
       );
 
       return result;
     } catch (err) {
-      const message = redactSecrets(
-        err instanceof Error ? err.message : 'Command execution failed',
-        this.secrets,
-      );
+      const message = redactSecrets(err instanceof Error ? err.message : 'Command execution failed', this.secrets);
       await this.store.updateSessionStatus(session.id, 'failed', {
         lastUsedAt: this.nowIso(),
       });
@@ -398,8 +372,8 @@ export class SandboxSessionService {
             cmd: input.cmd.join(' '),
             error: message,
           },
-          this.secrets,
-        ),
+          this.secrets
+        )
       );
       throw new Error(message);
     }
@@ -407,14 +381,11 @@ export class SandboxSessionService {
 
   async uploadFile(
     ctx: SandboxActorContext,
-    input: { data: Uint8Array | string; dest: string },
+    input: { data: Uint8Array | string; dest: string }
   ): Promise<{ dest: string; artifactName: string; bytes: number }> {
     const session = await this.ensureSession(ctx);
     const backend = this.backendForSession(session);
-    const byteLength =
-      typeof input.data === 'string'
-        ? Buffer.byteLength(input.data, 'utf8')
-        : input.data.byteLength;
+    const byteLength = typeof input.data === 'string' ? Buffer.byteLength(input.data, 'utf8') : input.data.byteLength;
 
     try {
       const dest = await backend.uploadFile(session.externalId, input.data, input.dest);
@@ -423,21 +394,15 @@ export class SandboxSessionService {
       await this.store.addEvent(
         session.id,
         'upload',
-        sanitizeEventPayload(
-          { dest, artifactName, bytes: byteLength },
-          this.secrets,
-        ),
+        sanitizeEventPayload({ dest, artifactName, bytes: byteLength }, this.secrets)
       );
       return { dest, artifactName, bytes: byteLength };
     } catch (err) {
-      const message = redactSecrets(
-        err instanceof Error ? err.message : 'Upload failed',
-        this.secrets,
-      );
+      const message = redactSecrets(err instanceof Error ? err.message : 'Upload failed', this.secrets);
       await this.store.addEvent(
         session.id,
         'error',
-        sanitizeEventPayload({ stage: 'upload', error: message }, this.secrets),
+        sanitizeEventPayload({ stage: 'upload', error: message }, this.secrets)
       );
       throw new Error(message);
     }
@@ -445,7 +410,7 @@ export class SandboxSessionService {
 
   async downloadFile(
     ctx: SandboxActorContext,
-    input: { src: string },
+    input: { src: string }
   ): Promise<{ data: Uint8Array; artifactName: string; bytes: number }> {
     const session = await this.ensureSession(ctx);
     const backend = this.backendForSession(session);
@@ -456,21 +421,15 @@ export class SandboxSessionService {
       await this.store.addEvent(
         session.id,
         'download',
-        sanitizeEventPayload(
-          { src: input.src, artifactName, bytes: data.byteLength },
-          this.secrets,
-        ),
+        sanitizeEventPayload({ src: input.src, artifactName, bytes: data.byteLength }, this.secrets)
       );
       return { data, artifactName, bytes: data.byteLength };
     } catch (err) {
-      const message = redactSecrets(
-        err instanceof Error ? err.message : 'Download failed',
-        this.secrets,
-      );
+      const message = redactSecrets(err instanceof Error ? err.message : 'Download failed', this.secrets);
       await this.store.addEvent(
         session.id,
         'error',
-        sanitizeEventPayload({ stage: 'download', error: message }, this.secrets),
+        sanitizeEventPayload({ stage: 'download', error: message }, this.secrets)
       );
       throw new Error(message);
     }
@@ -478,7 +437,7 @@ export class SandboxSessionService {
 
   async stopSession(
     chatId: string,
-    reason: string = 'manual',
+    reason: string = 'manual'
   ): Promise<{ stopped: boolean; session: SandboxSession | null }> {
     const active = await this.store.getActiveSessionForChat(chatId);
     if (!active) {
@@ -488,34 +447,26 @@ export class SandboxSessionService {
     try {
       await backend.stopSession(active.externalId);
     } catch (err) {
-      const message = redactSecrets(
-        err instanceof Error ? err.message : 'Stop failed',
-        this.secrets,
-      );
+      const message = redactSecrets(err instanceof Error ? err.message : 'Stop failed', this.secrets);
       await this.store.addEvent(
         active.id,
         'error',
-        sanitizeEventPayload({ stage: 'stop', error: message }, this.secrets),
+        sanitizeEventPayload({ stage: 'stop', error: message }, this.secrets)
       );
     }
     const stopped = await this.store.updateSessionStatus(active.id, 'stopped', {
       stoppedAt: this.nowIso(),
     });
-    await this.store.addEvent(
-      active.id,
-      'stop',
-      sanitizeEventPayload({ reason }, this.secrets),
-    );
+    await this.store.addEvent(active.id, 'stop', sanitizeEventPayload({ reason }, this.secrets));
     return { stopped: true, session: stopped };
   }
 
   async deleteSession(
     chatId: string,
-    reason: string = 'manual',
+    reason: string = 'manual'
   ): Promise<{ deleted: boolean; session: SandboxSession | null }> {
     const session =
-      (await this.store.getActiveSessionForChat(chatId)) ??
-      (await this.store.getLatestSessionForChat(chatId));
+      (await this.store.getActiveSessionForChat(chatId)) ?? (await this.store.getLatestSessionForChat(chatId));
     if (!session || session.status === 'deleted') {
       return { deleted: false, session: null };
     }
@@ -524,25 +475,18 @@ export class SandboxSessionService {
     try {
       await backend.deleteSession(session.externalId);
     } catch (err) {
-      const message = redactSecrets(
-        err instanceof Error ? err.message : 'Delete failed',
-        this.secrets,
-      );
+      const message = redactSecrets(err instanceof Error ? err.message : 'Delete failed', this.secrets);
       await this.store.addEvent(
         session.id,
         'error',
-        sanitizeEventPayload({ stage: 'delete', error: message }, this.secrets),
+        sanitizeEventPayload({ stage: 'delete', error: message }, this.secrets)
       );
     }
 
     const deleted = await this.store.updateSessionStatus(session.id, 'deleted', {
       stoppedAt: this.nowIso(),
     });
-    await this.store.addEvent(
-      session.id,
-      'delete',
-      sanitizeEventPayload({ reason }, this.secrets),
-    );
+    await this.store.addEvent(session.id, 'delete', sanitizeEventPayload({ reason }, this.secrets));
     return { deleted: true, session: deleted };
   }
 
@@ -559,8 +503,7 @@ export class SandboxSessionService {
     }
 
     const session =
-      (await this.store.getActiveSessionForChat(chatId)) ??
-      (await this.store.getLatestSessionForChat(chatId));
+      (await this.store.getActiveSessionForChat(chatId)) ?? (await this.store.getLatestSessionForChat(chatId));
     if (!session) {
       return {
         enabled: true,

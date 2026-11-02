@@ -2,7 +2,13 @@ import { describe, expect, test } from 'vitest';
 import type { Message } from '../../../shared/chat/types';
 import { serializeArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { serializeHandoffNotice } from '../../../shared/chat/handoff-notice';
-import { lastUserFacingPreview, presenceTooltip, rosterPreviewForPresence, toolLabel, toolResultView } from './user-facing';
+import {
+  lastUserFacingPreview,
+  presenceTooltip,
+  rosterPreviewForPresence,
+  toolLabel,
+  toolResultView,
+} from './user-facing';
 
 function msg(role: Message['role'], content: string): Message {
   return {
@@ -32,7 +38,7 @@ describe('user-facing', () => {
         msg('assistant', ''),
         msg('assistant', 'Waiting for your approval: Catalog browse.'),
         msg('assistant', 'Found bakehouse.'),
-      ]),
+      ])
     ).toBe('Found bakehouse.');
   });
 
@@ -51,9 +57,7 @@ describe('user-facing', () => {
       pinnedByBotId: 'b',
       pinnedByName: 'Analyst',
     });
-    expect(
-      lastUserFacingPreview([msg('user', 'hello'), msg('system', notice)]),
-    ).toBe('Pinned: Sample ok');
+    expect(lastUserFacingPreview([msg('user', 'hello'), msg('system', notice)])).toBe('Pinned: Sample ok');
   });
 
   test('lastUserFacingPreview skips handoff JSON blobs', () => {
@@ -75,7 +79,7 @@ describe('user-facing', () => {
         msg('user', 'From Primary: say BANANA'),
         msg('assistant', 'BANANA'),
         msg('system', notice),
-      ]),
+      ])
     ).toBe('2 messages with Primary');
   });
 
@@ -88,10 +92,7 @@ describe('user-facing', () => {
   });
 
   test('toolResultView uses tool name hint when payload omits tool id', () => {
-    const save = toolResultView(
-      JSON.stringify({ ok: true, name: 'MetaSmoke', id: 's1' }),
-      'save_skill',
-    );
+    const save = toolResultView(JSON.stringify({ ok: true, name: 'MetaSmoke', id: 's1' }), 'save_skill');
     expect(save.summary).toBe('Save skill: MetaSmoke');
     expect(save.technical).toBe(true);
 
@@ -102,7 +103,7 @@ describe('user-facing', () => {
         instructions: 'reply METASMKE_OK',
         resources: ['SKILL.md'],
       }),
-      'activate_skill',
+      'activate_skill'
     );
     expect(activate.summary).toBe('Activate skill: MetaSmoke');
     expect(activate.technical).toBe(true);

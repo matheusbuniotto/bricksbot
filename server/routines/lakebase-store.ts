@@ -46,7 +46,7 @@ export class LakebaseRoutineStore implements RoutineStore {
        FROM bricksbot.routines
        WHERE owner_id = $1
        ORDER BY created_at ASC`,
-      [ownerId],
+      [ownerId]
     );
     return result.rows.map(mapRoutine);
   }
@@ -55,19 +55,17 @@ export class LakebaseRoutineStore implements RoutineStore {
     const result = await this.query(
       `SELECT id, bot_id, owner_id, name, cron, prompt, enabled, last_run_at, created_at
        FROM bricksbot.routines WHERE id = $1`,
-      [routineId],
+      [routineId]
     );
     return result.rows[0] ? mapRoutine(result.rows[0]) : null;
   }
 
-  async getRoutineAuth(
-    routineId: string,
-  ): Promise<{ routine: Routine; webhookKeyHash: string } | null> {
+  async getRoutineAuth(routineId: string): Promise<{ routine: Routine; webhookKeyHash: string } | null> {
     const result = await this.query(
       `SELECT id, bot_id, owner_id, name, cron, prompt, enabled, last_run_at, created_at,
               webhook_key_hash
        FROM bricksbot.routines WHERE id = $1`,
-      [routineId],
+      [routineId]
     );
     const row = result.rows[0];
     if (!row) return null;
@@ -96,16 +94,12 @@ export class LakebaseRoutineStore implements RoutineStore {
          (id, bot_id, owner_id, name, cron, prompt, webhook_key_hash, enabled)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, bot_id, owner_id, name, cron, prompt, enabled, last_run_at, created_at`,
-      [id, input.botId, input.ownerId, name, cron, prompt, hashWebhookSecret(webhookSecret), enabled],
+      [id, input.botId, input.ownerId, name, cron, prompt, hashWebhookSecret(webhookSecret), enabled]
     );
-    return { routine: mapRoutine(inserted.rows[0]!), webhookSecret };
+    return { routine: mapRoutine(inserted.rows[0]), webhookSecret };
   }
 
-  async updateRoutine(
-    routineId: string,
-    ownerId: string,
-    patch: UpdateRoutineInput,
-  ): Promise<Routine> {
+  async updateRoutine(routineId: string, ownerId: string, patch: UpdateRoutineInput): Promise<Routine> {
     const existing = await this.getRoutine(routineId);
     if (!existing || existing.ownerId !== ownerId) {
       throw new Error('Routine not found');
@@ -119,8 +113,7 @@ export class LakebaseRoutineStore implements RoutineStore {
 
     const name = patch.name !== undefined ? patch.name.trim() : existing.name;
     const cron = patch.cron !== undefined ? patch.cron.trim() : existing.cron;
-    const prompt =
-      patch.prompt !== undefined ? patch.prompt.trim() || existing.prompt : existing.prompt;
+    const prompt = patch.prompt !== undefined ? patch.prompt.trim() || existing.prompt : existing.prompt;
     const enabled = patch.enabled ?? existing.enabled;
 
     const result = await this.query(
@@ -128,17 +121,17 @@ export class LakebaseRoutineStore implements RoutineStore {
        SET name = $3, cron = $4, prompt = $5, enabled = $6
        WHERE id = $1 AND owner_id = $2
        RETURNING id, bot_id, owner_id, name, cron, prompt, enabled, last_run_at, created_at`,
-      [routineId, ownerId, name, cron, prompt, enabled],
+      [routineId, ownerId, name, cron, prompt, enabled]
     );
     if (!result.rows[0]) throw new Error('Routine not found');
     return mapRoutine(result.rows[0]);
   }
 
   async deleteRoutine(routineId: string, ownerId: string): Promise<void> {
-    const result = await this.query(
-      `DELETE FROM bricksbot.routines WHERE id = $1 AND owner_id = $2 RETURNING id`,
-      [routineId, ownerId],
-    );
+    const result = await this.query(`DELETE FROM bricksbot.routines WHERE id = $1 AND owner_id = $2 RETURNING id`, [
+      routineId,
+      ownerId,
+    ]);
     if (!result.rows[0]) throw new Error('Routine not found');
   }
 
@@ -148,7 +141,7 @@ export class LakebaseRoutineStore implements RoutineStore {
        SET last_run_at = COALESCE($2::timestamptz, NOW())
        WHERE id = $1
        RETURNING id, bot_id, owner_id, name, cron, prompt, enabled, last_run_at, created_at`,
-      [routineId, ranAt ?? null],
+      [routineId, ranAt ?? null]
     );
     if (!result.rows[0]) throw new Error('Routine not found');
     return mapRoutine(result.rows[0]);

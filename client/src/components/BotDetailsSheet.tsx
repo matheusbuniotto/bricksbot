@@ -6,14 +6,7 @@ import type { Routine } from '../../../shared/routines/types';
 import type { SandboxUiStatus } from '../../../shared/sandbox/types';
 import { listArtifactPinsFromMessages } from '../lib/artifact-pins';
 import { toolLabel } from '../lib/user-facing';
-import {
-  BotFace,
-  botColor,
-  botLook,
-  encodeLook,
-  type BotLook,
-  COLORS,
-} from './BotFace';
+import { BotFace, botColor, botLook, encodeLook, type BotLook, COLORS } from './BotFace';
 import { BotPicker } from './BotPicker';
 import { RoutinesPanel } from './RoutinesPanel';
 
@@ -47,7 +40,10 @@ function formatPinTime(iso: string | undefined): string | null {
   });
 }
 
-function fileTone(kind: ArtifactPinNotice['artifactKind'], title: string): 'green' | 'red' | 'blue' | 'amber' | 'slate' {
+function fileTone(
+  kind: ArtifactPinNotice['artifactKind'],
+  title: string
+): 'green' | 'red' | 'blue' | 'amber' | 'slate' {
   const lower = title.toLowerCase();
   if (lower.endsWith('.csv') || lower.endsWith('.xlsx') || lower.endsWith('.tsv') || kind === 'table') {
     return 'green';
@@ -155,15 +151,10 @@ export function BotDetailsSheet({
   minWidth: number;
   maxWidth: number;
   onWidthChange: (width: number) => void;
-  onCreateRoutine: (input: {
-    botId: string;
-    name: string;
-    cron: string;
-    prompt: string;
-  }) => Promise<void>;
+  onCreateRoutine: (input: { botId: string; name: string; cron: string; prompt: string }) => Promise<void>;
   onUpdateRoutine: (
     id: string,
-    patch: { name?: string; cron?: string; prompt?: string; enabled?: boolean },
+    patch: { name?: string; cron?: string; prompt?: string; enabled?: boolean }
   ) => Promise<void>;
   onRunRoutine: (id: string) => Promise<void>;
   onDeleteRoutine: (id: string) => Promise<void>;
@@ -171,10 +162,7 @@ export function BotDetailsSheet({
   onDeleteSandbox?: () => Promise<void>;
   onClose: () => void;
   onChangeLook: (botId: string, avatarLabel: string) => void | Promise<void>;
-  onUpdateBotConfig?: (
-    botId: string,
-    patch: { description?: string; isShared?: boolean },
-  ) => Promise<void>;
+  onUpdateBotConfig?: (botId: string, patch: { description?: string; isShared?: boolean }) => Promise<void>;
 }) {
   const [tab, setTab] = useState<BotDetailsTab>(initialTab);
   const [libraryExpanded, setLibraryExpanded] = useState(false);
@@ -210,7 +198,7 @@ export function BotDetailsSheet({
       setResizing(true);
       event.currentTarget.setPointerCapture(event.pointerId);
     },
-    [width],
+    [width]
   );
 
   const onResizePointerMove = useCallback(
@@ -220,7 +208,7 @@ export function BotDetailsSheet({
       const next = drag.startWidth + (drag.startX - event.clientX);
       onWidthChange(Math.min(maxWidth, Math.max(minWidth, next)));
     },
-    [maxWidth, minWidth, onWidthChange],
+    [maxWidth, minWidth, onWidthChange]
   );
 
   const onResizePointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
@@ -273,12 +261,7 @@ export function BotDetailsSheet({
       />
 
       <header className="bot-details-header">
-        <button
-          type="button"
-          className="bot-details-close"
-          aria-label="Close details"
-          onClick={onClose}
-        >
+        <button type="button" className="bot-details-close" aria-label="Close details" onClick={onClose}>
           <X size={18} strokeWidth={2} aria-hidden />
         </button>
 
@@ -289,13 +272,7 @@ export function BotDetailsSheet({
             aria-label={`Change look for ${bot.name}`}
             onClick={() => setEditLook({ ...botLook(bot.id, bot.isPrimary) })}
           >
-            <BotFace
-              color={accent}
-              size={56}
-              botId={bot.id}
-              track
-              presence={bot.presence}
-            />
+            <BotFace color={accent} size={56} botId={bot.id} track presence={bot.presence} />
             <span className="bot-details-face-edit" aria-hidden>
               <Pencil size={14} strokeWidth={2.25} />
             </span>
@@ -359,9 +336,7 @@ export function BotDetailsSheet({
                       <button
                         type="button"
                         className="pane-btn pane-btn-solid mt-2 self-start"
-                        onClick={() =>
-                          void onUpdateBotConfig(bot.id, { description: descriptionDraft.trim() })
-                        }
+                        onClick={() => void onUpdateBotConfig(bot.id, { description: descriptionDraft.trim() })}
                       >
                         Save instructions
                       </button>
@@ -392,9 +367,7 @@ export function BotDetailsSheet({
             {files.length === 0 ? (
               <div className="bot-details-empty">
                 <p className="bot-details-empty-title">No files yet</p>
-                <p className="bot-details-empty-copy">
-                  Pages, files, and apps created by this bot will appear here.
-                </p>
+                <p className="bot-details-empty-copy">Pages, files, and apps created by this bot will appear here.</p>
               </div>
             ) : (
               <div className="bot-details-sections">
@@ -430,8 +403,8 @@ export function BotDetailsSheet({
                 <div className="bot-details-empty-art" />
                 <p className="bot-details-empty-title">Computer asleep</p>
                 <p className="bot-details-empty-copy">
-                  Sandbox tools are off (`SANDBOX_BACKEND=off`). Enable databricks, python_exec, or
-                  e2b to run code in an isolated Linux sandbox.
+                  Sandbox tools are off (`SANDBOX_BACKEND=off`). Enable databricks, python_exec, or e2b to run code in
+                  an isolated Linux sandbox.
                 </p>
               </div>
             ) : (
@@ -443,16 +416,14 @@ export function BotDetailsSheet({
                       <span className="bot-details-computer-name">
                         {(sandboxStatus.session?.backend ?? sandboxStatus.backend) === 'databricks'
                           ? 'Databricks Sandbox'
-                          : (sandboxStatus.session?.backend ?? sandboxStatus.backend) ===
-                              'python_exec'
+                          : (sandboxStatus.session?.backend ?? sandboxStatus.backend) === 'python_exec'
                             ? 'Databricks system.ai.python_exec'
                             : 'E2B Sandbox'}
                       </span>
                       <span className="bot-details-computer-badge">
                         {bot.presence === 'working' || sandboxStatus.session?.status === 'running'
                           ? 'Working'
-                          : sandboxStatus.session?.status &&
-                              sandboxStatus.session.status !== 'deleted'
+                          : sandboxStatus.session?.status && sandboxStatus.session.status !== 'deleted'
                             ? sandboxStatus.session.status
                             : 'Asleep'}
                       </span>
@@ -527,11 +498,7 @@ export function BotDetailsSheet({
         ) : null}
 
         {tab === 'permissions' ? (
-          <div
-            role="tabpanel"
-            aria-label="Permissions and connections"
-            className="bot-details-panel"
-          >
+          <div role="tabpanel" aria-label="Permissions and connections" className="bot-details-panel">
             <div className="bot-details-sections">
               <section className="bot-details-section" aria-label="Tool permissions">
                 <div className="bot-details-section-heading">
@@ -549,8 +516,8 @@ export function BotDetailsSheet({
                 {autoApprovedTools.length === 0 ? (
                   <div className="bot-details-card">
                     <p className="bot-details-muted-copy">
-                      When you choose Always allow on an approval, that tool skips asking again in
-                      this chat. Nothing is auto-approved yet.
+                      When you choose Always allow on an approval, that tool skips asking again in this chat. Nothing is
+                      auto-approved yet.
                     </p>
                   </div>
                 ) : (
@@ -580,16 +547,11 @@ export function BotDetailsSheet({
                 <h3 className="bot-details-section-label">Connections</h3>
                 <div className="bot-details-card bot-details-computer-card">
                   <p className="bot-details-computer-copy">
-                    Connect Databricks MCP apps and external tools available to bots in this
-                    workspace.
+                    Connect Databricks MCP apps and external tools available to bots in this workspace.
                   </p>
                   {onOpenConnectors ? (
                     <div className="bot-details-computer-actions">
-                      <button
-                        type="button"
-                        className="pane-btn pane-btn-solid"
-                        onClick={onOpenConnectors}
-                      >
+                      <button type="button" className="pane-btn pane-btn-solid" onClick={onOpenConnectors}>
                         Manage connectors
                       </button>
                     </div>
@@ -607,20 +569,10 @@ export function BotDetailsSheet({
 
       {editLook ? (
         <div className="dialog-backdrop" role="presentation" onClick={() => setEditLook(null)}>
-          <div
-            className="dialog"
-            role="dialog"
-            aria-label="Change look"
-            onClick={(event) => event.stopPropagation()}
-          >
+          <div className="dialog" role="dialog" aria-label="Change look" onClick={(event) => event.stopPropagation()}>
             <div className="dialog-header-row">
               <h2>Change look</h2>
-              <button
-                type="button"
-                className="dialog-close-btn"
-                aria-label="Close"
-                onClick={() => setEditLook(null)}
-              >
+              <button type="button" className="dialog-close-btn" aria-label="Close" onClick={() => setEditLook(null)}>
                 <X size={18} />
               </button>
             </div>

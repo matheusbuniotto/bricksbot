@@ -8,9 +8,7 @@ function looksLikeJsonBlob(content: string): boolean {
   return trimmed.startsWith('{') || trimmed.startsWith('[');
 }
 
-export function messagePreviewLine(
-  message: Pick<Message, 'role' | 'content'>,
-): string | null {
+export function messagePreviewLine(message: Pick<Message, 'role' | 'content'>): string | null {
   if (message.role === 'tool') return null;
 
   if (message.role === 'system') {
@@ -48,9 +46,7 @@ export function messagePreviewLine(
   return plain;
 }
 
-export function lastUserFacingPreview(
-  messages: ReadonlyArray<Pick<Message, 'role' | 'content'>>,
-): string {
+export function lastUserFacingPreview(messages: ReadonlyArray<Pick<Message, 'role' | 'content'>>): string {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
     if (message) {

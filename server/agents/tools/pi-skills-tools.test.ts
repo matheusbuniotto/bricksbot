@@ -78,17 +78,13 @@ describe('pi-skills-tools', () => {
     const tool = createReadSkillResourceTool(memory);
     const ctx = { chatId: 'c1', bot };
 
-    const body = JSON.parse(
-      await tool.execute({ name: 'SQL style', path: 'SKILL.md' }, ctx),
-    );
+    const body = JSON.parse(await tool.execute({ name: 'SQL style', path: 'SKILL.md' }, ctx));
     expect(body).toMatchObject({ ok: true, content: 'Prefer concise SQL.', path: SKILL_BODY_PATH });
 
     const combined = JSON.parse(await tool.execute({ resource: 'SQL style/SKILL.md' }, ctx));
     expect(combined.ok).toBe(true);
 
-    const miss = JSON.parse(
-      await tool.execute({ name: 'SQL style', path: 'references/other.md' }, ctx),
-    );
+    const miss = JSON.parse(await tool.execute({ name: 'SQL style', path: 'references/other.md' }, ctx));
     expect(miss.ok).toBe(false);
     expect(miss.available).toEqual([SKILL_BODY_PATH]);
   });
@@ -103,8 +99,6 @@ describe('pi-skills-tools', () => {
     const tool = createListMemoriesTool(memory);
     const result = JSON.parse(await tool.execute({ query: 'key-24' }, { chatId: 'c1', bot }));
     expect(result.ok).toBe(true);
-    expect(result.memories).toEqual([
-      expect.objectContaining({ key: 'key-24', content: 'value-24' }),
-    ]);
+    expect(result.memories).toEqual([expect.objectContaining({ key: 'key-24', content: 'value-24' })]);
   });
 });

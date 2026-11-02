@@ -7,18 +7,11 @@ import {
   serializeChoicePromptNotice,
   type PendingChoice,
 } from '../../shared/chat/choice-notice.js';
-import {
-  handoffBriefUserLine,
-  parseHandoffNotice,
-  serializeHandoffNotice,
-} from '../../shared/chat/handoff-notice.js';
+import { handoffBriefUserLine, parseHandoffNotice, serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
 import type { Bot, ChatStore, Message } from '../../shared/chat/types.js';
 import type { CompactionSettings, CompactionStore, IdempotencyStore } from '../../shared/durable/types.js';
 import { DEFAULT_COMPACTION_SETTINGS } from '../../shared/durable/types.js';
-import {
-  buildCapabilityCatalog,
-  formatCapabilityPrompt,
-} from '../../shared/agents/capability-catalog.js';
+import { buildCapabilityCatalog, formatCapabilityPrompt } from '../../shared/agents/capability-catalog.js';
 import { mergeEffectiveSkills } from '../../shared/agents/effective-skills.js';
 import { isDefaultMetaTool } from '../../shared/agents/meta-tools.js';
 import type {
@@ -31,17 +24,9 @@ import type {
 } from '../../shared/agents/types.js';
 import type { MemorySkillStore } from '../../shared/agents/memory/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
-import {
-  createHandoffTool,
-  HANDOFF_TOOL_NAME,
-  planHandoff,
-  type HandoffTurnContext,
-} from '../agents/handoff.js';
+import { createHandoffTool, HANDOFF_TOOL_NAME, planHandoff, type HandoffTurnContext } from '../agents/handoff.js';
 import { applyCompactionToHistory, runCompaction, shouldCompact } from '../durable/compaction.js';
-import {
-  CREATE_BOT_TOOL_NAME,
-  createCreateBotTool,
-} from '../agents/tools/create-bot.js';
+import { CREATE_BOT_TOOL_NAME, createCreateBotTool } from '../agents/tools/create-bot.js';
 import { createLakehouseCatalogTool } from '../agents/tools/lakehouse-catalog.js';
 import { createMemorySkillTools } from '../agents/tools/memory-tools.js';
 import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
@@ -50,11 +35,7 @@ import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tool
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
 import { createPinChartTool } from '../agents/tools/pin-chart.js';
 import { ASK_CHOICE_TOOL_NAME, createAskChoiceTool, planAskChoice } from '../agents/tools/ask-choice.js';
-import {
-  createRoutineTools,
-  DELETE_ROUTINE_TOOL_NAME,
-  isAutoRoutineTool,
-} from '../agents/tools/routine-tools.js';
+import { createRoutineTools, DELETE_ROUTINE_TOOL_NAME, isAutoRoutineTool } from '../agents/tools/routine-tools.js';
 import {
   createSandboxTools,
   isAskFirstSandboxTool,
@@ -62,10 +43,7 @@ import {
   SANDBOX_DELETE_TOOL_NAME,
 } from '../agents/tools/sandbox-tools.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
-import {
-  createSystemAiMcpTools,
-  GENIE_ASK_TOOL_NAME,
-} from '../agents/tools/system-ai-mcp.js';
+import { createSystemAiMcpTools, GENIE_ASK_TOOL_NAME } from '../agents/tools/system-ai-mcp.js';
 import type { SystemAiMcpOptions } from '../../shared/agents/mcp-types.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
@@ -207,8 +185,8 @@ export class ChatService {
         options.volumeRead ?? {
           host: sqlOptions.host,
           getToken: sqlOptions.getToken,
-        },
-      ),
+        }
+      )
     );
     tools.push(createHandoffTool(options.store));
     tools.push(createCreateBotTool(options.store, this.memory));
@@ -217,9 +195,7 @@ export class ChatService {
     tools.push(createPinArtifactTool(options.store));
     tools.push(createPinChartTool(options.store));
     tools.push(createAskChoiceTool());
-    tools.push(
-      ...createRoutineTools(options.routines ?? new MemoryRoutineStore(), options.store),
-    );
+    tools.push(...createRoutineTools(options.routines ?? new MemoryRoutineStore(), options.store));
     if (options.sandbox?.isEnabled()) {
       tools.push(
         ...createSandboxTools({
@@ -228,7 +204,7 @@ export class ChatService {
           artifactSync: options.sandboxArtifactSync,
           host: sqlOptions.host,
           getToken: sqlOptions.getToken,
-        }),
+        })
       );
     }
     if (options.systemAiMcp) {
@@ -256,11 +232,7 @@ export class ChatService {
     return this.options.sandbox;
   }
 
-  async sendUserMessage(
-    chatId: string,
-    content: string,
-    options?: { requestId?: string },
-  ): Promise<SendMessageResult> {
+  async sendUserMessage(chatId: string, content: string, options?: { requestId?: string }): Promise<SendMessageResult> {
     const trimmed = content.trim();
     if (!trimmed) {
       throw new Error('Message content is required');
@@ -301,17 +273,11 @@ export class ChatService {
     }
 
     const effectiveDecision: ApprovalDecision =
-      decision === 'all_the_time' && requiresAlwaysAsk(pending.toolCall.name)
-        ? 'once'
-        : decision;
-    const isAlways =
-      effectiveDecision === 'all_the_time' || effectiveDecision === 'always';
+      decision === 'all_the_time' && requiresAlwaysAsk(pending.toolCall.name) ? 'once' : decision;
+    const isAlways = effectiveDecision === 'all_the_time' || effectiveDecision === 'always';
     const isDenial = effectiveDecision === 'denied' || effectiveDecision === 'not_approved';
 
-    const { request: approval, applied } = await this.approvals.decide(
-      approvalId,
-      effectiveDecision,
-    );
+    const { request: approval, applied } = await this.approvals.decide(approvalId, effectiveDecision);
     const chatId = approval.chatId;
     // Double-click / race: already settled — return current pause without re-running tools.
     if (!applied) {
@@ -323,13 +289,10 @@ export class ChatService {
     // N-1 sibling cards that still need clicks (and race into "already decided").
     if (isAlways) {
       const siblings = (await this.approvals.listPending(chatId)).filter(
-        (item) => item.id !== approval.id && item.toolCall.name === approval.toolCall.name,
+        (item) => item.id !== approval.id && item.toolCall.name === approval.toolCall.name
       );
       for (const sibling of siblings) {
-        const { request: decided, applied: siblingApplied } = await this.approvals.decide(
-          sibling.id,
-          'once',
-        );
+        const { request: decided, applied: siblingApplied } = await this.approvals.decide(sibling.id, 'once');
         if (!siblingApplied) continue;
         await this.applyDecidedApproval(decided, false);
       }
@@ -357,17 +320,14 @@ export class ChatService {
     return this.continueTurn(chatId);
   }
 
-  private async applyDecidedApproval(
-    approval: ApprovalRequest,
-    isDenial: boolean,
-  ): Promise<void> {
+  private async applyDecidedApproval(approval: ApprovalRequest, isDenial: boolean): Promise<void> {
     const chatId = approval.chatId;
     if (isDenial) {
       await this.options.store.addMessage(
         chatId,
         'tool',
         JSON.stringify({ error: 'User denied tool call', tool: approval.toolCall.name }),
-        { toolCallId: approval.toolCall.id },
+        { toolCallId: approval.toolCall.id }
       );
       return;
     }
@@ -377,12 +337,9 @@ export class ChatService {
       const bot = botId ? await this.options.store.getBot(botId) : null;
       const error = await this.beginPendingChoice(chatId, approval.toolCall, bot);
       if (error) {
-        await this.options.store.addMessage(
-          chatId,
-          'tool',
-          JSON.stringify({ error, tool: approval.toolCall.name }),
-          { toolCallId: approval.toolCall.id },
-        );
+        await this.options.store.addMessage(chatId, 'tool', JSON.stringify({ error, tool: approval.toolCall.name }), {
+          toolCallId: approval.toolCall.id,
+        });
       }
       return;
     }
@@ -425,14 +382,14 @@ export class ChatService {
         choiceId: answered.id,
         prompt: answered.prompt,
         selectedOption: trimmed,
-      }),
+      })
     );
 
     await this.options.store.addMessage(
       chatId,
       'tool',
       JSON.stringify({ ok: true, selected: trimmed, tool: ASK_CHOICE_TOOL_NAME }),
-      { toolCallId: answered.toolCallId },
+      { toolCallId: answered.toolCallId }
     );
 
     const stillPendingApprovals = await this.approvals.listPending(chatId);
@@ -456,11 +413,7 @@ export class ChatService {
   }
 
   /** After approval: post choice_prompt system row and keep the turn open. */
-  private async beginPendingChoice(
-    chatId: string,
-    toolCall: ToolCall,
-    bot: Bot | null,
-  ): Promise<string | null> {
+  private async beginPendingChoice(chatId: string, toolCall: ToolCall, bot: Bot | null): Promise<string | null> {
     const planned = planAskChoice(toolCall.arguments);
     if (!planned.ok) return planned.error;
     if (!bot) return 'ask_choice requires an active Bot';
@@ -481,7 +434,7 @@ export class ChatService {
         toolCallId: toolCall.id,
         prompt: planned.prompt,
         options: planned.options,
-      }),
+      })
     );
 
     return null;
@@ -510,12 +463,7 @@ export class ChatService {
       this.approvals.listPending(chatId),
       this.choices.listPending(chatId),
     ]);
-    const presence =
-      pendingApprovals.length > 0
-        ? 'waiting'
-        : pendingChoices.length > 0
-          ? 'blocked'
-          : 'online';
+    const presence = pendingApprovals.length > 0 ? 'waiting' : pendingChoices.length > 0 ? 'blocked' : 'online';
     await this.options.store.setBotPresence(botId, presence);
   }
 
@@ -536,13 +484,13 @@ export class ChatService {
     chatId: string,
     user?: Message,
     depth: number = 0,
-    opts: ContinueTurnOptions = {},
+    opts: ContinueTurnOptions = {}
   ): Promise<SendMessageResult> {
     if (depth > 8) {
       const assistant = await this.options.store.addMessage(
         chatId,
         'assistant',
-        'Reached maximum tool execution steps for this turn.',
+        'Reached maximum tool execution steps for this turn.'
       );
       const history = await this.options.store.listMessages(chatId);
       const pause = await this.pauseSnapshot(chatId);
@@ -579,9 +527,7 @@ export class ChatService {
         history = await this.options.store.listMessages(chatId);
       }
 
-      const compaction = this.options.compaction
-        ? await this.options.compaction.getLatest(chatId)
-        : null;
+      const compaction = this.options.compaction ? await this.options.compaction.getLatest(chatId) : null;
       const { messages: windowed, summarySystem } = applyCompactionToHistory(history, compaction);
 
       const llmMessages: LlmMessage[] = [
@@ -634,12 +580,9 @@ export class ChatService {
         });
 
         for (const { toolCall, reason } of refusals) {
-          await this.options.store.addMessage(
-            chatId,
-            'tool',
-            JSON.stringify({ error: reason, tool: toolCall.name }),
-            { toolCallId: toolCall.id },
-          );
+          await this.options.store.addMessage(chatId, 'tool', JSON.stringify({ error: reason, tool: toolCall.name }), {
+            toolCallId: toolCall.id,
+          });
         }
 
         for (const toolCall of toAutoExecute) {
@@ -651,7 +594,7 @@ export class ChatService {
 
         if (needsApproval.length > 0) {
           const pendingApprovals = await Promise.all(
-            needsApproval.map((toolCall) => this.approvals.create(chatId, toolCall)),
+            needsApproval.map((toolCall) => this.approvals.create(chatId, toolCall))
           );
           const pause = await this.pauseSnapshot(chatId);
           return {
@@ -681,7 +624,7 @@ export class ChatService {
       const assistant = await this.options.store.addMessage(
         chatId,
         'assistant',
-        completion.content?.trim() || '(empty model response)',
+        completion.content?.trim() || '(empty model response)'
       );
 
       const pause = await this.pauseSnapshot(chatId);
@@ -718,9 +661,7 @@ export class ChatService {
       const roster = bot.spaceId
         ? await this.options.store.listBots({ spaceId: bot.spaceId, ownerId: bot.ownerId })
         : [];
-      teammates = roster
-        .filter((other) => other.id !== bot.id)
-        .map((other) => ({ id: other.id, name: other.name }));
+      teammates = roster.filter((other) => other.id !== bot.id).map((other) => ({ id: other.id, name: other.name }));
     }
 
     let memories: Awaited<ReturnType<MemorySkillStore['listMemories']>> = [];
@@ -742,9 +683,7 @@ export class ChatService {
       skills,
     });
 
-    const baseSections = [
-      `You are ${botName}, a durable BricksBot teammate for the Databricks lakehouse. Be concise.`,
-    ];
+    const baseSections = [`You are ${botName}, a durable BricksBot teammate for the Databricks lakehouse. Be concise.`];
     if (bot?.description?.trim()) {
       baseSections.push(`Bot instructions: ${bot.description.trim()}`);
     }
@@ -782,10 +721,7 @@ export class ChatService {
    * Deliver brief → run teammate one turn → post “N messages with …” on both chats
    * and return their reply so Primary can summarize.
    */
-  private async executeHandoffRoundTrip(
-    args: Record<string, unknown>,
-    ctx: HandoffTurnContext,
-  ): Promise<string> {
+  private async executeHandoffRoundTrip(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string> {
     const planned = await planHandoff(this.options.store, ctx.bot, args);
     if (!planned.ok) return planned.error;
 
@@ -809,7 +745,7 @@ export class ChatService {
         senderName: sender.name,
         brief,
         threadBotId: target.id,
-      }),
+      })
     );
 
     let reply: string;
@@ -824,7 +760,7 @@ export class ChatService {
     const targetMessages = await this.options.store.listMessages(targetChat.id);
     let threadStart = -1;
     for (let i = targetMessages.length - 1; i >= 0; i -= 1) {
-      const message = targetMessages[i]!;
+      const message = targetMessages[i];
       if (message.role === 'user' && message.content === briefLine) {
         threadStart = i;
         break;
@@ -832,7 +768,7 @@ export class ChatService {
     }
     const threadSlice = threadStart >= 0 ? targetMessages.slice(threadStart) : targetMessages.slice(-4);
     const messageCount = threadSlice.filter(
-      (message) => message.role === 'user' || message.role === 'assistant',
+      (message) => message.role === 'user' || message.role === 'assistant'
     ).length;
 
     const baseNotice = {
@@ -855,7 +791,7 @@ export class ChatService {
         targetChatId: targetChat.id,
         senderBotId: sender.id,
         senderName: sender.name,
-      }),
+      })
     );
 
     // Teammate side: peer is Primary; peek still loads teammate chat via threadBotId.
@@ -870,7 +806,7 @@ export class ChatService {
         targetChatId: targetChat.id,
         senderBotId: target.id,
         senderName: target.name,
-      }),
+      })
     );
 
     return `Handed off to ${target.name}. Their reply:\n${reply}`;

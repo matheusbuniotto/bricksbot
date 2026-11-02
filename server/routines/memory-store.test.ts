@@ -50,7 +50,7 @@ describe('MemoryRoutineStore', () => {
         ownerId: 'o',
         name: '  ',
         cron: '0 * * * *',
-      }),
+      })
     ).rejects.toThrow(/name/i);
     await expect(
       store.createRoutine({
@@ -58,7 +58,7 @@ describe('MemoryRoutineStore', () => {
         ownerId: 'o',
         name: 'ok',
         cron: ' ',
-      }),
+      })
     ).rejects.toThrow(/cron/i);
   });
 });

@@ -19,18 +19,14 @@ export function ChoiceCards({
 
     function handleKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      if (
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.isContentEditable
-      ) {
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
         return;
       }
 
       const index = Number.parseInt(event.key, 10);
       if (index >= 1 && index <= first.options.length) {
         event.preventDefault();
-        void onSelect(first.id, first.options[index - 1]!);
+        void onSelect(first.id, first.options[index - 1]);
       }
     }
 

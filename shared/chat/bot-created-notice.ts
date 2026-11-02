@@ -32,13 +32,9 @@ export function parseBotCreatedNotice(content: string): BotCreatedNotice | null 
       spaceId: 'spaceId' in parsed && typeof parsed.spaceId === 'string' ? parsed.spaceId : null,
       job: 'job' in parsed && typeof parsed.job === 'string' ? parsed.job : undefined,
       createdByBotId:
-        'createdByBotId' in parsed && typeof parsed.createdByBotId === 'string'
-          ? parsed.createdByBotId
-          : undefined,
+        'createdByBotId' in parsed && typeof parsed.createdByBotId === 'string' ? parsed.createdByBotId : undefined,
       createdByName:
-        'createdByName' in parsed && typeof parsed.createdByName === 'string'
-          ? parsed.createdByName
-          : undefined,
+        'createdByName' in parsed && typeof parsed.createdByName === 'string' ? parsed.createdByName : undefined,
     };
   } catch {
     return null;

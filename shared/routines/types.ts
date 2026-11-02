@@ -80,10 +80,7 @@ function parseCronField(value: string): number | '*' | null {
 }
 
 /** Short human label for common 5-field cron strings; falls back to the raw expression. */
-export function describeCronExpression(
-  cron: string,
-  locale: CronDescribeLocale = 'en',
-): string {
+export function describeCronExpression(cron: string, locale: CronDescribeLocale = 'en'): string {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;
 
@@ -107,19 +104,11 @@ export function describeCronExpression(
     const dowNum = parseCronField(dow);
     if (typeof dowNum === 'number' && dowNum >= 0 && dowNum <= 6) {
       const dayName = locale === 'pt' ? DOW_PT[dowNum] : DOW_EN[dowNum];
-      return locale === 'pt'
-        ? `${dayName}s às ${time}`
-        : `Every ${DOW_EN[dowNum]} at ${time}`;
+      return locale === 'pt' ? `${dayName}s às ${time}` : `Every ${DOW_EN[dowNum]} at ${time}`;
     }
   }
 
-  if (
-    minute === 0 &&
-    typeof hour === 'number' &&
-    dom === '*' &&
-    month === '*' &&
-    dow === '*'
-  ) {
+  if (minute === 0 && typeof hour === 'number' && dom === '*' && month === '*' && dow === '*') {
     const time = formatClock(hour, 0);
     return locale === 'pt' ? `Diariamente às ${time}` : `Daily at ${time}`;
   }

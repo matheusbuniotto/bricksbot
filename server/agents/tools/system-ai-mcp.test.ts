@@ -33,7 +33,7 @@ describe('UnityGatewayMcpClient', () => {
             ],
           },
         }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     }) as typeof fetch;
 
@@ -48,11 +48,9 @@ describe('UnityGatewayMcpClient', () => {
     expect(tools).toHaveLength(1);
     expect(tools[0]?.name).toBe('genie_ask');
     expect(capturedUrl).toBe(
-      'https://test-workspace.databricks.com/ai-gateway/mcp-services/system.ai.genie_one_mcp?o=123456789',
+      'https://test-workspace.databricks.com/ai-gateway/mcp-services/system.ai.genie_one_mcp?o=123456789'
     );
-    expect((capturedHeaders as Record<string, string>)?.['Authorization']).toBe(
-      'Bearer dapi-token-123',
-    );
+    expect((capturedHeaders as Record<string, string>)?.['Authorization']).toBe('Bearer dapi-token-123');
     expect(JSON.parse(capturedBody)).toEqual({
       jsonrpc: '2.0',
       id: 1,
@@ -71,7 +69,7 @@ describe('UnityGatewayMcpClient', () => {
             content: [{ type: 'text', text: '{"status":"completed"}' }],
           },
         }),
-        { status: 200 },
+        { status: 200 }
       );
     }) as typeof fetch;
 
@@ -94,7 +92,7 @@ describe('UnityGatewayMcpClient', () => {
           id: 1,
           error: { code: -32601, message: 'Method not found' },
         }),
-        { status: 200 },
+        { status: 200 }
       );
     }) as typeof fetch;
 
@@ -103,9 +101,7 @@ describe('UnityGatewayMcpClient', () => {
       fetchImpl: mockFetch,
     });
 
-    await expect(
-      client.callTool('system.ai.genie_one_mcp', 'non_existent_tool'),
-    ).rejects.toThrow(/Method not found/);
+    await expect(client.callTool('system.ai.genie_one_mcp', 'non_existent_tool')).rejects.toThrow(/Method not found/);
   });
 
   test('throws on HTTP error status code', async () => {
@@ -118,9 +114,9 @@ describe('UnityGatewayMcpClient', () => {
       fetchImpl: mockFetch,
     });
 
-    await expect(
-      client.callTool('system.ai.genie_one_mcp', 'genie_ask'),
-    ).rejects.toThrow(/Unity Gateway MCP error \(401\)/);
+    await expect(client.callTool('system.ai.genie_one_mcp', 'genie_ask')).rejects.toThrow(
+      /Unity Gateway MCP error \(401\)/
+    );
   });
 });
 
@@ -148,7 +144,7 @@ describe('SystemAiMcp Tools', () => {
                 },
               ],
             },
-          }),
+          })
         );
       }
 
@@ -170,7 +166,7 @@ describe('SystemAiMcp Tools', () => {
               },
             ],
           },
-        }),
+        })
       );
     }) as typeof fetch;
 
@@ -184,10 +180,7 @@ describe('SystemAiMcp Tools', () => {
     const askTool = tools.find((t) => t.definition.name === GENIE_ASK_TOOL_NAME);
     expect(askTool).toBeDefined();
 
-    const output = await askTool!.execute(
-      { question: 'What is our ARR?' },
-      { chatId: 'chat_1', bot: null },
-    );
+    const output = await askTool!.execute({ question: 'What is our ARR?' }, { chatId: 'chat_1', bot: null });
     const parsed = JSON.parse(output) as Record<string, unknown>;
 
     expect(parsed.status).toBe('completed');
@@ -217,7 +210,7 @@ describe('SystemAiMcp Tools', () => {
               },
             ],
           },
-        }),
+        })
       );
     }) as typeof fetch;
 
@@ -229,7 +222,7 @@ describe('SystemAiMcp Tools', () => {
     const askTool = tools.find((t) => t.definition.name === GENIE_ASK_TOOL_NAME);
     const output = await askTool!.execute(
       { question: 'Compute heavy metric', auto_poll: false },
-      { chatId: 'chat_1', bot: null },
+      { chatId: 'chat_1', bot: null }
     );
 
     expect(callCount).toBe(1);
@@ -254,7 +247,7 @@ describe('SystemAiMcp Tools', () => {
               },
             ],
           },
-        }),
+        })
       );
     }) as typeof fetch;
 
@@ -266,10 +259,7 @@ describe('SystemAiMcp Tools', () => {
     });
 
     const askTool = tools.find((t) => t.definition.name === GENIE_ASK_TOOL_NAME);
-    const output = await askTool!.execute(
-      { question: 'Slow query' },
-      { chatId: 'chat_1', bot: null },
-    );
+    const output = await askTool!.execute({ question: 'Slow query' }, { chatId: 'chat_1', bot: null });
     const parsed = JSON.parse(output) as Record<string, unknown>;
 
     expect(parsed.status).toBe('in_progress');
@@ -286,7 +276,7 @@ describe('SystemAiMcp Tools', () => {
           jsonrpc: '2.0',
           id: 1,
           result: { content: [{ type: 'text', text: `result-of-${body.params.name}` }] },
-        }),
+        })
       );
     }) as typeof fetch;
 
@@ -296,26 +286,20 @@ describe('SystemAiMcp Tools', () => {
     });
 
     const pollTool = tools.find((t) => t.definition.name === GENIE_POLL_TOOL_NAME)!;
-    const queryResultTool = tools.find(
-      (t) => t.definition.name === GENIE_GET_QUERY_RESULT_TOOL_NAME,
-    )!;
+    const queryResultTool = tools.find((t) => t.definition.name === GENIE_GET_QUERY_RESULT_TOOL_NAME)!;
     const cancelTool = tools.find((t) => t.definition.name === GENIE_CANCEL_TOOL_NAME)!;
 
     const ctx = { chatId: 'c1', bot: null };
     expect(await pollTool.execute({ conversation_id: 'c', response_id: 'r' }, ctx)).toBe(
-      'result-of-genie_poll_response',
+      'result-of-genie_poll_response'
     );
     expect(await queryResultTool.execute({ conversation_id: 'c', response_id: 'r' }, ctx)).toBe(
-      'result-of-genie_get_query_result',
+      'result-of-genie_get_query_result'
     );
     expect(await cancelTool.execute({ conversation_id: 'c', response_id: 'r' }, ctx)).toBe(
-      'result-of-genie_cancel_response',
+      'result-of-genie_cancel_response'
     );
-    expect(calls).toEqual([
-      'genie_poll_response',
-      'genie_get_query_result',
-      'genie_cancel_response',
-    ]);
+    expect(calls).toEqual(['genie_poll_response', 'genie_get_query_result', 'genie_cancel_response']);
   });
 
   test('systemAiMcpConfigFromEnv detects enabled flags', () => {

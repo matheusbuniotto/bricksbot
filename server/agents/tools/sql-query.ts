@@ -58,7 +58,7 @@ function presentEnv(value: string | undefined): string | undefined {
 
 export function sqlQueryConfigFromEnv(
   env: Record<string, string | undefined>,
-  options?: { fetchImpl?: typeof fetch },
+  options?: { fetchImpl?: typeof fetch }
 ): Pick<SqlQueryToolOptions, 'warehouseId' | 'host' | 'workspaceId' | 'getToken'> {
   const rawHost = presentEnv(env.DATABRICKS_HOST) ?? presentEnv(env.DATABRICKS_WORKSPACE_URL);
   const host = rawHost ? normalizeHostUrl(rawHost) : undefined;
@@ -92,7 +92,7 @@ const MUTATING_KEYWORDS = new RegExp(
       'RESTORE',
     ].join('|') +
     ')\\b',
-  'i',
+  'i'
 );
 
 /**
@@ -224,13 +224,9 @@ function formatStatementResult(body: unknown, maxChars: number, label = 'sql_que
   if (Array.isArray(row.result?.data_array)) {
     data = row.result.data_array.map((record) => record.map((value) => cellText(value)));
   } else if (Array.isArray(row.result?.data_typed_array)) {
-    data = row.result.data_typed_array.map((record) =>
-      (record.values ?? []).map((value) => typedCellText(value)),
-    );
+    data = row.result.data_typed_array.map((record) => (record.values ?? []).map((value) => typedCellText(value)));
   }
-  const lines = [columns.join('\t'), ...data.map((record) => record.join('\t'))].filter(
-    (line) => line.length > 0,
-  );
+  const lines = [columns.join('\t'), ...data.map((record) => record.join('\t'))].filter((line) => line.length > 0);
   return clip(lines.join('\n') || '(no rows)', maxChars);
 }
 
@@ -242,7 +238,7 @@ async function executeSqlStatement(
     maxChars: number;
     pollSeconds?: number;
     pollIntervalMs?: number;
-  },
+  }
 ): Promise<string> {
   const host = input.host.replace(/\/+$/, '');
   const token = await input.getToken();
@@ -342,8 +338,7 @@ async function executeViaDbsqlMcp(input: {
 
   let text = call.content[0]?.text ?? '';
   let payload =
-    parseMcpPayload(text, (call as { structuredContent?: unknown }).structuredContent) ??
-    parseMcpPayload(text);
+    parseMcpPayload(text, (call as { structuredContent?: unknown }).structuredContent) ?? parseMcpPayload(text);
 
   const start = Date.now();
   while (
@@ -360,13 +355,12 @@ async function executeViaDbsqlMcp(input: {
     if (poll.isError) {
       return clip(
         `sql_query error (system.ai.dbsql poll): ${poll.content[0]?.text ?? 'unknown error'}`,
-        input.maxChars,
+        input.maxChars
       );
     }
     text = poll.content[0]?.text ?? '';
     payload =
-      parseMcpPayload(text, (poll as { structuredContent?: unknown }).structuredContent) ??
-      parseMcpPayload(text);
+      parseMcpPayload(text, (poll as { structuredContent?: unknown }).structuredContent) ?? parseMcpPayload(text);
   }
 
   if (!payload) {
@@ -382,7 +376,7 @@ async function executeViaDbsqlMcp(input: {
 export async function executeReadOnlySql(
   options: SqlQueryToolOptions,
   statement: string,
-  warehouseIdFromArgs?: string,
+  warehouseIdFromArgs?: string
 ): Promise<string> {
   const maxChars = options.maxChars ?? 20_000;
   const trimmed = statement.trim();

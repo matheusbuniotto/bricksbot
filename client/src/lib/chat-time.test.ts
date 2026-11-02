@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import {
-  formatChatTimeSeparator,
-  shouldShowChatTimeSeparator,
-} from './chat-time';
+import { formatChatTimeSeparator, shouldShowChatTimeSeparator } from './chat-time';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -10,18 +7,12 @@ afterEach(() => {
 
 describe('shouldShowChatTimeSeparator', () => {
   test('false when gap is 2h or less', () => {
-    expect(
-      shouldShowChatTimeSeparator('2026-10-26T10:00:00.000Z', '2026-10-26T12:00:00.000Z'),
-    ).toBe(false);
-    expect(
-      shouldShowChatTimeSeparator('2026-10-26T10:00:00.000Z', '2026-10-26T11:59:59.000Z'),
-    ).toBe(false);
+    expect(shouldShowChatTimeSeparator('2026-10-26T10:00:00.000Z', '2026-10-26T12:00:00.000Z')).toBe(false);
+    expect(shouldShowChatTimeSeparator('2026-10-26T10:00:00.000Z', '2026-10-26T11:59:59.000Z')).toBe(false);
   });
 
   test('true when gap is more than 2h', () => {
-    expect(
-      shouldShowChatTimeSeparator('2026-10-26T10:00:00.000Z', '2026-10-26T12:00:01.000Z'),
-    ).toBe(true);
+    expect(shouldShowChatTimeSeparator('2026-10-26T10:00:00.000Z', '2026-10-26T12:00:01.000Z')).toBe(true);
   });
 
   test('false for missing or invalid timestamps', () => {

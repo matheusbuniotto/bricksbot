@@ -91,7 +91,7 @@ export class MemorySandboxStore implements SandboxStore {
       lastUsedAt?: string;
       stoppedAt?: string | null;
       metadata?: Record<string, unknown>;
-    },
+    }
   ): Promise<SandboxSession> {
     const existing = this.sessions.get(id);
     if (!existing) {
@@ -123,11 +123,7 @@ export class MemorySandboxStore implements SandboxStore {
     return { ...updated, metadata: { ...updated.metadata } };
   }
 
-  async addEvent(
-    sessionId: string,
-    type: SandboxEventType,
-    payload: Record<string, unknown>,
-  ): Promise<SandboxEvent> {
+  async addEvent(sessionId: string, type: SandboxEventType, payload: Record<string, unknown>): Promise<SandboxEvent> {
     if (!this.sessions.has(sessionId)) {
       throw new Error(`Sandbox session not found: ${sessionId}`);
     }

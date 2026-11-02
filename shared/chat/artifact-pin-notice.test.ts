@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import {
-  artifactPinPreviewLine,
-  parseArtifactPinNotice,
-  serializeArtifactPinNotice,
-} from './artifact-pin-notice.js';
+import { artifactPinPreviewLine, parseArtifactPinNotice, serializeArtifactPinNotice } from './artifact-pin-notice.js';
 
 describe('artifact-pin-notice', () => {
   test('round-trips a structured notice', () => {
@@ -22,9 +18,7 @@ describe('artifact-pin-notice', () => {
   test('rejects non-artifact_pin JSON and invalid kinds', () => {
     expect(parseArtifactPinNotice(JSON.stringify({ kind: 'handoff', targetName: 'x' }))).toBeNull();
     expect(
-      parseArtifactPinNotice(
-        JSON.stringify({ kind: 'artifact_pin', title: 'x', artifactKind: 'bad', body: '' }),
-      ),
+      parseArtifactPinNotice(JSON.stringify({ kind: 'artifact_pin', title: 'x', artifactKind: 'bad', body: '' }))
     ).toBeNull();
     expect(parseArtifactPinNotice('Pinned something')).toBeNull();
   });
@@ -39,7 +33,7 @@ describe('artifact-pin-notice', () => {
         summary: 'One line',
         pinnedByBotId: '',
         pinnedByName: '',
-      }),
+      })
     ).toBe('Pinned: One line');
   });
 });

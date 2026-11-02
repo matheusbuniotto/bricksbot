@@ -191,10 +191,7 @@ export function createListMemoriesTool(memory: MemorySkillStore): RegisteredTool
       const includeContent = args.include_content !== false;
       const memories = await memory.listMemories(ctx.bot!.id, ctx.userId);
       const filtered = query
-        ? memories.filter(
-            (row) =>
-              row.key.toLowerCase().includes(query) || row.content.toLowerCase().includes(query),
-          )
+        ? memories.filter((row) => row.key.toLowerCase().includes(query) || row.content.toLowerCase().includes(query))
         : memories;
       return JSON.stringify({
         ok: true,
@@ -202,7 +199,7 @@ export function createListMemoriesTool(memory: MemorySkillStore): RegisteredTool
         memories: filtered.map((row) =>
           includeContent
             ? { key: row.key, content: row.content, updatedAt: row.updatedAt }
-            : { key: row.key, updatedAt: row.updatedAt },
+            : { key: row.key, updatedAt: row.updatedAt }
         ),
       });
     },
@@ -210,9 +207,5 @@ export function createListMemoriesTool(memory: MemorySkillStore): RegisteredTool
 }
 
 export function createPiSkillTools(memory: MemorySkillStore): RegisteredTool[] {
-  return [
-    createActivateSkillTool(memory),
-    createReadSkillResourceTool(memory),
-    createListMemoriesTool(memory),
-  ];
+  return [createActivateSkillTool(memory), createReadSkillResourceTool(memory), createListMemoriesTool(memory)];
 }

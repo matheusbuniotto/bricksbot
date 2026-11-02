@@ -49,14 +49,14 @@ export class MemoryChatStore implements ChatStore {
   private personalSpaceByOwner = new Map<string, string>();
 
   async ensureBootstrap(ownerId: string): Promise<{ space: Space; primary: Bot }> {
-    let spaceId = this.personalSpaceByOwner.get(ownerId);
+    const spaceId = this.personalSpaceByOwner.get(ownerId);
     let space = spaceId ? this.spaces.get(spaceId) : undefined;
     if (!space) {
       space = await this.createSpace({ name: DEFAULT_SPACE_NAME, ownerId });
       this.personalSpaceByOwner.set(ownerId, space.id);
     }
 
-    let primaryId = this.primaryByOwner.get(ownerId);
+    const primaryId = this.primaryByOwner.get(ownerId);
     let primary = primaryId ? this.bots.get(primaryId) : undefined;
     if (!primary) {
       primary = await this.createBot({
@@ -80,9 +80,7 @@ export class MemoryChatStore implements ChatStore {
   async listSpaces(ownerId: string): Promise<Space[]> {
     return [...this.spaces.values()]
       .filter(
-        (space) =>
-          space.ownerId === ownerId ||
-          this.members.some((m) => m.spaceId === space.id && m.userId === ownerId),
+        (space) => space.ownerId === ownerId || this.members.some((m) => m.spaceId === space.id && m.userId === ownerId)
       )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
@@ -138,7 +136,7 @@ export class MemoryChatStore implements ChatStore {
       const accessibleSpaceIds = new Set(
         [...this.spaces.values()]
           .filter((space) => canViewerAccessSpace(space, this.members, ownerId))
-          .map((space) => space.id),
+          .map((space) => space.id)
       );
       bots = bots.filter((bot) => isBotVisibleToViewer(bot, ownerId, accessibleSpaceIds));
     }
@@ -172,7 +170,7 @@ export class MemoryChatStore implements ChatStore {
       (bot) =>
         (spaceId !== null ? bot.spaceId === spaceId : bot.ownerId === ownerId && bot.spaceId === null) &&
         !bot.isPrimary &&
-        bot.archivedAt == null,
+        bot.archivedAt == null
     );
     if (siblings.length === 0) return 0;
     return Math.max(...siblings.map((bot) => bot.sortOrder)) + 1;
@@ -237,8 +235,7 @@ export class MemoryChatStore implements ChatStore {
       sortOrder = this.nextSortOrder(spaceId, bot.ownerId);
     }
     const isShared = input.isShared !== undefined ? Boolean(input.isShared) : bot.isShared;
-    const description =
-      input.description !== undefined ? input.description.trim() : bot.description;
+    const description = input.description !== undefined ? input.description.trim() : bot.description;
     const updated: Bot = {
       ...bot,
       name,
@@ -272,7 +269,7 @@ export class MemoryChatStore implements ChatStore {
             : row.ownerId === bot.ownerId && row.spaceId === null) &&
           !row.isPrimary &&
           row.archivedAt == null &&
-          row.id !== bot.id,
+          row.id !== bot.id
       )
       .sort(sortBots);
 
@@ -380,7 +377,7 @@ export class MemoryChatStore implements ChatStore {
     chatId: string,
     role: MessageRole,
     content: string,
-    options?: { toolCallId?: string; toolCalls?: ToolCall[] },
+    options?: { toolCallId?: string; toolCalls?: ToolCall[] }
   ): Promise<Message> {
     const trimmed = content.trim();
     if (!trimmed && role !== 'assistant') {

@@ -30,9 +30,7 @@ export function redactSecrets(text: string, secrets: Iterable<string> = []): str
   }
 
   for (const pattern of BUILTIN_SECRET_PATTERNS) {
-    out = out.replace(pattern, (match) =>
-      /^Bearer\s+/i.test(match) ? 'Bearer [REDACTED]' : '[REDACTED]',
-    );
+    out = out.replace(pattern, (match) => (/^Bearer\s+/i.test(match) ? 'Bearer [REDACTED]' : '[REDACTED]'));
   }
 
   return out;
@@ -44,7 +42,7 @@ export function redactSecrets(text: string, secrets: Iterable<string> = []): str
 export function truncatePreview(
   text: string,
   secrets: Iterable<string> = [],
-  maxChars: number = MAX_PREVIEW_CHARS,
+  maxChars: number = MAX_PREVIEW_CHARS
 ): string {
   const redacted = redactSecrets(text, secrets);
   if (redacted.length <= maxChars) return redacted;
@@ -57,7 +55,7 @@ export function truncatePreview(
 export function sanitizeEventPayload(
   payload: Record<string, unknown>,
   secrets: Iterable<string> = [],
-  maxChars: number = MAX_PREVIEW_CHARS,
+  maxChars: number = MAX_PREVIEW_CHARS
 ): Record<string, unknown> {
   const secretList = [...secrets];
   const out: Record<string, unknown> = {};
@@ -66,9 +64,7 @@ export function sanitizeEventPayload(
     if (typeof value === 'string') {
       out[key] = truncatePreview(value, secretList, maxChars);
     } else if (Array.isArray(value)) {
-      out[key] = value.map((item) =>
-        typeof item === 'string' ? truncatePreview(item, secretList, maxChars) : item,
-      );
+      out[key] = value.map((item) => (typeof item === 'string' ? truncatePreview(item, secretList, maxChars) : item));
     } else if (value && typeof value === 'object') {
       out[key] = sanitizeEventPayload(value as Record<string, unknown>, secretList, maxChars);
     } else {
@@ -98,6 +94,6 @@ export function stripSandboxPaths(text: string): string {
   if (!text) return '';
   return text.replace(
     /(?:\/home\/(?:sandbox-agent|user)|\/tmp|\/workspace)(?:\/[^\s"'`:;]+)+/g,
-    (match) => safeArtifactName(match) ?? 'file',
+    (match) => safeArtifactName(match) ?? 'file'
   );
 }

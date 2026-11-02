@@ -148,10 +148,7 @@ export const DATABRICKS_AI_GATEWAY_MCP_URL = `${DEFAULT_DATABRICKS_WORKSPACE_HOS
  * Builds direct URL to an MCP service in Databricks Unity Catalog Explorer.
  * Example: system.ai.slack -> https://dbc-example.cloud.databricks.com/explore/mcp-services/system/ai/slack?o=0000000000000000&activeTab=overview
  */
-export function buildDatabricksMcpServiceUrl(
-  servicePath: string,
-  options?: { host?: string; orgId?: string },
-): string {
+export function buildDatabricksMcpServiceUrl(servicePath: string, options?: { host?: string; orgId?: string }): string {
   const host = (options?.host || DEFAULT_DATABRICKS_WORKSPACE_HOST).replace(/\/+$/, '');
   const orgId = options?.orgId || DEFAULT_DATABRICKS_ORG_ID;
   const cleanPath = servicePath.replace(/^\/+/, '').replace(/\./g, '/');

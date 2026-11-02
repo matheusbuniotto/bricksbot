@@ -22,16 +22,11 @@ function present(value: string | undefined): string | undefined {
   return trimmed;
 }
 
-function headerValue(
-  req: Request | undefined,
-  name: string,
-): string | undefined {
+function headerValue(req: Request | undefined, name: string): string | undefined {
   if (!req) return undefined;
   const fromHelper = typeof req.header === 'function' ? req.header(name) : undefined;
   if (typeof fromHelper === 'string' && fromHelper.trim()) return fromHelper.trim();
-  const raw = (req as { headers?: Record<string, string | string[] | undefined> }).headers?.[
-    name.toLowerCase()
-  ];
+  const raw = (req as { headers?: Record<string, string | string[] | undefined> }).headers?.[name.toLowerCase()];
   if (typeof raw === 'string' && raw.trim()) return raw.trim();
   if (Array.isArray(raw) && raw[0]?.trim()) return raw[0].trim();
   return undefined;
@@ -47,10 +42,7 @@ export function getRequestUserAccessToken(): string | undefined {
 }
 
 /** Run work with the request's OBO token available to lakehouse tools. */
-export function runWithDatabricksRequestAuth<T>(
-  req: Request | undefined,
-  fn: () => Promise<T>,
-): Promise<T> {
+export function runWithDatabricksRequestAuth<T>(req: Request | undefined, fn: () => Promise<T>): Promise<T> {
   const userAccessToken = resolveForwardedAccessToken(req);
   return authAls.run({ userAccessToken }, fn);
 }
@@ -64,7 +56,7 @@ export function createM2mTokenProvider(
   host: string,
   clientId: string,
   clientSecret: string,
-  fetchImpl: typeof fetch = globalThis.fetch,
+  fetchImpl: typeof fetch = globalThis.fetch
 ): () => Promise<string> {
   let cached: { token: string; expiresAtMs: number } | null = null;
   const baseUrl = normalizeHostUrl(host);
@@ -113,7 +105,7 @@ export type DatabricksTokenProviderOptions = {
  * authenticate (caller should surface a config error).
  */
 export function createDatabricksTokenProvider(
-  options: DatabricksTokenProviderOptions = {},
+  options: DatabricksTokenProviderOptions = {}
 ): (() => Promise<string>) | undefined {
   const env = options.env ?? process.env;
   const staticToken = options.staticToken ?? present(env.DATABRICKS_TOKEN);
@@ -132,7 +124,7 @@ export function createDatabricksTokenProvider(
       const user = getRequestUserAccessToken();
       if (user) return user;
       throw new Error(
-        'No Databricks credentials: missing x-forwarded-access-token, DATABRICKS_TOKEN, and CLIENT_ID/SECRET',
+        'No Databricks credentials: missing x-forwarded-access-token, DATABRICKS_TOKEN, and CLIENT_ID/SECRET'
       );
     };
   }

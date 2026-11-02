@@ -101,7 +101,7 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
       `DELETE FROM bricksbot.bot_memories
        WHERE bot_id = $1 AND user_id = $2 AND key = $3
        RETURNING id`,
-      [id, resolvedUserId, trimmedKey],
+      [id, resolvedUserId, trimmedKey]
     );
     if (!result.rows[0]) throw new Error('Memory not found');
     const cacheKey = `${id}:${resolvedUserId}`;
@@ -165,7 +165,7 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
        ON CONFLICT (bot_id, name) DO UPDATE
        SET body = EXCLUDED.body
        RETURNING id, bot_id, name, body, created_at`,
-      [randomUUID(), id, normalized.name, normalized.body],
+      [randomUUID(), id, normalized.name, normalized.body]
     );
     const row = result.rows[0];
     if (!row) throw new Error('Skill upsert failed');
@@ -245,4 +245,3 @@ export class LakebaseMemorySkillStore implements MemorySkillStore {
     }
   }
 }
-
