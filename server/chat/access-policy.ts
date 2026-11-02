@@ -9,6 +9,16 @@ export function canViewerAccessSpace(
   return members.some((m) => m.spaceId === space.id && m.userId === viewerId);
 }
 
+/** Owner or space admin may invite / change roles. */
+export function canManageSpaceMembers(
+  space: Pick<Space, 'id' | 'ownerId'>,
+  members: ReadonlyArray<Pick<SpaceMember, 'spaceId' | 'userId' | 'role'>>,
+  viewerId: string
+): boolean {
+  if (space.ownerId === viewerId) return true;
+  return members.some((m) => m.spaceId === space.id && m.userId === viewerId && m.role === 'admin');
+}
+
 export function isBotVisibleToViewer(
   bot: Pick<Bot, 'ownerId' | 'spaceId' | 'isPrimary'> & { isShared?: boolean },
   viewerId: string,

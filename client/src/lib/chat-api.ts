@@ -28,9 +28,11 @@ export async function createSpace(name: string): Promise<Space> {
   return data.space;
 }
 
-export async function fetchSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
-  const data = await readJson<{ members: SpaceMember[] }>(await fetch(`/api/spaces/${spaceId}/members`));
-  return data.members;
+export async function fetchSpaceMembers(spaceId: string): Promise<{ members: SpaceMember[]; canManage: boolean }> {
+  const data = await readJson<{ members: SpaceMember[]; canManage?: boolean }>(
+    await fetch(`/api/spaces/${spaceId}/members`)
+  );
+  return { members: data.members, canManage: data.canManage === true };
 }
 
 export async function addSpaceMember(

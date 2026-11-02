@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Bot, ChatStore, MarketplaceBot } from '../../shared/chat/types.js';
 import { AVAILABLE_DATABRICKS_MCPS } from '../../shared/agents/mcp-types.js';
 import type { McpDiscoveryService } from '../agents/tools/mcp-discovery.js';
-import { canViewerAccessSpace } from './access-policy.js';
+import { canManageSpaceMembers, canViewerAccessSpace } from './access-policy.js';
 import { runWithDatabricksRequestAuth } from './databricks-auth.js';
 import { resolveOwnerId } from './identity.js';
 import type { ChatService } from './service.js';
@@ -140,10 +140,24 @@ export function registerChatRoutes(
 
   app.get('/api/spaces/:spaceId/members', async (req: Request, res: Response) => {
     try {
-      const members = await store.listSpaceMembers(String(req.params.spaceId));
-      res.json({ members });
+      const spaceId = String(req.params.spaceId);
+      const space = await store.getSpace(spaceId);
+      if (!space) {
+        res.status(404).json({ error: 'Space not found' });
+        return;
+      }
+      const callerId = resolveOwnerId(req);
+      const members = await store.listSpaceMembers(spaceId);
+      if (!canViewerAccessSpace(space, members, callerId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+      res.json({
+        members,
+        canManage: canManageSpaceMembers(space, members, callerId),
+      });
     } catch (err) {
-      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+      res.status(isUnauthorized(err) ? 401 : isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
     }
   });
 
@@ -154,10 +168,23 @@ export function registerChatRoutes(
       return;
     }
     try {
-      const member = await store.addSpaceMember(String(req.params.spaceId), parsed.data.userId, parsed.data.role);
+      const spaceId = String(req.params.spaceId);
+      const space = await store.getSpace(spaceId);
+      if (!space) {
+        res.status(404).json({ error: 'Space not found' });
+        return;
+      }
+      const callerId = resolveOwnerId(req);
+      const members = await store.listSpaceMembers(spaceId);
+      if (!canManageSpaceMembers(space, members, callerId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+      const userId = parsed.data.userId.trim().toLowerCase();
+      const member = await store.addSpaceMember(spaceId, userId, parsed.data.role);
       res.status(201).json({ member });
     } catch (err) {
-      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+      res.status(isUnauthorized(err) ? 401 : isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
     }
   });
 

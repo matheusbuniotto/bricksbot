@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { ConnectorsDialog } from './components/ConnectorsDialog';
+import { SpaceMembersDialog } from './components/SpaceMembersDialog';
 import { BotDetailsSheet } from './components/BotDetailsSheet';
 import { BotRoster } from './components/BotRoster';
 import { BotPicker } from './components/BotPicker';
@@ -32,6 +33,14 @@ describe('UI End-to-End Tests', () => {
     archivedAt: null,
     createdAt: new Date().toISOString(),
   };
+
+  it('verifies SpaceMembersDialog renders invite copy for a space', () => {
+    const html = renderToString(<SpaceMembersDialog space={dummySpace} isOpen={true} onClose={() => {}} />);
+    expect(html).toContain('Members —');
+    expect(html).toContain('Personal');
+    expect(html).toContain('Invite teammates by Databricks user email');
+    expect(html).toContain('aria-label="Close"');
+  });
 
   it('verifies ConnectorsDialog E2E: renders only viable MCPs with English defaults', () => {
     const html = renderToString(<ConnectorsDialog isOpen={true} onClose={() => {}} onOpenMarketplace={() => {}} />);
