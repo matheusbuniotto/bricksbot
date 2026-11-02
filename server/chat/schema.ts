@@ -167,4 +167,11 @@ export const CHAT_SCHEMA_STATEMENTS = [
 )`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_sandbox_events_session
   ON bricksbot.sandbox_events(session_id, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.volume_usage (
+  user_id TEXT NOT NULL,
+  bot_id TEXT NOT NULL,
+  bytes_used BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, bot_id)
+)`,
 ] as const;
