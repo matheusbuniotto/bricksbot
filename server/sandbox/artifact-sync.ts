@@ -1,9 +1,9 @@
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import type { ChatStore } from '../../shared/chat/types.js';
 import type { HandoffTurnContext } from '../agents/handoff.js';
 import { executePinArtifact } from '../agents/tools/pin-artifact.js';
 import { validateVolumePath } from '../agents/tools/volume-read.js';
+import { writeVolumeBytes } from '../agents/tools/volume-files.js';
+import { resolveNamespacedVolumePath } from '../agents/tools/volume-namespace.js';
 import { redactSecrets, safeArtifactName } from './redact.js';
 import type { SandboxSessionService } from './session-service.js';
 
@@ -32,11 +32,17 @@ export interface SyncArtifactResult {
   messageId: string;
 }
 
+export interface ArtifactVolumeNamespace {
+  userId: string;
+  botId: string;
+}
+
 export function resolveArtifactVolumePath(
   sourcePath: string,
   chatId: string,
   explicitVolumePath?: string,
-  defaultVolumeRoot?: string
+  defaultVolumeRoot?: string,
+  namespace?: ArtifactVolumeNamespace
 ): { ok: true; volumePath: string; artifactName: string } | { ok: false; error: string } {
   const artifactName = safeArtifactName(sourcePath);
   if (!artifactName) {
@@ -45,15 +51,27 @@ export function resolveArtifactVolumePath(
 
   let candidate = explicitVolumePath?.trim() || '';
   if (!candidate && defaultVolumeRoot?.trim()) {
-    const cleanRoot = defaultVolumeRoot.trim().replace(/\/+$/, '');
-    candidate = `${cleanRoot}/${chatId}/${artifactName}`;
+    if (!namespace?.userId || !namespace.botId) {
+      return {
+        ok: false,
+        error: 'sandbox_save_artifact requires the signed-in user and active bot to place the file',
+      };
+    }
+    const namespaced = resolveNamespacedVolumePath(
+      { root: defaultVolumeRoot, userId: namespace.userId, botId: namespace.botId },
+      `sandbox/${chatId}/${artifactName}`
+    );
+    if (!namespaced.ok) {
+      return { ok: false, error: namespaced.error.replace(/^volume_write/, 'sandbox_save_artifact') };
+    }
+    candidate = namespaced.path;
   }
 
   if (!candidate) {
     return {
       ok: false,
       error:
-        'sandbox_save_artifact requires volume_path (starting with /Volumes/...) or SANDBOX_ARTIFACT_VOLUME_PATH to be configured',
+        'sandbox_save_artifact requires volume_path (starting with /Volumes/...) or BRICKSBOT_VOLUME_ROOT to be configured',
     };
   }
 
@@ -85,31 +103,16 @@ export class ArtifactSyncService {
       await this.options.writeVolumeFile(volumePath, data);
       return;
     }
-
-    // Try workspace REST API /api/2.0/fs/files first when host + token are configured,
-    // or local /Volumes mount if running in a container with Volume FUSE mount.
-    if (this.options.host && this.options.getToken) {
-      const rawHost = this.options.host.trim().replace(/\/+$/, '');
-      const host = /^https?:\/\//i.test(rawHost) ? rawHost : `https://${rawHost}`;
-      const token = await this.options.getToken();
-      const url = `${host}/api/2.0/fs/files${volumePath}?overwrite=true`;
-      const res = await this.fetchImpl(url, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: Buffer.from(data),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Volume upload failed (${res.status}): ${text || res.statusText}`);
-      }
-      return;
-    }
-
-    await fs.mkdir(path.dirname(volumePath), { recursive: true });
-    await fs.writeFile(volumePath, data);
+    await writeVolumeBytes(
+      {
+        host: this.options.host,
+        getToken: this.options.getToken,
+        fetchImpl: this.fetchImpl,
+      },
+      volumePath,
+      data,
+      true
+    );
   }
 
   async syncAndPin(ctx: HandoffTurnContext, input: SyncArtifactInput): Promise<SyncArtifactResult> {
@@ -117,11 +120,16 @@ export class ArtifactSyncService {
       throw new Error('sandbox_save_artifact requires an active Bot');
     }
 
+    const userId = ctx.userId?.trim();
+    if (!input.volumePath?.trim() && !userId) {
+      throw new Error('sandbox_save_artifact requires the signed-in user and active bot to place the file');
+    }
     const resolved = resolveArtifactVolumePath(
       input.sourcePath,
       ctx.chatId,
       input.volumePath,
-      this.options.sessionService.getArtifactVolumeRoot()
+      this.options.sessionService.getArtifactVolumeRoot(),
+      userId && ctx.bot ? { userId, botId: ctx.bot.id } : undefined
     );
     if (!resolved.ok) {
       throw new Error(resolved.error);

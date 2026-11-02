@@ -26,7 +26,10 @@ export const handoffToolDefinition: ToolDefinition = {
 export interface HandoffTurnContext {
   chatId: string;
   bot: Bot | null;
+  /** Signed-in caller. Volume paths use this, never the bot owner. */
   userId?: string;
+  /** Set on routine-started turns so volume_write can refuse them. */
+  routine?: boolean;
 }
 
 export interface HandoffPlan {

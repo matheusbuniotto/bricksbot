@@ -147,6 +147,10 @@ function toLlmHistory(history: Message[]): LlmMessage[] {
 type ContinueTurnOptions = {
   /** Nested teammate turns from handoff auto-run tools without extra approvals. */
   autoApproveAll?: boolean;
+  /** Signed-in caller when this chat row belongs to someone else. */
+  callerUserId?: string;
+  /** Routine runs have no user OBO token. */
+  routine?: boolean;
 };
 
 export interface SendMessageResult {
@@ -546,9 +550,15 @@ export class ChatService {
         const needsApproval: ToolCall[] = [];
         const toAutoExecute: ToolCall[] = [];
         const refusals: Array<{ toolCall: ToolCall; reason: string }> = [];
+        const turnCtx: HandoffTurnContext = {
+          chatId,
+          bot,
+          userId: opts.callerUserId ?? chat?.userId,
+          routine: opts.routine,
+        };
 
         for (const toolCall of completion.toolCalls) {
-          const refusal = await this.refusalFor(toolCall, { chatId, bot });
+          const refusal = await this.refusalFor(toolCall, turnCtx);
           if (refusal) {
             refusals.push({ toolCall, reason: refusal });
             continue;
@@ -586,7 +596,7 @@ export class ChatService {
         }
 
         for (const toolCall of toAutoExecute) {
-          const toolResult = await this.executeTool(toolCall, { chatId, bot, userId: chat?.userId });
+          const toolResult = await this.executeTool(toolCall, turnCtx);
           await this.options.store.addMessage(chatId, 'tool', toolResult, {
             toolCallId: toolCall.id,
           });
