@@ -73,7 +73,7 @@ async function resolveRoutineForBot(
       error: `Multiple routines named ${name}; pass routine_id instead`,
     };
   }
-  return { ok: true, routine: matches[0]! };
+  return { ok: true, routine: matches[0] };
 }
 
 export const listRoutinesToolDefinition: ToolDefinition = {

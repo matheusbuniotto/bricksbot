@@ -46,13 +46,13 @@ describe('chat HTTP API', () => {
       const createBot = await fetch(`${baseUrl}/api/bots`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: 'Analyst', spaceId: spaces[0]!.id }),
+        body: JSON.stringify({ name: 'Analyst', spaceId: spaces[0].id }),
       });
       expect(createBot.status).toBe(201);
       const { bot } = (await createBot.json()) as { bot: { id: string; name: string } };
       expect(bot.name).toBe('Analyst');
 
-      const botsRes = await fetch(`${baseUrl}/api/bots?spaceId=${spaces[0]!.id}`);
+      const botsRes = await fetch(`${baseUrl}/api/bots?spaceId=${spaces[0].id}`);
       const { bots } = (await botsRes.json()) as { bots: Array<{ name: string }> };
       expect(bots.map((b) => b.name).sort()).toEqual(['Analyst', 'Primary']);
 
@@ -73,7 +73,7 @@ describe('chat HTTP API', () => {
     await withChatApp(async (baseUrl) => {
       const botsRes = await fetch(`${baseUrl}/api/bots`);
       const { bots } = (await botsRes.json()) as { bots: Array<{ id: string }> };
-      const chatRes = await fetch(`${baseUrl}/api/bots/${bots[0]!.id}/chat`);
+      const chatRes = await fetch(`${baseUrl}/api/bots/${bots[0].id}/chat`);
       const { chat } = (await chatRes.json()) as { chat: { id: string } };
 
       const postRes = await fetch(`${baseUrl}/api/chats/${chat.id}/messages`, {
@@ -89,7 +89,7 @@ describe('chat HTTP API', () => {
     await withChatApp(async (baseUrl) => {
       const botsRes = await fetch(`${baseUrl}/api/bots`);
       const { bots } = (await botsRes.json()) as { bots: Array<{ id: string }> };
-      const chatRes = await fetch(`${baseUrl}/api/bots/${bots[0]!.id}/chat`);
+      const chatRes = await fetch(`${baseUrl}/api/bots/${bots[0].id}/chat`);
       const { chat, autoApprovedTools } = (await chatRes.json()) as {
         chat: { id: string };
         autoApprovedTools: string[];
@@ -98,7 +98,7 @@ describe('chat HTTP API', () => {
 
       const listRes = await fetch(`${baseUrl}/api/chats/${chat.id}/approvals/auto`);
       expect(listRes.status).toBe(200);
-      expect((await listRes.json()) as unknown).toEqual({ autoApprovedTools: [] });
+      expect(await listRes.json()).toEqual({ autoApprovedTools: [] });
 
       const revokeRes = await fetch(`${baseUrl}/api/chats/${chat.id}/approvals/auto/sql_query`, {
         method: 'DELETE',
@@ -121,7 +121,7 @@ describe('chat HTTP API', () => {
       const createBot = await fetch(`${baseUrl}/api/bots`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: 'Analyst', spaceId: spaces[0]!.id }),
+        body: JSON.stringify({ name: 'Analyst', spaceId: spaces[0].id }),
       });
       const { bot } = (await createBot.json()) as { bot: { id: string } };
 

@@ -26,7 +26,7 @@ export function ChoiceCards({
       const index = Number.parseInt(event.key, 10);
       if (index >= 1 && index <= first.options.length) {
         event.preventDefault();
-        void onSelect(first.id, first.options[index - 1]!);
+        void onSelect(first.id, first.options[index - 1]);
       }
     }
 

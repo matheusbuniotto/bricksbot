@@ -39,7 +39,7 @@ describe('routine tools CRUD', () => {
       routines: Array<{ id: string; name: string }>;
     };
     expect(listed.count).toBe(1);
-    const id = listed.routines[0]!.id;
+    const id = listed.routines[0].id;
 
     const updated = JSON.parse(
       await updateTool.execute({ routine_id: id, cron: '0 7 * * *', enabled: false, new_name: 'Dawn v2' }, ctx)

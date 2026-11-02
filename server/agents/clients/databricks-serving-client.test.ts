@@ -25,7 +25,7 @@ describe('DatabricksServingChatClient', () => {
     });
 
     expect(result.content).toBe('from serving');
-    const call = fetchMock.mock.calls[0]!;
+    const call = fetchMock.mock.calls[0];
     const url = String(call[0]);
     const init = call[1] as RequestInit;
     expect(url).toBe(

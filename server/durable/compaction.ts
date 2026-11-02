@@ -48,9 +48,9 @@ export function pickKeepFromMessage(history: Message[], keepRecentMessages: numb
   // Prefer starting on a user turn near the tail.
   const start = Math.max(0, history.length - keep);
   for (let i = start; i < history.length; i += 1) {
-    if (history[i]?.role === 'user') return history[i]!;
+    if (history[i]?.role === 'user') return history[i];
   }
-  return history[start] ?? history[history.length - 1]!;
+  return history[start] ?? history[history.length - 1];
 }
 
 export async function runCompaction(options: {

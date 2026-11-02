@@ -50,7 +50,7 @@ describe('planHandoff', () => {
     const sourceMessages = await store.listMessages(source.id);
     expect(sourceMessages).toHaveLength(1);
     expect(sourceMessages[0]?.role).toBe('system');
-    expect(JSON.parse(sourceMessages[0]!.content)).toEqual(
+    expect(JSON.parse(sourceMessages[0].content)).toEqual(
       expect.objectContaining({
         kind: 'handoff',
         direction: 'sent',

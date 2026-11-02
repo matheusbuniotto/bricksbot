@@ -49,14 +49,14 @@ export class MemoryChatStore implements ChatStore {
   private personalSpaceByOwner = new Map<string, string>();
 
   async ensureBootstrap(ownerId: string): Promise<{ space: Space; primary: Bot }> {
-    let spaceId = this.personalSpaceByOwner.get(ownerId);
+    const spaceId = this.personalSpaceByOwner.get(ownerId);
     let space = spaceId ? this.spaces.get(spaceId) : undefined;
     if (!space) {
       space = await this.createSpace({ name: DEFAULT_SPACE_NAME, ownerId });
       this.personalSpaceByOwner.set(ownerId, space.id);
     }
 
-    let primaryId = this.primaryByOwner.get(ownerId);
+    const primaryId = this.primaryByOwner.get(ownerId);
     let primary = primaryId ? this.bots.get(primaryId) : undefined;
     if (!primary) {
       primary = await this.createBot({

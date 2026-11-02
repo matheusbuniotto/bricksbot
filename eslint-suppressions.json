@@ -1,0 +1,337 @@
+{
+  "client/src/components/BotDetailsSheet.tsx": {
+    "no-empty": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "client/src/components/BotFace.tsx": {
+    "react-hooks/preserve-manual-memoization": {
+      "count": 1
+    }
+  },
+  "client/src/components/BotPicker.tsx": {
+    "react-hooks/preserve-manual-memoization": {
+      "count": 1
+    }
+  },
+  "client/src/components/ChatMarkdown.tsx": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    }
+  },
+  "client/src/components/CodeBlock.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "client/src/components/ConnectorsDialog.tsx": {
+    "@typescript-eslint/no-misused-promises": {
+      "count": 3
+    },
+    "no-empty": {
+      "count": 3
+    }
+  },
+  "client/src/components/RoutinesPanel.tsx": {
+    "@typescript-eslint/no-misused-promises": {
+      "count": 2
+    }
+  },
+  "client/src/lib/use-is-dark-theme.ts": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "client/src/ui.e2e.test.tsx": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 3
+    }
+  },
+  "server/agents/clients/create-chat-client.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "server/agents/clients/databricks-serving-client.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 2
+    }
+  },
+  "server/agents/clients/openai-compatible-client.test.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    },
+    "@typescript-eslint/require-await": {
+      "count": 4
+    }
+  },
+  "server/agents/clients/stub-client.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "server/agents/memory/lakebase-store.test.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "server/agents/memory/lakebase-store.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    }
+  },
+  "server/agents/memory/memory-store.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 8
+    }
+  },
+  "server/agents/tools/lakehouse-catalog.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 2
+    }
+  },
+  "server/agents/tools/mcp-discovery.test.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    },
+    "@typescript-eslint/no-redundant-type-constituents": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 7
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 6
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 9
+    },
+    "@typescript-eslint/require-await": {
+      "count": 4
+    }
+  },
+  "server/agents/tools/pi-skills-tools.test.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 9
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 20
+    }
+  },
+  "server/agents/tools/routine-tools.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    }
+  },
+  "server/agents/tools/sandbox-tools.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 11
+    }
+  },
+  "server/agents/tools/sql-query.test.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 5
+    },
+    "@typescript-eslint/require-await": {
+      "count": 17
+    }
+  },
+  "server/agents/tools/system-ai-mcp.test.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 3
+    },
+    "@typescript-eslint/no-redundant-type-constituents": {
+      "count": 4
+    },
+    "@typescript-eslint/require-await": {
+      "count": 9
+    }
+  },
+  "server/agents/tools/system-ai-mcp.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 6
+    }
+  },
+  "server/agents/tools/volume-read.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 2
+    }
+  },
+  "server/agents/tools/volume-read.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 4
+    }
+  },
+  "server/agents/tools/web-fetch.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 2
+    }
+  },
+  "server/chat/approvals.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    }
+  },
+  "server/chat/databricks-auth.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 3
+    }
+  },
+  "server/chat/databricks-auth.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "server/chat/lakebase-store.test.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 4
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "server/chat/lakebase-store.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    }
+  },
+  "server/chat/memory-store.test.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    }
+  },
+  "server/chat/memory-store.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 19
+    }
+  },
+  "server/chat/routes.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 8
+    }
+  },
+  "server/chat/service.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 11
+    }
+  },
+  "server/chat/service.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 5
+    }
+  },
+  "server/durable/compaction-store.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 2
+    }
+  },
+  "server/durable/compaction.test.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "server/durable/idempotency-store.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 2
+    }
+  },
+  "server/routines/lakebase-store.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    }
+  },
+  "server/routines/memory-store.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 7
+    }
+  },
+  "server/sandbox/backends.contract.test.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 6
+    },
+    "@typescript-eslint/require-await": {
+      "count": 7
+    }
+  },
+  "server/sandbox/lakebase-store.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    }
+  },
+  "server/sandbox/memory-store.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 10
+    }
+  },
+  "server/sandbox/python-exec-backend.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 4
+    }
+  },
+  "server/sandbox/redact.ts": {
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    }
+  },
+  "server/sandbox/sandbox.test.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 4
+    },
+    "@typescript-eslint/require-await": {
+      "count": 8
+    }
+  },
+  "shared/chat/vega-spec.ts": {
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    }
+  }
+}

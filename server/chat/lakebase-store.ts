@@ -193,7 +193,7 @@ export class LakebaseChatStore implements ChatStore {
              RETURNING ${BOT_COLUMNS}`,
             [asString(legacy.rows[0].id), space.id, ownerId]
           );
-          primary = mapBot(promoted.rows[0]!);
+          primary = mapBot(promoted.rows[0]);
         } else {
           primary = await this.createBot({
             name: PRIMARY_NAME,
@@ -248,7 +248,7 @@ export class LakebaseChatStore implements ChatStore {
        ON CONFLICT (space_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
       [id, input.ownerId]
     );
-    return mapSpace(inserted.rows[0]!);
+    return mapSpace(inserted.rows[0]);
   }
 
   async getSpace(spaceId: string): Promise<Space | null> {
@@ -277,7 +277,7 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING space_id, user_id, role`,
       [spaceId, userId, role]
     );
-    return mapMember(result.rows[0]!);
+    return mapMember(result.rows[0]);
   }
 
   async listBots(options?: ListBotsOptions): Promise<Bot[]> {
@@ -394,7 +394,7 @@ export class LakebaseChatStore implements ChatStore {
         sortOrder,
       ]
     );
-    const bot = mapBot(inserted.rows[0]!);
+    const bot = mapBot(inserted.rows[0]);
     this.cacheSet(this.botsCache, bot.id, bot);
     return bot;
   }
@@ -433,7 +433,7 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING ${BOT_COLUMNS}`,
       [botId, name, avatarLabel, spaceId, sortOrder, isShared, description]
     );
-    const updated = mapBot(result.rows[0]!);
+    const updated = mapBot(result.rows[0]);
     this.cacheSet(this.botsCache, updated.id, updated);
     return updated;
   }
@@ -467,7 +467,7 @@ export class LakebaseChatStore implements ChatStore {
     ordered.splice(clamped, 0, { ...bot, spaceId: input.spaceId });
 
     for (let index = 0; index < ordered.length; index += 1) {
-      const row = ordered[index]!;
+      const row = ordered[index];
       await this.query(`UPDATE bricksbot.bots SET space_id = $2, sort_order = $3 WHERE id = $1`, [
         row.id,
         input.spaceId,
@@ -492,7 +492,7 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING ${BOT_COLUMNS}`,
       [botId]
     );
-    const updated = mapBot(result.rows[0]!);
+    const updated = mapBot(result.rows[0]);
     this.cacheSet(this.botsCache, updated.id, updated);
     return updated;
   }
@@ -507,7 +507,7 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING ${BOT_COLUMNS}`,
       [botId, sortOrder]
     );
-    const updated = mapBot(result.rows[0]!);
+    const updated = mapBot(result.rows[0]);
     this.cacheSet(this.botsCache, updated.id, updated);
     return updated;
   }
@@ -603,7 +603,7 @@ export class LakebaseChatStore implements ChatStore {
        RETURNING id, bot_id, user_id, title, created_at, updated_at, last_message_preview`,
       [id, botId, resolvedUserId, bot.name]
     );
-    const chat = mapChat(inserted.rows[0]!);
+    const chat = mapChat(inserted.rows[0]);
     this.cacheSet(this.chatByBotCache, cacheKey, chat);
     this.cacheSet(this.chatByIdCache, chat.id, chat);
     this.cacheSet(this.chatToBotCache, chat.id, botId);
@@ -704,6 +704,6 @@ export class LakebaseChatStore implements ChatStore {
     } else {
       await this.query(`UPDATE bricksbot.chats SET updated_at = NOW() WHERE id = $1`, [chatId]);
     }
-    return mapMessage(result.rows[0]!);
+    return mapMessage(result.rows[0]);
   }
 }

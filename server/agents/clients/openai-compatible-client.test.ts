@@ -27,7 +27,7 @@ describe('OpenAICompatibleChatClient', () => {
     expect(result.content).toBe('hello from openrouter');
     expect(result.toolCalls).toEqual([]);
     expect(fetchMock).toHaveBeenCalledOnce();
-    const call = fetchMock.mock.calls[0]!;
+    const call = fetchMock.mock.calls[0];
     const url = String(call[0]);
     const init = call[1] as RequestInit;
     expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
@@ -108,7 +108,7 @@ describe('OpenAICompatibleChatClient', () => {
       ],
     });
 
-    const body = JSON.parse(String((fetchMock.mock.calls[0]![1] as RequestInit).body)) as {
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)) as {
       messages: Array<Record<string, unknown>>;
     };
     expect(body.messages[1]).toEqual({

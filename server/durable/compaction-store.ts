@@ -65,6 +65,6 @@ export class LakebaseCompactionStore implements CompactionStore {
        RETURNING id, chat_id, summary, keep_from_message_id, created_at`,
       [id, input.chatId, input.summary.trim(), input.keepFromMessageId]
     );
-    return mapCompaction(result.rows[0]!);
+    return mapCompaction(result.rows[0]);
   }
 }

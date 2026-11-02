@@ -760,7 +760,7 @@ export class ChatService {
     const targetMessages = await this.options.store.listMessages(targetChat.id);
     let threadStart = -1;
     for (let i = targetMessages.length - 1; i >= 0; i -= 1) {
-      const message = targetMessages[i]!;
+      const message = targetMessages[i];
       if (message.role === 'user' && message.content === briefLine) {
         threadStart = i;
         break;

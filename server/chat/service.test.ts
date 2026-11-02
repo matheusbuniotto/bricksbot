@@ -78,7 +78,7 @@ describe('ChatService', () => {
     });
 
     const pending = await service.sendUserMessage(chat.id, 'fetch it');
-    const approvalId = pending.pendingApprovals[0]!.id;
+    const approvalId = pending.pendingApprovals[0].id;
 
     // Avoid real network: temporarily stub fetch via global in execute path —
     // ChatService uses createWebFetchTool which calls global fetch.
@@ -126,11 +126,11 @@ describe('ChatService', () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () => new Response('ok', { status: 200 })) as typeof fetch;
     try {
-      const mid = await service.decideApproval(pending.pendingApprovals[0]!.id, 'approved');
+      const mid = await service.decideApproval(pending.pendingApprovals[0].id, 'approved');
       expect(mid.pendingApprovals).toHaveLength(1);
       expect((await store.getBot(bot.id))?.presence).toBe('waiting');
 
-      const done = await service.decideApproval(mid.pendingApprovals[0]!.id, 'approved');
+      const done = await service.decideApproval(mid.pendingApprovals[0].id, 'approved');
       expect(done.pendingApprovals).toHaveLength(0);
       expect((await store.getBot(bot.id))?.presence).toBe('online');
     } finally {
@@ -172,14 +172,14 @@ describe('ChatService', () => {
     const pending = await service.sendUserMessage(chat.id, 'browse catalogs');
     expect(pending.pendingApprovals).toHaveLength(3);
 
-    const done = await service.decideApproval(pending.pendingApprovals[0]!.id, 'all_the_time');
+    const done = await service.decideApproval(pending.pendingApprovals[0].id, 'all_the_time');
     expect(done.pendingApprovals).toHaveLength(0);
     expect(done.assistant?.content).toBe('catalogs ready');
     expect(done.autoApprovedTools).toContain('lakehouse_catalog');
     expect(catalogCalls).toHaveLength(3);
 
     // Double-decide must not throw / re-run tools.
-    const again = await service.decideApproval(pending.pendingApprovals[0]!.id, 'all_the_time');
+    const again = await service.decideApproval(pending.pendingApprovals[0].id, 'all_the_time');
     expect(again.pendingApprovals).toHaveLength(0);
     expect(catalogCalls).toHaveLength(3);
   });
@@ -334,7 +334,7 @@ describe('ChatService', () => {
     expect(pending.pendingApprovals[0]?.status).toBe('pending');
     expect(calls).toEqual([]);
 
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'approved');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'approved');
     expect(calls).toEqual([{ statement: 'SELECT 1', warehouseId: 'wh-1' }]);
     expect(continued.assistant?.content).toBe('one row');
     expect(continued.pendingApprovals).toHaveLength(0);
@@ -389,7 +389,7 @@ describe('ChatService', () => {
     const service = new ChatService({ store, client });
 
     const pending = await service.sendUserMessage(chat.id, 'count rows');
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'approved');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'approved');
     expect(continued.assistant?.content).toBe('no warehouse');
     const messages = await store.listMessages(chat.id);
     expect(messages.some((m) => m.role === 'tool' && /Databricks workspace is not configured/i.test(m.content))).toBe(
@@ -422,7 +422,7 @@ describe('ChatService', () => {
     });
 
     const pending = await service.sendUserMessage(chat.id, 'count');
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'denied');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'denied');
     expect(calls).toEqual([]);
     expect(continued.assistant?.content).toBe('denied');
   });
@@ -462,7 +462,7 @@ describe('ChatService', () => {
     expect(pending.pendingApprovals[0]?.status).toBe('pending');
     expect(await store.listMessages(targetChat.id)).toEqual([]);
 
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'approved');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'approved');
     expect(continued.assistant?.content).toBe('Analyst says revenue is up 12%.');
     expect(client.requests).toHaveLength(3);
     const targetMessages = await store.listMessages(targetChat.id);
@@ -533,7 +533,7 @@ describe('ChatService', () => {
     const service = new ChatService({ store, client });
 
     const pending = await service.sendUserMessage(chat.id, 'ask the analyst');
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'approved');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'approved');
     expect(continued.assistant?.content).toBe('Analyst could not answer.');
 
     const targetMessages = await store.listMessages(targetChat.id);
@@ -594,7 +594,7 @@ describe('ChatService', () => {
     const service = new ChatService({ store, client });
 
     const pending = await service.sendUserMessage(chat.id, 'hand it off');
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'denied');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'denied');
     expect(continued.assistant?.content).toBe('staying here');
     expect(await store.listMessages(targetChat.id)).toEqual([]);
     const source = await store.listMessages(chat.id);
@@ -698,7 +698,7 @@ describe('ChatService', () => {
     expect(sqlCalls).toEqual([]);
 
     // Decide "all_the_time"
-    const turn1Continued = await service.decideApproval(turn1.pendingApprovals[0]!.id, 'all_the_time');
+    const turn1Continued = await service.decideApproval(turn1.pendingApprovals[0].id, 'all_the_time');
     expect(turn1Continued.assistant?.content).toBe('first query done');
     expect(sqlCalls).toEqual(['SELECT 1']);
     expect(turn1Continued.autoApprovedTools).toContain('sql_query');
@@ -735,8 +735,8 @@ describe('ChatService', () => {
       { id: 'call_1', name: 'sql_query', arguments: { statement: 'SELECT 1' } },
     ]);
 
-    await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
-    const followUp = client.requests[1]!;
+    await service.decideApproval(pending.pendingApprovals[0].id, 'once');
+    const followUp = client.requests[1];
     const assistantWithTools = followUp.messages.find((m) => m.role === 'assistant' && (m.toolCalls?.length ?? 0) > 0);
     expect(assistantWithTools?.toolCalls?.[0]?.id).toBe('call_1');
     const toolMsg = followUp.messages.find((m) => m.role === 'tool');
@@ -754,7 +754,7 @@ describe('ChatService', () => {
     const service = new ChatService({ store, client });
     await service.sendUserMessage(chat.id, 'new turn');
 
-    const sent = client.requests[0]!;
+    const sent = client.requests[0];
     expect(sent.messages.some((m) => m.role === 'tool')).toBe(false);
     expect(sent.messages.some((m) => m.content === 'orphan result')).toBe(false);
   });
@@ -784,7 +784,7 @@ describe('ChatService', () => {
     expect(pending.pendingApprovals).toHaveLength(1);
     expect(pending.pendingApprovals[0]?.toolCall.name).toBe('lakehouse_catalog');
 
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'once');
     expect(continued.assistant?.content).toBe('catalogs listed');
     const messages = await store.listMessages(chat.id);
     expect(messages.some((m) => m.role === 'tool' && m.content.includes('samples'))).toBe(true);
@@ -816,7 +816,7 @@ describe('ChatService', () => {
     expect(pending.pendingApprovals[0]?.toolCall.name).toBe('create_bot');
 
     // “Always allow” is coerced to once — create_bot never auto-approves.
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'all_the_time');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'all_the_time');
     expect(continued.assistant?.content).toBe('Created Probe for you.');
     expect(await service.getApprovals().isAutoApproved(chat.id, 'create_bot')).toBe(false);
 
@@ -887,7 +887,7 @@ describe('ChatService', () => {
     expect(pending.pendingApprovals).toHaveLength(1);
     expect(pending.pendingApprovals[0]?.toolCall.name).toBe('schedule_routine');
 
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'once');
     expect(continued.assistant?.content).toMatch(/Scheduled Nightly/i);
 
     const listed = await routines.listRoutines(bot.ownerId);
@@ -926,7 +926,7 @@ describe('ChatService', () => {
     expect(pending.pendingApprovals[0]?.toolCall.name).toBe('ask_choice');
     expect((await store.getBot(bot.id))?.presence).toBe('waiting');
 
-    const afterApproval = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
+    const afterApproval = await service.decideApproval(pending.pendingApprovals[0].id, 'once');
     expect(afterApproval.pendingChoices).toHaveLength(1);
     expect(afterApproval.pendingApprovals).toHaveLength(0);
     const messagesAfterApproval = await store.listMessages(chat.id);
@@ -935,7 +935,7 @@ describe('ChatService', () => {
     );
     expect(messagesAfterApproval.some((m) => m.role === 'tool' && m.toolCallId === 'call_choice')).toBe(false);
 
-    const choiceId = afterApproval.pendingChoices![0]!.id;
+    const choiceId = afterApproval.pendingChoices![0].id;
     const continued = await service.submitChoice(choiceId, 'prod');
     expect(continued.assistant?.content).toBe('You picked prod');
     expect(continued.pendingChoices).toHaveLength(0);
@@ -984,7 +984,7 @@ describe('ChatService', () => {
     expect(client.requests[0]?.messages[0]?.content).toContain(`DataWizard (${sharedTeammate.id})`);
     expect(pending.pendingApprovals).toHaveLength(1);
 
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'once');
     expect(continued.assistant?.content).toBe('DataWizard reports shared metrics are green.');
   });
 
@@ -1040,7 +1040,7 @@ describe('ChatService', () => {
     expect(pending.pendingApprovals[0]?.toolCall.name).toBe('genie_ask');
 
     // Selecting all_the_time is coerced to once; genie_ask never persists auto-approval.
-    const continued = await service.decideApproval(pending.pendingApprovals[0]!.id, 'all_the_time');
+    const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'all_the_time');
     expect(continued.assistant?.content).toBe('Genie reports churn is 2%.');
     expect(await service.getApprovals().isAutoApproved(chat.id, 'genie_ask')).toBe(false);
   });

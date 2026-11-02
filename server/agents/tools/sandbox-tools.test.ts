@@ -174,7 +174,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     const service = new ChatService({ store, client, sandbox: sessionService });
     const pendingHandoff = await service.sendUserMessage(primaryChat.id, 'ask analyst');
     expect(pendingHandoff.pendingApprovals[0]?.toolCall.name).toBe('handoff_to_bot');
-    await service.decideApproval(pendingHandoff.pendingApprovals[0]!.id, 'once');
+    await service.decideApproval(pendingHandoff.pendingApprovals[0].id, 'once');
 
     const teammatePending = await service.getApprovals().listPending(teammateChat.id);
     expect(teammatePending).toHaveLength(1);
@@ -225,7 +225,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     expect((await store.getBot(primary.id))?.presence).toBe('waiting');
 
     // Approve with all_the_time so a second call in this chat auto-runs and reuses the session.
-    const decided = await service.decideApproval(first.pendingApprovals[0]!.id, 'all_the_time');
+    const decided = await service.decideApproval(first.pendingApprovals[0].id, 'all_the_time');
     expect(presenceDuringExec).toBe('working');
     expect(decided.assistant?.content).toBe('Sandbox said hello.');
     expect(createdSessions).toHaveLength(1);
@@ -316,11 +316,11 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     // Turn step 1: approve sandbox_exec
     const r1 = await service.sendUserMessage(chat.id, 'analyze and return a CSV');
     expect(r1.pendingApprovals[0]?.toolCall.name).toBe('sandbox_exec');
-    const r2 = await service.decideApproval(r1.pendingApprovals[0]!.id, 'once');
+    const r2 = await service.decideApproval(r1.pendingApprovals[0].id, 'once');
 
     // Turn step 2: approve sandbox_save_artifact
     expect(r2.pendingApprovals[0]?.toolCall.name).toBe('sandbox_save_artifact');
-    const r3 = await service.decideApproval(r2.pendingApprovals[0]!.id, 'once');
+    const r3 = await service.decideApproval(r2.pendingApprovals[0].id, 'once');
 
     // Verify CSV was written to UC Volume and pinned onto the chat transcript!
     const expectedVolumePath = `/Volumes/main/default/bricksbot_artifacts/${chat.id}/report.csv`;
@@ -343,7 +343,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     expect(r3.pendingApprovals).toHaveLength(1);
     expect(r3.pendingApprovals[0]?.toolCall.name).toBe('sandbox_delete');
 
-    const r4 = await service.decideApproval(r3.pendingApprovals[0]!.id, 'all_the_time');
+    const r4 = await service.decideApproval(r3.pendingApprovals[0].id, 'all_the_time');
     expect(r4.assistant?.content).toBe('Analysis complete and CSV pinned.');
     expect(r4.autoApprovedTools).not.toContain('sandbox_delete');
     expect(deletedSessions).toHaveLength(1);
@@ -383,7 +383,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
 
     const service = new ChatService({ store, client, sandbox: sessionService });
     const pending = await service.sendUserMessage(chat.id, 'run slow task');
-    const final = await service.decideApproval(pending.pendingApprovals[0]!.id, 'once');
+    const final = await service.decideApproval(pending.pendingApprovals[0].id, 'once');
 
     expect(final.assistant?.content).toContain('sandbox command timed out');
     const messages = await store.listMessages(chat.id);

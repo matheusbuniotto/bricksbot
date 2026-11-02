@@ -96,7 +96,7 @@ export class LakebaseRoutineStore implements RoutineStore {
        RETURNING id, bot_id, owner_id, name, cron, prompt, enabled, last_run_at, created_at`,
       [id, input.botId, input.ownerId, name, cron, prompt, hashWebhookSecret(webhookSecret), enabled]
     );
-    return { routine: mapRoutine(inserted.rows[0]!), webhookSecret };
+    return { routine: mapRoutine(inserted.rows[0]), webhookSecret };
   }
 
   async updateRoutine(routineId: string, ownerId: string, patch: UpdateRoutineInput): Promise<Routine> {

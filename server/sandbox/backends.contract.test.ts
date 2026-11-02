@@ -175,7 +175,7 @@ function createPythonExecMockBackend() {
       const code = params.arguments?.code ?? '';
       // Extract JSON payload inside `json.loads("...")`
       const match = /_cfg = json\.loads\(("(?:\\.|[^"\\])*")\)/.exec(code);
-      const cfgJson = match ? (JSON.parse(match[1]!) as string) : '{}';
+      const cfgJson = match ? (JSON.parse(match[1]) as string) : '{}';
       const cfg = JSON.parse(cfgJson) as {
         script?: string;
         cwd?: string;

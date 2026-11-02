@@ -34,8 +34,8 @@ export const decodeLook = (s: string | undefined): BotLook | null => {
   }
   // Migrate prior 2-char avatarLabel → brick config (hat/glasses none).
   if (s.length === 2) {
-    const shape = LEGACY_SHAPE.indexOf(s[0]!);
-    const color = LEGACY_COLOR.indexOf(s[1]!);
+    const shape = LEGACY_SHAPE.indexOf(s[0]);
+    const color = LEGACY_COLOR.indexOf(s[1]);
     if (shape >= 0 && shape < SHAPES.length && color >= 0 && color < COLORS.length) {
       return { shape, color, hat: 0, glasses: 0 };
     }

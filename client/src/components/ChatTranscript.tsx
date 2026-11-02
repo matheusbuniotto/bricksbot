@@ -173,7 +173,7 @@ export function ChatTranscript({
     <div className="transcript">
       <div className="transcript-column">
         {rows.map((row, index) => {
-          const message = row.kind === 'message' ? row.message : row.messages[0]!;
+          const message = row.kind === 'message' ? row.message : row.messages[0];
           const prevRow = index > 0 ? rows[index - 1] : undefined;
           const prevMessage = prevRow
             ? prevRow.kind === 'message'
@@ -191,7 +191,7 @@ export function ChatTranscript({
           ) : null;
 
           if (row.kind === 'tool_group') {
-            const primary = row.messages[0]!;
+            const primary = row.messages[0];
             const view = toolResultView(primary.content, row.toolName);
             const count = row.messages.length;
             const summary = count > 1 ? `${view.summary} · ${count}` : view.summary;

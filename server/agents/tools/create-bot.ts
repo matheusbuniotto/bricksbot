@@ -93,7 +93,7 @@ export async function planCreateBot(
     if (matches.length > 1) {
       return { ok: false, error: `create_bot found more than one section named ${sectionName}` };
     }
-    spaceId = matches[0]!.id;
+    spaceId = matches[0].id;
   }
 
   const active = await store.listBots({ ownerId: creator.ownerId, archived: 'active' });
