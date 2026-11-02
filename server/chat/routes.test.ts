@@ -6,13 +6,14 @@ import { registerChatRoutes } from './routes.js';
 import { ChatService } from './service.js';
 
 async function withChatApp(
-  run: (baseUrl: string, ctx: { store: MemoryChatStore; service: ChatService }) => Promise<void>
+  run: (baseUrl: string, ctx: { store: MemoryChatStore; service: ChatService }) => Promise<void>,
+  options?: Parameters<typeof registerChatRoutes>[3]
 ) {
   const store = new MemoryChatStore();
   const service = new ChatService({ store, client: new StubChatClient() });
   const app = express();
   app.use(express.json());
-  registerChatRoutes(app, store, service);
+  registerChatRoutes(app, store, service, options);
 
   const server = await new Promise<import('node:http').Server>((resolve) => {
     const s = app.listen(0, '127.0.0.1', () => resolve(s));
@@ -343,10 +344,68 @@ describe('chat HTTP API', () => {
       const getRes = await fetch(`${baseUrl}/api/mcps`);
       expect(getRes.status).toBe(200);
       const { mcps } = (await getRes.json()) as { mcps: Array<{ service: string; isViable?: boolean }> };
-      expect(mcps.length).toBeGreaterThan(0);
       expect(mcps.every((m) => m.isViable !== false)).toBe(true);
       expect(mcps.some((m) => m.service === 'system.ai.genie_one_mcp')).toBe(true);
       expect(mcps.some((m) => m.service === 'system.ai.slack')).toBe(false);
     });
+  });
+
+  test('connect registers MCP tools on ChatService and disconnect removes them', async () => {
+    const { McpDiscoveryService } = await import('../agents/tools/mcp-discovery.js');
+    const mockFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/ai-gateway/mcp-services/system.ai.web_search')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { id: number; method: string };
+        if (body.method === 'tools/list') {
+          return new Response(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: { tools: [{ name: 'web_search', description: 'Search' }] },
+            }),
+            { status: 200 }
+          );
+        }
+      }
+      return new Response('Not Found', { status: 404 });
+    };
+    const mcpDiscovery = new McpDiscoveryService({
+      host: 'https://workspace.cloud.databricks.com',
+      getToken: async () => 'tok',
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    await withChatApp(
+      async (baseUrl, { service }) => {
+        expect(service.listToolNames()).not.toContain('mcp_system_ai_web_search_web_search');
+
+        const connectRes = await fetch(`${baseUrl}/api/mcps/connect`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ service: 'system.ai.web_search' }),
+        });
+        expect(connectRes.status).toBe(200);
+        const connectedBody = (await connectRes.json()) as {
+          mcp: { service: string; connected?: boolean };
+        };
+        expect(connectedBody.mcp.service).toBe('system.ai.web_search');
+        expect(connectedBody.mcp.connected).toBe(true);
+        expect(service.listToolNames()).toContain('mcp_system_ai_web_search_web_search');
+
+        const listRes = await fetch(`${baseUrl}/api/mcps`);
+        const { mcps } = (await listRes.json()) as {
+          mcps: Array<{ service: string; connected?: boolean }>;
+        };
+        expect(mcps.find((m) => m.service === 'system.ai.web_search')?.connected).toBe(true);
+
+        const disconnectRes = await fetch(
+          `${baseUrl}/api/mcps/connect/${encodeURIComponent('system.ai.web_search')}`,
+          { method: 'DELETE' }
+        );
+        expect(disconnectRes.status).toBe(200);
+        expect(service.listToolNames()).not.toContain('mcp_system_ai_web_search_web_search');
+      },
+      { mcpDiscovery }
+    );
   });
 });

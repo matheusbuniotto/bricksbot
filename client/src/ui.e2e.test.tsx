@@ -78,7 +78,8 @@ describe('UI End-to-End Tests', () => {
     expect(html).not.toContain('system.ai.jira');
     expect(html).not.toContain('system.ai.github');
 
-    expect(html).toContain('Connected');
+    expect(html).toContain('connected');
+    expect(html).toContain('>Connect<');
     expect(html).toContain('aria-label="Close"');
   });
 

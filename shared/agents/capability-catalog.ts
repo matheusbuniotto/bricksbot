@@ -162,6 +162,11 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
       ' Genie (Databricks One via genie_ask) is available for natural-language analytics grounded in the Genie Ontology. Prefer cheap tools (sql_query, lakehouse_catalog) for direct exploration; escalate to genie_ask for business metrics and definitions. genie_ask always requires approval.';
   }
 
+  if (catalog.tools.some((tool) => tool.name.startsWith('mcp_'))) {
+    blocks[0] +=
+      ' Connected Unity Catalog MCP tools (names starting with mcp_) are Ask-first; prefer cheap lakehouse tools when they cover the need.';
+  }
+
   const creatable: string[] = [];
   if (catalog.tools.some((tool) => tool.name === 'schedule_routine')) {
     creatable.push('routines (schedule_routine)');

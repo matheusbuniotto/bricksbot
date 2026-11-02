@@ -127,4 +127,38 @@ describe('McpDiscoveryService', () => {
     const afterDelete = await discovery.listViableMcps({ refresh: true });
     expect(afterDelete.some((m) => m.service === 'main.analytics.custom_mcp')).toBe(false);
   });
+
+  it('connect marks service connected and disconnect clears it', async () => {
+    const mockFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/ai-gateway/mcp-services/system.ai.web_search')) {
+        const bodyStr = init?.body ? String(init.body) : '{}';
+        const parsed = JSON.parse(bodyStr);
+        return new Response(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: parsed.id ?? 1,
+            result: { tools: [{ name: 'web_search', description: 'Search the web' }] },
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response('Not Found', { status: 404 });
+    };
+
+    const discovery = new McpDiscoveryService({
+      host: 'https://workspace.cloud.databricks.com',
+      getToken: async () => 'test-token',
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    expect(discovery.isConnected('system.ai.web_search')).toBe(false);
+    const connected = await discovery.connect('system.ai.web_search');
+    expect(connected.connected).toBe(true);
+    expect(connected.tools).toEqual(['web_search']);
+    expect(discovery.listConnectedServices()).toEqual(['system.ai.web_search']);
+
+    expect(discovery.disconnect('system.ai.web_search')).toBe(true);
+    expect(discovery.isConnected('system.ai.web_search')).toBe(false);
+  });
 });

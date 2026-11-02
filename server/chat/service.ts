@@ -49,6 +49,7 @@ import {
 } from '../agents/tools/sandbox-tools.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
 import { createSystemAiMcpTools, GENIE_ASK_TOOL_NAME } from '../agents/tools/system-ai-mcp.js';
+import { isConnectedMcpTool } from '../agents/tools/mcp-tools.js';
 import type { SystemAiMcpOptions } from '../../shared/agents/mcp-types.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
@@ -180,7 +181,10 @@ export interface SendMessageResult {
 export class ChatService {
   private readonly approvals: ApprovalStore;
   private readonly choices: ChoiceStore;
-  private readonly tools: RegisteredTool[];
+  /** Lakehouse + meta + sandbox tools fixed at construction. */
+  private readonly baseTools: RegisteredTool[];
+  /** Connected Unity Gateway MCP tools; replaced when connectors change. */
+  private dynamicMcpTools: RegisteredTool[] = [];
   private readonly compactionSettings: CompactionSettings;
   private readonly memory: MemorySkillStore;
   private readonly activeTurnsByBot = new Map<string, number>();
@@ -237,13 +241,30 @@ export class ChatService {
         })
       );
     }
+    this.baseTools = tools;
+    // Tests / legacy: seed Genie (or other MCP) tools without going through discovery connect.
     if (options.systemAiMcp) {
-      const mcpTools = Array.isArray(options.systemAiMcp)
+      this.dynamicMcpTools = Array.isArray(options.systemAiMcp)
         ? options.systemAiMcp
         : createSystemAiMcpTools(options.systemAiMcp);
-      tools.push(...mcpTools);
     }
-    this.tools = tools;
+  }
+
+  private get tools(): RegisteredTool[] {
+    return [...this.baseTools, ...this.dynamicMcpTools];
+  }
+
+  /**
+   * Replace connected MCP tools (Connectors dialog / discovery sync).
+   * Pass [] to disconnect everything that came from MCP.
+   */
+  replaceMcpTools(tools: RegisteredTool[]): void {
+    this.dynamicMcpTools = tools;
+  }
+
+  /** Tool names currently offered to the LLM (base + connected MCP). */
+  listToolNames(): string[] {
+    return this.tools.map((tool) => tool.definition.name);
   }
 
   getApprovals(): ApprovalStore {
@@ -632,18 +653,21 @@ export class ChatService {
             refusals.push({ toolCall, reason: refusal });
             continue;
           }
-          // create_bot / sandbox_delete / ask_choice always Ask-first.
+          // create_bot / sandbox_delete / ask_choice / genie_ask always Ask-first.
           // Default meta + sandbox_stop never Ask-first.
-          // Handoff autoApproveAll still requires Ask-first for sandbox tools and volume_write.
-          const handoffBlocked =
-            opts.autoApproveAll && !isAskFirstSandboxTool(toolCall.name) && !isAskFirstVolumeWrite(toolCall.name);
+          // Handoff autoApproveAll still requires Ask-first for sandbox, volume_write, and MCP tools.
+          const handoffAuto =
+            opts.autoApproveAll &&
+            !isAskFirstSandboxTool(toolCall.name) &&
+            !isAskFirstVolumeWrite(toolCall.name) &&
+            !isConnectedMcpTool(toolCall.name);
           if (
             !requiresAlwaysAsk(toolCall.name) &&
             (isDefaultMetaTool(toolCall.name) ||
               isAutoRoutineTool(toolCall.name) ||
               isAutoSandboxTool(toolCall.name) ||
               (await this.approvals.isAutoApproved(chatId, toolCall.name)) ||
-              handoffBlocked)
+              handoffAuto)
           ) {
             toAutoExecute.push(toolCall);
           } else {

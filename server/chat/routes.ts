@@ -3,10 +3,17 @@ import { z } from 'zod';
 import type { Bot, ChatStore, MarketplaceBot } from '../../shared/chat/types.js';
 import { AVAILABLE_DATABRICKS_MCPS } from '../../shared/agents/mcp-types.js';
 import type { McpDiscoveryService } from '../agents/tools/mcp-discovery.js';
+import { buildConnectedMcpTools } from '../agents/tools/mcp-tools.js';
 import { canManageSpaceMembers, canViewerAccessSpace } from './access-policy.js';
 import { runWithDatabricksRequestAuth } from './databricks-auth.js';
 import { resolveOwnerId } from './identity.js';
 import type { ChatService } from './service.js';
+
+async function syncConnectedMcpTools(discovery: McpDiscoveryService, service: ChatService): Promise<void> {
+  const clientConfig = discovery.getClientConfig();
+  const tools = await buildConnectedMcpTools(discovery, clientConfig);
+  service.replaceMcpTools(tools);
+}
 
 const postMessageSchema = z.object({
   content: z.string().trim().min(1, 'Message content is required'),
@@ -196,10 +203,48 @@ export function registerChatRoutes(
         res.json({ mcps });
         return;
       }
-      const viable = AVAILABLE_DATABRICKS_MCPS.filter((m) => m.isViable !== false);
+      const viable = AVAILABLE_DATABRICKS_MCPS.filter((m) => m.isViable !== false).map((m) => ({
+        ...m,
+        connected: false,
+      }));
       res.json({ mcps: viable });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.post('/api/mcps/connect', async (req: Request, res: Response) => {
+    if (!options?.mcpDiscovery) {
+      res.status(400).json({ error: 'MCP discovery service not configured' });
+      return;
+    }
+    const serviceName = typeof req.body?.service === 'string' ? req.body.service.trim() : '';
+    if (!serviceName) {
+      res.status(400).json({ error: 'service name is required' });
+      return;
+    }
+    try {
+      const mcp = await options.mcpDiscovery.connect(serviceName);
+      await syncConnectedMcpTools(options.mcpDiscovery, service);
+      res.json({ mcp, toolNames: service.listToolNames().filter((n) => n.startsWith('mcp_') || n.startsWith('genie_')) });
+    } catch (err) {
+      res.status(400).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.delete('/api/mcps/connect/:service(*)', async (req: Request, res: Response) => {
+    if (!options?.mcpDiscovery) {
+      res.status(400).json({ error: 'MCP discovery service not configured' });
+      return;
+    }
+    const rawService = req.params.service;
+    const serviceName = Array.isArray(rawService) ? rawService.join('/') : String(rawService ?? '');
+    try {
+      const removed = options.mcpDiscovery.disconnect(serviceName);
+      await syncConnectedMcpTools(options.mcpDiscovery, service);
+      res.json({ success: removed });
+    } catch (err) {
+      res.status(400).json({ error: errorMessage(err) });
     }
   });
 
@@ -218,21 +263,32 @@ export function registerChatRoutes(
         name: typeof req.body?.name === 'string' ? req.body.name : undefined,
         description: typeof req.body?.description === 'string' ? req.body.description : undefined,
       });
+      await syncConnectedMcpTools(options.mcpDiscovery, service);
       res.status(201).json({ mcp: appItem });
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });
     }
   });
 
-  app.delete('/api/mcps/:service(*)', (req: Request, res: Response) => {
+  app.delete('/api/mcps/:service(*)', async (req: Request, res: Response) => {
     if (!options?.mcpDiscovery) {
       res.status(400).json({ error: 'MCP discovery service not configured' });
       return;
     }
     const rawService = req.params.service;
-    const service = Array.isArray(rawService) ? rawService.join('/') : String(rawService ?? '');
-    const removed = options.mcpDiscovery.removeCustomMcp(service);
-    res.json({ success: removed });
+    const mcpService = Array.isArray(rawService) ? rawService.join('/') : String(rawService ?? '');
+    // Avoid treating "connect/…" as a custom-service delete when path order is ambiguous.
+    if (mcpService === 'connect' || mcpService.startsWith('connect/')) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    try {
+      const removed = options.mcpDiscovery.removeCustomMcp(mcpService);
+      await syncConnectedMcpTools(options.mcpDiscovery, service);
+      res.json({ success: removed });
+    } catch (err) {
+      res.status(400).json({ error: errorMessage(err) });
+    }
   });
 
   app.get('/api/bots', async (req: Request, res: Response) => {

@@ -20,7 +20,13 @@ import {
   Trash2,
 } from 'lucide-react';
 import { AVAILABLE_DATABRICKS_MCPS, type DatabricksMcpApp } from '../../../shared/agents/mcp-types.js';
-import { fetchMcps, registerCustomMcp, removeCustomMcp } from '../lib/chat-api.js';
+import {
+  connectMcp,
+  disconnectMcp,
+  fetchMcps,
+  registerCustomMcp,
+  removeCustomMcp,
+} from '../lib/chat-api.js';
 
 export type ConnectorApp = DatabricksMcpApp;
 
@@ -28,16 +34,15 @@ export const DEFAULT_VIABLE_MCPS: ConnectorApp[] = AVAILABLE_DATABRICKS_MCPS.fil
 export const CONNECTOR_APPS: ConnectorApp[] = DEFAULT_VIABLE_MCPS;
 
 const STORAGE_KEY = 'bricksbot.connected_apps';
-const DEFAULT_CONNECTED = ['genie-one', 'databricks-dbsql', 'databricks-web-search'];
 
 function readConnectedApps(): Set<string> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set(DEFAULT_CONNECTED);
+    if (!raw) return new Set();
     const parsed = JSON.parse(raw) as string[];
-    return new Set(Array.isArray(parsed) ? parsed : DEFAULT_CONNECTED);
+    return new Set(Array.isArray(parsed) ? parsed : []);
   } catch {
-    return new Set(DEFAULT_CONNECTED);
+    return new Set();
   }
 }
 
@@ -75,21 +80,33 @@ export function ConnectorsDialog({
   const [customService, setCustomService] = useState<string>('');
   const [customName, setCustomName] = useState<string>('');
   const [submittingCustom, setSubmittingCustom] = useState<boolean>(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
 
-  const loadMcps = useCallback(async (refresh = false) => {
-    setLoading(true);
-    setAddError(null);
-    try {
-      const data = await fetchMcps(refresh);
-      if (Array.isArray(data) && data.length > 0) {
-        setApps(data.filter((item) => item.isViable !== false));
-      }
-    } catch {
-    } finally {
-      setLoading(false);
-    }
+  const applyServerConnected = useCallback((list: ConnectorApp[]) => {
+    const next = new Set(list.filter((app) => app.connected).map((app) => app.id));
+    setConnectedIds(next);
+    saveConnectedApps(next);
   }, []);
+
+  const loadMcps = useCallback(
+    async (refresh = false) => {
+      setLoading(true);
+      setAddError(null);
+      try {
+        const data = await fetchMcps(refresh);
+        if (Array.isArray(data) && data.length > 0) {
+          const viable = data.filter((item) => item.isViable !== false);
+          setApps(viable);
+          applyServerConnected(viable);
+        }
+      } catch {
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applyServerConnected]
+  );
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -104,17 +121,38 @@ export function ConnectorsDialog({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, loadMcps]);
 
-  const toggleConnect = (id: string) => {
-    setConnectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+  const toggleConnect = async (app: ConnectorApp) => {
+    if (togglingId) return;
+    const currentlyConnected = connectedIds.has(app.id);
+    setTogglingId(app.id);
+    setAddError(null);
+    try {
+      if (currentlyConnected) {
+        await disconnectMcp(app.service);
+        setConnectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(app.id);
+          saveConnectedApps(next);
+          return next;
+        });
+        setApps((prev) => prev.map((item) => (item.id === app.id ? { ...item, connected: false } : item)));
       } else {
-        next.add(id);
+        const updated = await connectMcp(app.service);
+        setConnectedIds((prev) => {
+          const next = new Set(prev);
+          next.add(updated.id);
+          saveConnectedApps(next);
+          return next;
+        });
+        setApps((prev) =>
+          prev.map((item) => (item.service === updated.service ? { ...updated, connected: true } : item))
+        );
       }
-      saveConnectedApps(next);
-      return next;
-    });
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to update MCP connection');
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const handleAddCustom = async (e: FormEvent) => {
@@ -127,11 +165,16 @@ export function ConnectorsDialog({
       const created = await registerCustomMcp(service, {
         name: customName.trim() || undefined,
       });
-      setApps((prev) => [...prev.filter((a) => a.service !== created.service), created]);
+      setApps((prev) => [...prev.filter((a) => a.service !== created.service), { ...created, connected: true }]);
+      setConnectedIds((prev) => {
+        const next = new Set(prev);
+        next.add(created.id);
+        saveConnectedApps(next);
+        return next;
+      });
       setCustomService('');
       setCustomName('');
       setShowAddCustom(false);
-      toggleConnect(created.id);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Failed to register MCP service');
     } finally {
@@ -139,10 +182,10 @@ export function ConnectorsDialog({
     }
   };
 
-  const handleDeleteCustom = async (service: string, id: string) => {
+  const handleDeleteCustom = async (serviceName: string, id: string) => {
     try {
-      await removeCustomMcp(service);
-      setApps((prev) => prev.filter((a) => a.service !== service));
+      await removeCustomMcp(serviceName);
+      setApps((prev) => prev.filter((a) => a.service !== serviceName));
       setConnectedIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -268,10 +311,16 @@ export function ConnectorsDialog({
           <button
             type="button"
             className={isConnected ? 'connector-action-btn is-connected' : 'connector-action-btn'}
-            onClick={() => toggleConnect(app.id)}
+            onClick={() => void toggleConnect(app)}
+            disabled={togglingId === app.id}
             aria-label={isConnected ? `Disconnect ${app.name}` : `Connect ${app.name}`}
           >
-            {isConnected ? (
+            {togglingId === app.id ? (
+              <>
+                <RotateCw size={14} className="spin" />
+                <span>{isConnected ? 'Disconnecting…' : 'Connecting…'}</span>
+              </>
+            ) : isConnected ? (
               <>
                 <Check size={14} strokeWidth={2.5} />
                 <span>Connected</span>
@@ -470,6 +519,7 @@ export function ConnectorsDialog({
         </div>
 
         <div className="connectors-body">
+          {addError && !showAddCustom ? <div className="connectors-error-banner">{addError}</div> : null}
           <div className="connectors-section">
             <div className="connectors-section-header">
               <span className="connectors-section-title">{sectionTitle}</span>

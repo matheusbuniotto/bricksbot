@@ -15,8 +15,12 @@ import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idem
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
 import { parseVolumeQuotaLimits, resolveVolumeRoot } from './agents/tools/volume-namespace.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
-import { systemAiMcpConfigFromEnv } from './agents/tools/system-ai-mcp.js';
+import {
+  DEFAULT_GENIE_SERVICE_NAME,
+  systemAiMcpConfigFromEnv,
+} from './agents/tools/system-ai-mcp.js';
 import { McpDiscoveryService } from './agents/tools/mcp-discovery.js';
+import { buildConnectedMcpTools } from './agents/tools/mcp-tools.js';
 import { parseAllowlist } from './agents/tools/web-fetch.js';
 import { LakebaseMemorySkillStore } from './agents/memory/lakebase-store.js';
 import { MemoryMemorySkillStore } from './agents/memory/memory-store.js';
@@ -125,6 +129,19 @@ createApp({
         systemAiMcp.host = sqlQuery.host;
       }
     }
+    const mcpDiscovery = new McpDiscoveryService({
+      host: systemAiMcp?.host || sqlQuery.host,
+      getToken: systemAiMcp?.getToken || sqlQuery.getToken,
+      workspaceId: systemAiMcp?.workspaceId,
+      userSchemas: process.env.DATABRICKS_MCP_SCHEMAS
+        ? process.env.DATABRICKS_MCP_SCHEMAS.split(',').map((s) => s.trim())
+        : undefined,
+    });
+    // Env opt-in Genie: mark connected so tools register without a UI click.
+    // Connectors dialog is the path for additional system.ai / custom MCPs.
+    if (systemAiMcp) {
+      mcpDiscovery.markConnected(systemAiMcp.serviceName ?? DEFAULT_GENIE_SERVICE_NAME);
+    }
     const chatService = new ChatService({
       store: chats,
       client,
@@ -145,16 +162,24 @@ createApp({
             limits: parseVolumeQuotaLimits(process.env),
           }
         : undefined,
-      systemAiMcp,
     });
-    const mcpDiscovery = new McpDiscoveryService({
-      host: systemAiMcp?.host || sqlQuery.host,
-      getToken: systemAiMcp?.getToken || sqlQuery.getToken,
-      workspaceId: systemAiMcp?.workspaceId,
-      userSchemas: process.env.DATABRICKS_MCP_SCHEMAS
-        ? process.env.DATABRICKS_MCP_SCHEMAS.split(',').map((s) => s.trim())
-        : undefined,
-    });
+    try {
+      const mcpTools = await buildConnectedMcpTools(mcpDiscovery, {
+        ...mcpDiscovery.getClientConfig(),
+        maxPollSeconds: systemAiMcp?.maxPollSeconds,
+        pollIntervalMs: systemAiMcp?.pollIntervalMs,
+      });
+      chatService.replaceMcpTools(mcpTools);
+      if (mcpTools.length > 0) {
+        console.info(
+          `[bricksbot] Connected MCP tools: ${mcpTools.map((t) => t.definition.name).join(', ')}`
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[bricksbot] Failed to register connected MCP tools: ${err instanceof Error ? err.message : err}`
+      );
+    }
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {
       registerChatRoutes(app, chats, chatService, { mcpDiscovery });

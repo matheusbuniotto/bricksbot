@@ -66,8 +66,9 @@ describe('ConnectorsDialog Component', () => {
     expect(html).not.toContain('connector-expand-btn');
     expect(html).not.toContain('connector-source-badge');
 
-    expect(html).toContain('class="connector-action-btn is-connected"');
-    expect(html).toContain('Connected');
+    // Connected state comes from the server after open; SSR default is disconnected.
+    expect(html).toContain('>Connect<');
+    expect(html).toContain('connected');
   });
 
   test('renders close and utility controls with accessibility labels', () => {
