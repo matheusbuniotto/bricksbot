@@ -108,29 +108,6 @@
       "count": 2
     }
   },
-  "server/agents/tools/mcp-discovery.test.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
-    },
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 9
-    },
-    "@typescript-eslint/require-await": {
-      "count": 4
-    }
-  },
   "server/agents/tools/pi-skills-tools.test.ts": {
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 9

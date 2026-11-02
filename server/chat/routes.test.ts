@@ -352,27 +352,30 @@ describe('chat HTTP API', () => {
 
   test('connect registers MCP tools on ChatService and disconnect removes them', async () => {
     const { McpDiscoveryService } = await import('../agents/tools/mcp-discovery.js');
-    const mockFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === 'string' ? input : input.toString();
+    const mockFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const bodyText = typeof init?.body === 'string' ? init.body : '{}';
       if (url.includes('/ai-gateway/mcp-services/system.ai.web_search')) {
-        const body = JSON.parse(String(init?.body ?? '{}')) as { id: number; method: string };
+        const body = JSON.parse(bodyText) as { id: number; method: string };
         if (body.method === 'tools/list') {
-          return new Response(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: { tools: [{ name: 'web_search', description: 'Search' }] },
-            }),
-            { status: 200 }
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: { tools: [{ name: 'web_search', description: 'Search' }] },
+              }),
+              { status: 200 }
+            )
           );
         }
       }
-      return new Response('Not Found', { status: 404 });
-    };
+      return Promise.resolve(new Response('Not Found', { status: 404 }));
+    }) as typeof fetch;
     const mcpDiscovery = new McpDiscoveryService({
       host: 'https://workspace.cloud.databricks.com',
-      getToken: async () => 'tok',
-      fetchImpl: mockFetch as typeof fetch,
+      getToken: () => Promise.resolve('tok'),
+      fetchImpl: mockFetch,
     });
 
     await withChatApp(

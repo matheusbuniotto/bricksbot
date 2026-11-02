@@ -3,6 +3,16 @@ import { McpDiscoveryService } from './mcp-discovery.js';
 import { buildConnectedMcpTools, createGenericMcpTools, isConnectedMcpTool, mcpToolName } from './mcp-tools.js';
 import { UnityGatewayMcpClient } from './mcp-client.js';
 
+function requestUrl(input: Parameters<typeof fetch>[0]): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
+function requestBody(init?: RequestInit): string {
+  return typeof init?.body === 'string' ? init.body : '{}';
+}
+
 describe('mcp-tools', () => {
   it('namespaced tool ids and detects connected MCP tools', () => {
     expect(mcpToolName('system.ai.web_search', 'web_search')).toBe('mcp_system_ai_web_search_web_search');
@@ -13,9 +23,9 @@ describe('mcp-tools', () => {
 
   it('createGenericMcpTools forwards tools/call and returns text', async () => {
     const calls: Array<{ service: string; tool: string; args: Record<string, unknown> }> = [];
-    const mockFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === 'string' ? input : input.toString();
-      const body = JSON.parse(String(init?.body ?? '{}')) as {
+    const mockFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = requestUrl(input);
+      const body = JSON.parse(requestBody(init)) as {
         id: number;
         method: string;
         params?: { name?: string; arguments?: Record<string, unknown> };
@@ -23,22 +33,24 @@ describe('mcp-tools', () => {
       const service = decodeURIComponent(url.match(/\/ai-gateway\/mcp-services\/([^?]+)/)?.[1] ?? '');
       if (body.method === 'tools/call') {
         calls.push({ service, tool: body.params?.name ?? '', args: body.params?.arguments ?? {} });
-        return new Response(
-          JSON.stringify({
-            jsonrpc: '2.0',
-            id: body.id,
-            result: { content: [{ type: 'text', text: 'search hits' }] },
-          }),
-          { status: 200 }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: { content: [{ type: 'text', text: 'search hits' }] },
+            }),
+            { status: 200 }
+          )
         );
       }
-      return new Response('Not Found', { status: 404 });
-    };
+      return Promise.resolve(new Response('Not Found', { status: 404 }));
+    }) as typeof fetch;
 
     const client = new UnityGatewayMcpClient({
       host: 'https://workspace.cloud.databricks.com',
-      getToken: async () => 'tok',
-      fetchImpl: mockFetch as typeof fetch,
+      getToken: () => Promise.resolve('tok'),
+      fetchImpl: mockFetch,
     });
 
     const tools = createGenericMcpTools(client, 'system.ai.web_search', [
@@ -67,28 +79,30 @@ describe('mcp-tools', () => {
   });
 
   it('buildConnectedMcpTools registers Genie specialists and generic MCP tools', async () => {
-    const mockFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === 'string' ? input : input.toString();
-      const body = JSON.parse(String(init?.body ?? '{}')) as { id: number; method: string };
+    const mockFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = requestUrl(input);
+      const body = JSON.parse(requestBody(init)) as { id: number; method: string };
       const service = decodeURIComponent(url.match(/\/ai-gateway\/mcp-services\/([^?]+)/)?.[1] ?? '');
 
       if (body.method === 'tools/list' && service === 'system.ai.web_search') {
-        return new Response(
-          JSON.stringify({
-            jsonrpc: '2.0',
-            id: body.id,
-            result: { tools: [{ name: 'web_search', description: 'Search the public web' }] },
-          }),
-          { status: 200 }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: { tools: [{ name: 'web_search', description: 'Search the public web' }] },
+            }),
+            { status: 200 }
+          )
         );
       }
-      return new Response('Not Found', { status: 404 });
-    };
+      return Promise.resolve(new Response('Not Found', { status: 404 }));
+    }) as typeof fetch;
 
     const discovery = new McpDiscoveryService({
       host: 'https://workspace.cloud.databricks.com',
-      getToken: async () => 'tok',
-      fetchImpl: mockFetch as typeof fetch,
+      getToken: () => Promise.resolve('tok'),
+      fetchImpl: mockFetch,
     });
     discovery.markConnected('system.ai.genie_one_mcp');
     discovery.markConnected('system.ai.web_search');
