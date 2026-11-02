@@ -32,6 +32,11 @@ import { createMemorySkillTools } from '../agents/tools/memory-tools.js';
 import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
 import { createSqlQueryTool, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
 import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tools/volume-read.js';
+import {
+  createVolumeWriteTool,
+  isAskFirstVolumeWrite,
+  type VolumeWriteToolOptions,
+} from '../agents/tools/volume-write.js';
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
 import { createPinChartTool } from '../agents/tools/pin-chart.js';
 import { ASK_CHOICE_TOOL_NAME, createAskChoiceTool, planAskChoice } from '../agents/tools/ask-choice.js';
@@ -50,6 +55,7 @@ import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
 import type { ArtifactSyncService } from '../sandbox/artifact-sync.js';
 import type { SandboxSessionService } from '../sandbox/session-service.js';
+import { MemoryVolumeUsageStore } from '../volumes/usage-store.js';
 import { ApprovalStore } from './approvals.js';
 import { ChoiceStore } from './choices.js';
 
@@ -73,6 +79,10 @@ export interface ChatServiceOptions {
   sqlQuery?: SqlQueryToolOptions;
   lakehouseCatalog?: SqlQueryToolOptions;
   volumeRead?: VolumeReadToolOptions;
+  /** Registered only when a Volume root is configured. */
+  volumeWrite?: Omit<VolumeWriteToolOptions, 'chatStore' | 'usage'> & {
+    usage?: VolumeWriteToolOptions['usage'];
+  };
   /** Defaults to an in-memory store so meta tools stay on for every bot. */
   memory?: MemorySkillStore;
   /** Defaults to in-memory so schedule_routine works in tests/local without Lakebase. */
@@ -90,6 +100,11 @@ export interface ChatServiceOptions {
 export type RegisteredTool = {
   definition: ToolDefinition;
   preflight?: (args: Record<string, unknown>, ctx: HandoffTurnContext) => string | null | Promise<string | null>;
+  /** Display fields merged onto the approval card. Execute ignores them and recomputes the path. */
+  approvalArguments?: (
+    args: Record<string, unknown>,
+    ctx: HandoffTurnContext
+  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
   execute(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string>;
 };
 
@@ -192,6 +207,15 @@ export class ChatService {
         }
       )
     );
+    if (options.volumeWrite?.root) {
+      tools.push(
+        createVolumeWriteTool({
+          ...options.volumeWrite,
+          chatStore: options.store,
+          usage: options.volumeWrite.usage ?? new MemoryVolumeUsageStore(),
+        })
+      );
+    }
     tools.push(createHandoffTool(options.store));
     tools.push(createCreateBotTool(options.store, this.memory));
     tools.push(...createMemorySkillTools(this.memory));
@@ -236,7 +260,11 @@ export class ChatService {
     return this.options.sandbox;
   }
 
-  async sendUserMessage(chatId: string, content: string, options?: { requestId?: string }): Promise<SendMessageResult> {
+  async sendUserMessage(
+    chatId: string,
+    content: string,
+    options?: { requestId?: string; routine?: boolean }
+  ): Promise<SendMessageResult> {
     const trimmed = content.trim();
     if (!trimmed) {
       throw new Error('Message content is required');
@@ -251,7 +279,7 @@ export class ChatService {
     }
 
     const user = await this.options.store.addMessage(chatId, 'user', trimmed);
-    const result = await this.continueTurn(chatId, user);
+    const result = await this.continueTurn(chatId, user, 0, { routine: options?.routine === true });
 
     if (requestId && this.options.idempotency) {
       await this.options.idempotency.put(requestId, chatId, JSON.stringify(result));
@@ -565,14 +593,16 @@ export class ChatService {
           }
           // create_bot / sandbox_delete / ask_choice always Ask-first.
           // Default meta + sandbox_stop never Ask-first.
-          // Handoff autoApproveAll still requires Ask-first for sandbox exec/upload/download/artifact.
+          // Handoff autoApproveAll still requires Ask-first for sandbox tools and volume_write.
+          const handoffBlocked =
+            opts.autoApproveAll && !isAskFirstSandboxTool(toolCall.name) && !isAskFirstVolumeWrite(toolCall.name);
           if (
             !requiresAlwaysAsk(toolCall.name) &&
             (isDefaultMetaTool(toolCall.name) ||
               isAutoRoutineTool(toolCall.name) ||
               isAutoSandboxTool(toolCall.name) ||
               (await this.approvals.isAutoApproved(chatId, toolCall.name)) ||
-              (opts.autoApproveAll && !isAskFirstSandboxTool(toolCall.name)))
+              handoffBlocked)
           ) {
             toAutoExecute.push(toolCall);
           } else {
@@ -604,7 +634,11 @@ export class ChatService {
 
         if (needsApproval.length > 0) {
           const pendingApprovals = await Promise.all(
-            needsApproval.map((toolCall) => this.approvals.create(chatId, toolCall))
+            needsApproval.map(async (toolCall) => {
+              const extra = await this.toolFor(toolCall.name)?.approvalArguments?.(toolCall.arguments, turnCtx);
+              const call = extra ? { ...toolCall, arguments: { ...toolCall.arguments, ...extra } } : toolCall;
+              return this.approvals.create(chatId, call);
+            })
           );
           const pause = await this.pauseSnapshot(chatId);
           return {
@@ -736,7 +770,8 @@ export class ChatService {
     if (!planned.ok) return planned.error;
 
     const { sender, target, brief } = planned.plan;
-    const targetChat = await this.options.store.getOrCreateChatForBot(target.id, sender.ownerId);
+    const callerId = ctx.userId?.trim() || sender.ownerId;
+    const targetChat = await this.options.store.getOrCreateChatForBot(target.id, callerId);
     const sourceChatId = ctx.chatId;
     const briefLine = handoffBriefUserLine(sender.name, brief);
 
@@ -760,7 +795,11 @@ export class ChatService {
 
     let reply: string;
     try {
-      const nested = await this.continueTurn(targetChat.id, undefined, 0, { autoApproveAll: true });
+      const nested = await this.continueTurn(targetChat.id, undefined, 0, {
+        autoApproveAll: true,
+        callerUserId: callerId,
+        routine: ctx.routine,
+      });
       reply = nested.assistant?.content?.trim() || '(no reply)';
     } catch (err) {
       reply = `(handoff failed) ${err instanceof Error ? err.message : 'Unexpected error'}`;

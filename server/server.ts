@@ -3,6 +3,7 @@ import type { ChatStore } from '../shared/chat/types.js';
 import type { CompactionStore, IdempotencyStore } from '../shared/durable/types.js';
 import type { MemorySkillStore } from '../shared/agents/memory/types.js';
 import type { RoutineStore } from '../shared/routines/types.js';
+import type { VolumeUsageStore } from '../shared/agents/volume-namespace.js';
 import type { SandboxStore } from '../shared/sandbox/types.js';
 import { ApprovalStore } from './chat/approvals.js';
 import { LakebaseChatStore, type LakebaseQuery } from './chat/lakebase-store.js';
@@ -12,6 +13,7 @@ import { ChatService } from './chat/service.js';
 import { LakebaseCompactionStore, MemoryCompactionStore } from './durable/compaction-store.js';
 import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idempotency-store.js';
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
+import { parseVolumeQuotaLimits, resolveVolumeRoot } from './agents/tools/volume-namespace.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
 import { systemAiMcpConfigFromEnv } from './agents/tools/system-ai-mcp.js';
 import { McpDiscoveryService } from './agents/tools/mcp-discovery.js';
@@ -28,6 +30,7 @@ import { MemorySandboxStore } from './sandbox/memory-store.js';
 import { SandboxReaper } from './sandbox/reaper.js';
 import { createSandboxRegistryFromEnv } from './sandbox/registry.js';
 import { SandboxSessionService } from './sandbox/session-service.js';
+import { LakebaseVolumeUsageStore, MemoryVolumeUsageStore } from './volumes/usage-store.js';
 
 function lakebaseConfigured(): boolean {
   return Boolean(process.env.LAKEBASE_ENDPOINT || process.env.PGHOST);
@@ -41,6 +44,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   idempotency: IdempotencyStore;
   approvals: ApprovalStore;
   sandbox: SandboxStore;
+  volumeUsage: VolumeUsageStore;
 }> {
   const ownerId = process.env.BRICKSBOT_USER_ID?.trim() || 'workspace-user';
   if (lakebaseConfigured() && query) {
@@ -55,6 +59,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       idempotency: new LakebaseIdempotencyStore(query),
       approvals: new ApprovalStore(query),
       sandbox: new LakebaseSandboxStore(query),
+      volumeUsage: new LakebaseVolumeUsageStore(query),
     };
   }
 
@@ -69,6 +74,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     idempotency: new MemoryIdempotencyStore(),
     approvals: new ApprovalStore(),
     sandbox: new MemorySandboxStore(),
+    volumeUsage: new MemoryVolumeUsageStore(),
   };
 }
 
@@ -81,7 +87,9 @@ createApp({
       'lakebase' in appkit && appkit.lakebase
         ? (sql: string, params?: unknown[]) => appkit.lakebase.query(sql, params)
         : undefined;
-    const { chats, routines, memory, compaction, idempotency, approvals, sandbox } = await createStores(query);
+    const { chats, routines, memory, compaction, idempotency, approvals, sandbox, volumeUsage } =
+      await createStores(query);
+    const volumeRoot = resolveVolumeRoot(process.env);
     const client = createChatClientFromEnv(process.env);
     console.info(`[bricksbot] ChatClient provider=${client.provider}`);
     const sqlQuery = sqlQueryConfigFromEnv(process.env);
@@ -128,6 +136,15 @@ createApp({
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
       sqlQuery,
       sandbox: sandboxService,
+      volumeWrite: volumeRoot
+        ? {
+            root: volumeRoot,
+            host: sqlQuery.host,
+            getToken: sqlQuery.getToken,
+            usage: volumeUsage,
+            limits: parseVolumeQuotaLimits(process.env),
+          }
+        : undefined,
       systemAiMcp,
     });
     const mcpDiscovery = new McpDiscoveryService({

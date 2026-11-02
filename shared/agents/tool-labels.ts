@@ -4,6 +4,7 @@ const TOOL_LABELS: Record<string, string> = {
   sql_query: 'SQL query',
   lakehouse_catalog: 'Catalog browse',
   volume_read: 'Volume read',
+  volume_write: 'Volume write',
   web_fetch: 'Web fetch',
   handoff_to_bot: 'Message another bot',
   create_bot: 'Create a bot',
@@ -51,6 +52,8 @@ export function approvalTitle(toolName: string): string {
       return 'Allow this bot to browse the lakehouse catalog?';
     case 'volume_read':
       return 'Allow this bot to read a volume file?';
+    case 'volume_write':
+      return 'Allow this bot to write a file to your volume folder?';
     case 'web_fetch':
       return 'Allow this bot to fetch a web page?';
     case 'handoff_to_bot':
