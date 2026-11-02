@@ -75,6 +75,7 @@ export default function App() {
   const [createOpen, setCreateOpen] = useState(false);
   const [marketplaceBots, setMarketplaceBots] = useState<MarketplaceBot[]>([]);
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -572,10 +573,12 @@ export default function App() {
         selectedBotId={selectedBotId}
         createOpen={createOpen}
         marketplaceOpen={marketplaceOpen}
+        connectorsOpen={connectorsOpen}
         theme={theme}
         onThemeChange={handleThemeChange}
         onCreateOpenChange={setCreateOpen}
         onMarketplaceOpenChange={setMarketplaceOpen}
+        onConnectorsOpenChange={setConnectorsOpen}
         onSelectBot={handleSelectBot}
         onCreateBot={handleCreateBot}
         onInstallMarketplaceBot={handleInstallMarketplaceBot}
@@ -689,6 +692,7 @@ export default function App() {
           sandboxBusy={sandboxBusy}
           autoApprovedTools={autoApprovedTools}
           onRevokeAutoApproval={handleRevokeAutoApproval}
+          onOpenConnectors={() => setConnectorsOpen(true)}
           width={detailsWidth}
           minWidth={DETAILS_WIDTH_MIN}
           maxWidth={DETAILS_WIDTH_MAX}

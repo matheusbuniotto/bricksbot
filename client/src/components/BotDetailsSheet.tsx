@@ -17,12 +17,13 @@ import {
 import { BotPicker } from './BotPicker';
 import { RoutinesPanel } from './RoutinesPanel';
 
-export type BotDetailsTab = 'details' | 'library' | 'computer';
+export type BotDetailsTab = 'details' | 'library' | 'computer' | 'permissions';
 
 const TAB_LABELS: Record<BotDetailsTab, string> = {
   details: 'Details',
   library: 'Library',
   computer: 'Computer',
+  permissions: 'Permissions',
 };
 
 const LIBRARY_PAGE_SIZE = 6;
@@ -120,6 +121,7 @@ export function BotDetailsSheet({
   sandboxBusy,
   autoApprovedTools = [],
   onRevokeAutoApproval,
+  onOpenConnectors,
   width,
   minWidth,
   maxWidth,
@@ -133,6 +135,7 @@ export function BotDetailsSheet({
   onClose,
   onChangeLook,
   onUpdateBotConfig,
+  initialTab = 'details',
 }: {
   bot: Bot;
   messages: Message[];
@@ -144,6 +147,10 @@ export function BotDetailsSheet({
   /** Tools the user chose “Always allow” for in this chat. */
   autoApprovedTools?: string[];
   onRevokeAutoApproval?: (toolName?: string) => void | Promise<void>;
+  /** Opens the workspace connectors dialog. */
+  onOpenConnectors?: () => void;
+  /** Initial side-panel tab (tests / deep links). */
+  initialTab?: BotDetailsTab;
   width: number;
   minWidth: number;
   maxWidth: number;
@@ -169,7 +176,7 @@ export function BotDetailsSheet({
     patch: { description?: string; isShared?: boolean },
   ) => Promise<void>;
 }) {
-  const [tab, setTab] = useState<BotDetailsTab>('details');
+  const [tab, setTab] = useState<BotDetailsTab>(initialTab);
   const [libraryExpanded, setLibraryExpanded] = useState(false);
   const [resizing, setResizing] = useState(false);
   const [editLook, setEditLook] = useState<BotLook | null>(null);
@@ -367,49 +374,6 @@ export function BotDetailsSheet({
               </section>
             ) : null}
 
-            <section className="bot-details-section" aria-label="Auto-approved tools">
-              <div className="bot-details-section-heading">
-                <h3 className="bot-details-section-label">Auto-approved tools</h3>
-                {autoApprovedTools.length > 1 && onRevokeAutoApproval ? (
-                  <button
-                    type="button"
-                    className="bot-details-section-action"
-                    onClick={() => void onRevokeAutoApproval()}
-                  >
-                    Clear all
-                  </button>
-                ) : null}
-              </div>
-              {autoApprovedTools.length === 0 ? (
-                <div className="bot-details-card">
-                  <p className="bot-details-muted-copy">
-                    When you choose Always allow on an approval, that tool skips asking in this chat.
-                    Nothing is auto-approved yet.
-                  </p>
-                </div>
-              ) : (
-                <div className="bot-details-card">
-                  <ul className="bot-details-file-list">
-                    {autoApprovedTools.map((tool) => (
-                      <li key={tool} className="bot-details-approval-row">
-                        <span className="bot-details-approval-name">{toolLabel(tool)}</span>
-                        {onRevokeAutoApproval ? (
-                          <button
-                            type="button"
-                            className="bot-details-approval-revoke"
-                            aria-label={`Revoke auto-approval for ${toolLabel(tool)}`}
-                            onClick={() => void onRevokeAutoApproval(tool)}
-                          >
-                            Revoke
-                          </button>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </section>
-
             <RoutinesPanel
               bots={[bot]}
               routines={routines}
@@ -559,6 +523,84 @@ export function BotDetailsSheet({
                 ) : null}
               </div>
             )}
+          </div>
+        ) : null}
+
+        {tab === 'permissions' ? (
+          <div
+            role="tabpanel"
+            aria-label="Permissions and connections"
+            className="bot-details-panel"
+          >
+            <div className="bot-details-sections">
+              <section className="bot-details-section" aria-label="Tool permissions">
+                <div className="bot-details-section-heading">
+                  <h3 className="bot-details-section-label">Tool permissions</h3>
+                  {autoApprovedTools.length > 1 && onRevokeAutoApproval ? (
+                    <button
+                      type="button"
+                      className="bot-details-section-action"
+                      onClick={() => void onRevokeAutoApproval()}
+                    >
+                      Clear all
+                    </button>
+                  ) : null}
+                </div>
+                {autoApprovedTools.length === 0 ? (
+                  <div className="bot-details-card">
+                    <p className="bot-details-muted-copy">
+                      When you choose Always allow on an approval, that tool skips asking again in
+                      this chat. Nothing is auto-approved yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bot-details-card">
+                    <ul className="bot-details-file-list">
+                      {autoApprovedTools.map((tool) => (
+                        <li key={tool} className="bot-details-approval-row">
+                          <span className="bot-details-approval-name">{toolLabel(tool)}</span>
+                          {onRevokeAutoApproval ? (
+                            <button
+                              type="button"
+                              className="bot-details-approval-revoke"
+                              aria-label={`Revoke auto-approval for ${toolLabel(tool)}`}
+                              onClick={() => void onRevokeAutoApproval(tool)}
+                            >
+                              Revoke
+                            </button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+
+              <section className="bot-details-section" aria-label="Connections">
+                <h3 className="bot-details-section-label">Connections</h3>
+                <div className="bot-details-card bot-details-computer-card">
+                  <p className="bot-details-computer-copy">
+                    Connect Databricks MCP apps and external tools available to bots in this
+                    workspace.
+                  </p>
+                  {onOpenConnectors ? (
+                    <div className="bot-details-computer-actions">
+                      <button
+                        type="button"
+                        className="pane-btn pane-btn-solid"
+                        onClick={onOpenConnectors}
+                      >
+                        Manage connectors
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="bot-details-muted-copy" style={{ padding: 0 }}>
+                      Open Connectors from the left sidebar to manage apps.
+                    </p>
+                  )}
+                </div>
+              </section>
+            </div>
           </div>
         ) : null}
       </div>

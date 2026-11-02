@@ -64,10 +64,12 @@ export function BotRoster({
   selectedBotId,
   createOpen,
   marketplaceOpen = false,
+  connectorsOpen: connectorsOpenControlled,
   theme,
   onThemeChange,
   onCreateOpenChange,
   onMarketplaceOpenChange,
+  onConnectorsOpenChange,
   onSelectBot,
   onCreateBot,
   onInstallMarketplaceBot,
@@ -88,10 +90,13 @@ export function BotRoster({
   selectedBotId: string | null;
   createOpen: boolean;
   marketplaceOpen?: boolean;
+  /** Controlled connectors dialog; falls back to local state when omitted. */
+  connectorsOpen?: boolean;
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
   onCreateOpenChange: (open: boolean) => void;
   onMarketplaceOpenChange?: (open: boolean) => void;
+  onConnectorsOpenChange?: (open: boolean) => void;
   onSelectBot: (botId: string) => void | Promise<void>;
   onCreateBot: (
     name: string,
@@ -125,7 +130,9 @@ export function BotRoster({
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [pendingDropBotId, setPendingDropBotId] = useState<string | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
-  const [connectorsOpen, setConnectorsOpen] = useState(false);
+  const [connectorsOpenLocal, setConnectorsOpenLocal] = useState(false);
+  const connectorsOpen = connectorsOpenControlled ?? connectorsOpenLocal;
+  const setConnectorsOpen = onConnectorsOpenChange ?? setConnectorsOpenLocal;
   const renameRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
