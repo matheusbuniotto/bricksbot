@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { McpDiscoveryService } from './mcp-discovery.js';
-import {
-  buildConnectedMcpTools,
-  createGenericMcpTools,
-  isConnectedMcpTool,
-  mcpToolName,
-} from './mcp-tools.js';
+import { buildConnectedMcpTools, createGenericMcpTools, isConnectedMcpTool, mcpToolName } from './mcp-tools.js';
 import { UnityGatewayMcpClient } from './mcp-client.js';
 
 describe('mcp-tools', () => {
@@ -60,14 +55,15 @@ describe('mcp-tools', () => {
 
     expect(tools).toHaveLength(1);
     expect(tools[0].definition.name).toBe('mcp_system_ai_web_search_web_search');
-    const result = await tools[0].execute({ query: 'lakehouse' }, {
-      chatId: 'c1',
-      bot: null,
-    });
+    const result = await tools[0].execute(
+      { query: 'lakehouse' },
+      {
+        chatId: 'c1',
+        bot: null,
+      }
+    );
     expect(result).toBe('search hits');
-    expect(calls).toEqual([
-      { service: 'system.ai.web_search', tool: 'web_search', args: { query: 'lakehouse' } },
-    ]);
+    expect(calls).toEqual([{ service: 'system.ai.web_search', tool: 'web_search', args: { query: 'lakehouse' } }]);
   });
 
   it('buildConnectedMcpTools registers Genie specialists and generic MCP tools', async () => {

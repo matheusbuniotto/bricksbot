@@ -398,10 +398,9 @@ describe('chat HTTP API', () => {
         };
         expect(mcps.find((m) => m.service === 'system.ai.web_search')?.connected).toBe(true);
 
-        const disconnectRes = await fetch(
-          `${baseUrl}/api/mcps/connect/${encodeURIComponent('system.ai.web_search')}`,
-          { method: 'DELETE' }
-        );
+        const disconnectRes = await fetch(`${baseUrl}/api/mcps/connect/${encodeURIComponent('system.ai.web_search')}`, {
+          method: 'DELETE',
+        });
         expect(disconnectRes.status).toBe(200);
         expect(service.listToolNames()).not.toContain('mcp_system_ai_web_search_web_search');
       },

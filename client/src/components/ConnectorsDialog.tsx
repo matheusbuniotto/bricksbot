@@ -20,13 +20,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { AVAILABLE_DATABRICKS_MCPS, type DatabricksMcpApp } from '../../../shared/agents/mcp-types.js';
-import {
-  connectMcp,
-  disconnectMcp,
-  fetchMcps,
-  registerCustomMcp,
-  removeCustomMcp,
-} from '../lib/chat-api.js';
+import { connectMcp, disconnectMcp, fetchMcps, registerCustomMcp, removeCustomMcp } from '../lib/chat-api.js';
 
 export type ConnectorApp = DatabricksMcpApp;
 

@@ -20,13 +20,10 @@ describe('sandbox artifact volume path', () => {
   });
 
   test('explicit volume_path stays a validated /Volumes path', () => {
-    const resolved = resolveArtifactVolumePath(
-      'plot.png',
-      CHAT,
-      '/Volumes/main/default/shared/plot.png',
-      ROOT,
-      { userId: 'alice@co.com', botId: BOT }
-    );
+    const resolved = resolveArtifactVolumePath('plot.png', CHAT, '/Volumes/main/default/shared/plot.png', ROOT, {
+      userId: 'alice@co.com',
+      botId: BOT,
+    });
     expect(resolved.ok).toBe(true);
     if (resolved.ok) expect(resolved.volumePath).toBe('/Volumes/main/default/shared/plot.png');
   });

@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import { DEFAULT_VOLUME_USER_QUOTA_BYTES, DEFAULT_VOLUME_WRITE_MAX_BYTES } from '../../../shared/agents/volume-namespace.js';
+import {
+  DEFAULT_VOLUME_USER_QUOTA_BYTES,
+  DEFAULT_VOLUME_WRITE_MAX_BYTES,
+} from '../../../shared/agents/volume-namespace.js';
 import {
   assessVolumeQuota,
   parseVolumeQuotaLimits,
@@ -79,9 +82,9 @@ describe('volume namespace paths', () => {
 
   test('quota rejects over-size and over-user writes and leaves other users untouched in the check', () => {
     const limits = parseVolumeQuotaLimits({});
-    expect(
-      assessVolumeQuota({ userBytes: 0, botBytes: 0, incomingBytes: limits.maxWriteBytes + 1, limits }).ok
-    ).toBe(false);
+    expect(assessVolumeQuota({ userBytes: 0, botBytes: 0, incomingBytes: limits.maxWriteBytes + 1, limits }).ok).toBe(
+      false
+    );
     const atCap = assessVolumeQuota({
       userBytes: limits.userQuotaBytes - 10,
       botBytes: 0,

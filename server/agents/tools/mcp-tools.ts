@@ -2,11 +2,7 @@ import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { McpClientConfig, McpToolDefinition } from '../../../shared/agents/mcp-types.js';
 import type { HandoffTurnContext } from '../handoff.js';
 import { UnityGatewayMcpClient } from './mcp-client.js';
-import {
-  createSystemAiMcpTools,
-  DEFAULT_GENIE_SERVICE_NAME,
-  type RegisteredTool,
-} from './system-ai-mcp.js';
+import { createSystemAiMcpTools, DEFAULT_GENIE_SERVICE_NAME, type RegisteredTool } from './system-ai-mcp.js';
 import type { McpDiscoveryService } from './mcp-discovery.js';
 
 /** OpenAI tool names created for connected non-Genie MCP services. */

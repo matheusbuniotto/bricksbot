@@ -111,13 +111,7 @@ export class McpDiscoveryService {
     this.clearCache();
 
     const custom = this.customServices.get(cleanService);
-    return this.buildMcpAppFromService(
-      cleanService,
-      probe.tools,
-      custom?.name,
-      custom?.description,
-      custom?.source
-    );
+    return this.buildMcpAppFromService(cleanService, probe.tools, custom?.name, custom?.description, custom?.source);
   }
 
   disconnect(serviceName: string): boolean {

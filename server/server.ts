@@ -15,10 +15,7 @@ import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idem
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
 import { parseVolumeQuotaLimits, resolveVolumeRoot } from './agents/tools/volume-namespace.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
-import {
-  DEFAULT_GENIE_SERVICE_NAME,
-  systemAiMcpConfigFromEnv,
-} from './agents/tools/system-ai-mcp.js';
+import { DEFAULT_GENIE_SERVICE_NAME, systemAiMcpConfigFromEnv } from './agents/tools/system-ai-mcp.js';
 import { McpDiscoveryService } from './agents/tools/mcp-discovery.js';
 import { buildConnectedMcpTools } from './agents/tools/mcp-tools.js';
 import { parseAllowlist } from './agents/tools/web-fetch.js';
@@ -171,14 +168,10 @@ createApp({
       });
       chatService.replaceMcpTools(mcpTools);
       if (mcpTools.length > 0) {
-        console.info(
-          `[bricksbot] Connected MCP tools: ${mcpTools.map((t) => t.definition.name).join(', ')}`
-        );
+        console.info(`[bricksbot] Connected MCP tools: ${mcpTools.map((t) => t.definition.name).join(', ')}`);
       }
     } catch (err) {
-      console.warn(
-        `[bricksbot] Failed to register connected MCP tools: ${err instanceof Error ? err.message : err}`
-      );
+      console.warn(`[bricksbot] Failed to register connected MCP tools: ${err instanceof Error ? err.message : err}`);
     }
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {

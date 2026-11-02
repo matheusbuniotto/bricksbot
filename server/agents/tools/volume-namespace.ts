@@ -107,10 +107,7 @@ function normalizeRelativePath(raw: string): { ok: true; path: string } | { ok: 
  * Files land under the signed-in caller, not the bot owner.
  * Two people chatting with one shared bot get two trees.
  */
-export function resolveNamespacedVolumePath(
-  namespace: VolumeNamespace,
-  relativePath: string
-): NamespacedVolumePath {
+export function resolveNamespacedVolumePath(namespace: VolumeNamespace, relativePath: string): NamespacedVolumePath {
   const root = namespace.root.trim().replace(/\/+$/, '');
   if (!root.startsWith('/Volumes/') || root.includes('..')) {
     return { ok: false, error: 'volume_write requires a Unity Catalog volume root' };

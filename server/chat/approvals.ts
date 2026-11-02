@@ -88,17 +88,15 @@ export class ApprovalStore {
     }
   }
 
-  private async appendEvent(
-    input: {
-      chatId: string;
-      approvalId: string | null;
-      botId?: string | null;
-      userId?: string | null;
-      type: ApprovalEventType;
-      toolName: string;
-      payload: Record<string, unknown>;
-    }
-  ): Promise<ApprovalEvent> {
+  private async appendEvent(input: {
+    chatId: string;
+    approvalId: string | null;
+    botId?: string | null;
+    userId?: string | null;
+    type: ApprovalEventType;
+    toolName: string;
+    payload: Record<string, unknown>;
+  }): Promise<ApprovalEvent> {
     const event: ApprovalEvent = {
       id: randomUUID(),
       chatId: input.chatId,

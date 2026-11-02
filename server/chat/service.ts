@@ -353,11 +353,7 @@ export class ChatService {
     const isDenial = effectiveDecision === 'denied' || effectiveDecision === 'not_approved';
 
     const trailMeta = await this.trailMetaForChat(pending.chatId, opts?.decidedBy);
-    const { request: approval, applied } = await this.approvals.decide(
-      approvalId,
-      effectiveDecision,
-      trailMeta
-    );
+    const { request: approval, applied } = await this.approvals.decide(approvalId, effectiveDecision, trailMeta);
     const chatId = approval.chatId;
     // Double-click / race: already settled — return current pause without re-running tools.
     if (!applied) {

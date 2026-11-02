@@ -226,7 +226,10 @@ export function registerChatRoutes(
     try {
       const mcp = await options.mcpDiscovery.connect(serviceName);
       await syncConnectedMcpTools(options.mcpDiscovery, service);
-      res.json({ mcp, toolNames: service.listToolNames().filter((n) => n.startsWith('mcp_') || n.startsWith('genie_')) });
+      res.json({
+        mcp,
+        toolNames: service.listToolNames().filter((n) => n.startsWith('mcp_') || n.startsWith('genie_')),
+      });
     } catch (err) {
       res.status(400).json({ error: errorMessage(err) });
     }
