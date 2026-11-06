@@ -78,7 +78,7 @@ describe('McpDiscoveryService', () => {
     });
 
     const initial = await discovery.listViableMcps({ refresh: true });
-    expect(initial.map((m) => m.service)).toEqual(['system.ai.genie_one_mcp', 'system.ai.dbsql']);
+    expect(initial.map((m) => m.service)).toEqual(['system.ai.genie_one_mcp', 'system.ai.dbsql', 'plugin.teatools']);
     expect(initial.find((m) => m.service === 'system.ai.slack')).toBeUndefined();
 
     fakeTools['system.ai.slack'] = ['search_messages', 'read_channel'];

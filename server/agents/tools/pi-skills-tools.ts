@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { MemorySkillStore } from '../../../shared/agents/memory/types.js';
 import { mergeEffectiveSkills, resolveEffectiveSkill } from '../../../shared/agents/effective-skills.js';
+import { loadBundledSkillPack } from '../memory/skill-packs.js';
 import type { HandoffTurnContext } from '../handoff.js';
 
 type RegisteredTool = {
@@ -83,16 +84,20 @@ export function createActivateSkillTool(memory: MemorySkillStore): RegisteredToo
           available,
         });
       }
+      const bundledPack = await loadBundledSkillPack(skill.name);
+      const resources = bundledPack ? Object.keys(bundledPack.resources) : [SKILL_BODY_PATH];
       return JSON.stringify({
         ok: true,
         name: skill.name,
         source: skill.source,
         instructions: skill.body,
-        resources: [SKILL_BODY_PATH],
+        resources,
         note:
           skill.source === 'seed'
             ? 'Built-in seed skill. Call read_skill_resource with path SKILL.md for the body. save_skill with the same name overrides this seed for this bot.'
-            : 'Markdown Lakebase skill. Call read_skill_resource with path SKILL.md for the body. Bundled Volume packs are not available yet.',
+            : bundledPack
+              ? 'Bundled skill pack. Call read_skill_resource with any path in resources.'
+              : 'Markdown Lakebase skill. Call read_skill_resource with path SKILL.md for the body. Bundled Volume packs are not available yet.',
       });
     },
   };
@@ -140,11 +145,27 @@ export function createReadSkillResourceTool(memory: MemorySkillStore): Registere
         });
       }
       if (!isSkillBodyPath(ref.path)) {
+        const bundledPack = await loadBundledSkillPack(skill.name);
+        const normalizedPath = normalizeSkillPath(ref.path);
+        const hitKey = bundledPack
+          ? Object.keys(bundledPack.resources).find((k) => k.toLowerCase() === normalizedPath.toLowerCase())
+          : undefined;
+        if (bundledPack && hitKey) {
+          return JSON.stringify({
+            ok: true,
+            name: skill.name,
+            source: skill.source,
+            path: hitKey,
+            content: bundledPack.resources[hitKey],
+          });
+        }
         return JSON.stringify({
           ok: false,
           error: `Resource not found: ${ref.path}`,
-          available: [SKILL_BODY_PATH],
-          note: 'Only SKILL.md (skill body) is available until UC Volume skill packs land.',
+          available: bundledPack ? Object.keys(bundledPack.resources) : [SKILL_BODY_PATH],
+          note: bundledPack
+            ? 'Provide one of the available bundled resource paths.'
+            : 'Only SKILL.md (skill body) is available until UC Volume skill packs land.',
         });
       }
       return JSON.stringify({

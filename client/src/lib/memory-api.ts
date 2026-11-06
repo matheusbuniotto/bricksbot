@@ -40,6 +40,28 @@ export async function createSkill(botId: string, name: string, body: string): Pr
   return data.skill;
 }
 
+export async function importSkill(botId: string, url: string): Promise<BotSkill> {
+  const data = await readJson<{ skill: BotSkill }>(
+    await fetch(`/api/bots/${botId}/skills/import`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
+  );
+  return data.skill;
+}
+
+export async function installSkillPack(botId: string, pack: string): Promise<BotSkill> {
+  const data = await readJson<{ skill: BotSkill }>(
+    await fetch(`/api/bots/${botId}/skills/import`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pack }),
+    })
+  );
+  return data.skill;
+}
+
 export async function deleteSkill(botId: string, skillId: string): Promise<void> {
   const res = await fetch(`/api/bots/${botId}/skills/${skillId}`, { method: 'DELETE' });
   if (res.status === 204) return;

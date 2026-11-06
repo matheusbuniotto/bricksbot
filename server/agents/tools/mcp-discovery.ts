@@ -1,5 +1,6 @@
 import {
   AVAILABLE_DATABRICKS_MCPS,
+  BUILTIN_PLUGIN_MCPS,
   DEFAULT_DATABRICKS_ORG_ID,
   DEFAULT_DATABRICKS_WORKSPACE_HOST,
   buildDatabricksMcpServiceUrl,
@@ -215,12 +216,15 @@ export class McpDiscoveryService {
     customDescription?: string,
     forcedSource?: McpSource
   ): DatabricksMcpApp {
-    const known = AVAILABLE_DATABRICKS_MCPS.find((item) => item.service === service);
+    const known =
+      AVAILABLE_DATABRICKS_MCPS.find((item) => item.service === service) ??
+      BUILTIN_PLUGIN_MCPS.find((item) => item.service === service);
     const parts = service.split('.');
     const catalog = parts.length > 2 ? parts[0] : undefined;
     const schema = parts.length > 2 ? parts[1] : undefined;
     const shortName = parts[parts.length - 1] ?? service;
-    const source: McpSource = forcedSource ?? (service.startsWith('system.ai') ? 'system' : 'user');
+    const source: McpSource =
+      forcedSource ?? (service.startsWith('system.ai') || service.startsWith('plugin.') ? 'system' : 'user');
 
     const connected = this.connectedServices.has(service);
 
@@ -276,10 +280,12 @@ export class McpDiscoveryService {
     }
 
     if (!this.config.host || !this.config.getToken) {
-      const viable = AVAILABLE_DATABRICKS_MCPS.filter((app) => app.isViable).map((app) => ({
-        ...app,
-        connected: this.connectedServices.has(app.service),
-      }));
+      const viable = [...AVAILABLE_DATABRICKS_MCPS, ...BUILTIN_PLUGIN_MCPS]
+        .filter((app) => app.isViable)
+        .map((app) => ({
+          ...app,
+          connected: this.connectedServices.has(app.service),
+        }));
       const custom = Array.from(this.customServices.values()).map((meta) => {
         const service = meta.service!;
         return this.buildMcpAppFromService(
@@ -314,7 +320,7 @@ export class McpDiscoveryService {
       }
     }
 
-    for (const app of AVAILABLE_DATABRICKS_MCPS) {
+    for (const app of [...AVAILABLE_DATABRICKS_MCPS, ...BUILTIN_PLUGIN_MCPS]) {
       if (!discoveredCandidates.has(app.service)) {
         discoveredCandidates.set(app.service, {
           name: app.name,

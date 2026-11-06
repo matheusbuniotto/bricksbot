@@ -5,15 +5,22 @@ import type { MemorySkillStore } from '../../../shared/agents/memory/types.js';
 import { canViewerAccessSpace } from '../../chat/access-policy.js';
 import { resolveOwnerId } from '../../chat/identity.js';
 import type { ChatHttpApp } from '../../chat/routes.js';
+import { importSkillFromUrl } from './skill-import.js';
+import { loadBundledSkillPack } from './skill-packs.js';
 
 const upsertMemorySchema = z.object({
   key: z.string().trim().min(1).max(128),
   content: z.string().trim().min(1).max(8_000),
 });
 
+const importSkillSchema = z.object({
+  url: z.string().trim().max(2_000).optional(),
+  pack: z.string().trim().max(128).optional(),
+});
+
 const createSkillSchema = z.object({
   name: z.string().trim().min(1).max(64),
-  body: z.string().trim().min(1).max(16_000),
+  body: z.string().trim().min(1).max(32_000),
 });
 
 function errorMessage(err: unknown): string {
@@ -65,7 +72,12 @@ async function assertBotAccess(
 }
 
 /** Register per-bot memory upsert and skill CRUD on the chat app. */
-export function registerMemoryRoutes(app: ChatHttpApp, chats: ChatStore, memory: MemorySkillStore): void {
+export function registerMemoryRoutes(
+  app: ChatHttpApp,
+  chats: ChatStore,
+  memory: MemorySkillStore,
+  options: { fetchImpl?: typeof fetch } = {}
+): void {
   app.get('/api/bots/:botId/memories', async (req: Request, res: Response) => {
     try {
       const access = await assertBotAccess(chats, String(req.params.botId), req, res);
@@ -123,6 +135,39 @@ export function registerMemoryRoutes(app: ChatHttpApp, chats: ChatStore, memory:
     } catch (err) {
       const status = isNotFound(err) ? 404 : isConflict(err) ? 409 : isBadRequest(err) ? 400 : 500;
       res.status(status).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.post('/api/bots/:botId/skills/import', async (req: Request, res: Response) => {
+    const parsed = importSkillSchema.safeParse(req.body);
+    const url = parsed.success ? parsed.data.url?.trim() : '';
+    const packName = parsed.success ? parsed.data.pack?.trim() : '';
+    if (!url && !packName) {
+      res.status(400).json({ error: 'Skill URL or pack name is required' });
+      return;
+    }
+    try {
+      const access = await assertBotAccess(chats, String(req.params.botId), req, res);
+      if (!access) return;
+      if (access.bot.ownerId !== access.callerId) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+      if (packName) {
+        const pack = await loadBundledSkillPack(packName);
+        if (!pack) {
+          res.status(404).json({ error: `Skill pack not found: ${packName}` });
+          return;
+        }
+        const skill = await memory.upsertSkill(access.bot.id, pack.entry.name, pack.body);
+        res.status(201).json({ skill });
+        return;
+      }
+      const imported = await importSkillFromUrl(url!, options.fetchImpl);
+      const skill = await memory.upsertSkill(access.bot.id, imported.name, imported.body);
+      res.status(201).json({ skill });
+    } catch (err) {
+      res.status(400).json({ error: errorMessage(err) });
     }
   });
 
