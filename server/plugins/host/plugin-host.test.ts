@@ -105,9 +105,9 @@ describe('PluginHost', () => {
   describe('Boundary validation', () => {
     test('rejects missing metadata', async () => {
       const host = new PluginHost();
-      await expect(
-        host.registerPlugin({} as unknown as BricksbotPlugin)
-      ).rejects.toThrow('Plugin metadata is required');
+      await expect(host.registerPlugin({} as unknown as BricksbotPlugin)).rejects.toThrow(
+        'Plugin metadata is required'
+      );
     });
 
     test('rejects missing or empty metadata name and version', async () => {
@@ -380,9 +380,7 @@ describe('PluginHost', () => {
       };
 
       const beforeTurnResult = await host.executeBeforeTurn(turnCtx);
-      expect(beforeTurnResult.injectSystemPrompt).toBe(
-        'Security guideline: never output plain credentials.'
-      );
+      expect(beforeTurnResult.injectSystemPrompt).toBe('Security guideline: never output plain credentials.');
 
       await host.executeAfterTurn(turnCtx);
       expect(afterTurnFired).toBe(true);

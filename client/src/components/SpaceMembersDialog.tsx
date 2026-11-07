@@ -104,23 +104,25 @@ export function SpaceMembersDialog({
       return;
     }
     const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      setSearching(true);
-      try {
-        const results = await searchWorkspaceUsers(space.id, trimmed, controller.signal);
-        setSuggestions(results);
-        setActiveIndex(results.length > 0 ? 0 : -1);
-        setDropdownOpen(results.length > 0);
-      } catch {
-        if (!controller.signal.aborted) {
-          setSuggestions([]);
-          setDropdownOpen(false);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setSearching(true);
+        try {
+          const results = await searchWorkspaceUsers(space.id, trimmed, controller.signal);
+          setSuggestions(results);
+          setActiveIndex(results.length > 0 ? 0 : -1);
+          setDropdownOpen(results.length > 0);
+        } catch {
+          if (!controller.signal.aborted) {
+            setSuggestions([]);
+            setDropdownOpen(false);
+          }
+        } finally {
+          if (!controller.signal.aborted) {
+            setSearching(false);
+          }
         }
-      } finally {
-        if (!controller.signal.aborted) {
-          setSearching(false);
-        }
-      }
+      })();
     }, 250);
     return () => {
       window.clearTimeout(timer);

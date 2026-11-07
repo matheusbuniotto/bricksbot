@@ -50,10 +50,7 @@ export class PluginHost {
     this.afterToolHooks = this.afterToolHooks.filter((entry) => entry.pluginName !== pluginName);
   }
 
-  async registerPlugin(
-    pluginOrInit: BricksbotPlugin | PluginInitializer,
-    metadata?: PluginMetadata
-  ): Promise<void> {
+  async registerPlugin(pluginOrInit: BricksbotPlugin | PluginInitializer, metadata?: PluginMetadata): Promise<void> {
     const candidateName =
       typeof pluginOrInit === 'function' ? metadata?.name : (metadata?.name ?? pluginOrInit?.metadata?.name);
     if (candidateName && this.plugins.has(candidateName)) {
@@ -272,11 +269,7 @@ export class PluginHost {
     return modified ? { overrideArgs: currentArgs } : {};
   }
 
-  async executeAfterTool(
-    toolName: string,
-    result: string,
-    ctx: PluginExecutionContext
-  ): Promise<string> {
+  async executeAfterTool(toolName: string, result: string, ctx: PluginExecutionContext): Promise<string> {
     let currentResult = result;
 
     for (const { handler } of this.afterToolHooks) {
@@ -329,15 +322,13 @@ export class PluginHost {
       neverAlwaysAllow,
       pluginName,
       preflight: tool.preflight
-        ? (args: Record<string, unknown>, ctx: HandoffTurnContext) =>
-            tool.preflight!(args, this.bridgeContext(ctx))
+        ? (args: Record<string, unknown>, ctx: HandoffTurnContext) => tool.preflight!(args, this.bridgeContext(ctx))
         : undefined,
       approvalArguments: tool.approvalArguments
         ? (args: Record<string, unknown>, ctx: HandoffTurnContext) =>
             tool.approvalArguments!(args, this.bridgeContext(ctx))
         : undefined,
-      execute: (args: Record<string, unknown>, ctx: HandoffTurnContext) =>
-        tool.execute(args, this.bridgeContext(ctx)),
+      execute: (args: Record<string, unknown>, ctx: HandoffTurnContext) => tool.execute(args, this.bridgeContext(ctx)),
     };
 
     this.registeredTools.set(tool.name, registeredTool);

@@ -311,7 +311,9 @@ describe('ChatService + PluginHost integration', () => {
 
     expect(client.recordedCompletions).toHaveLength(1);
     const msgs = client.recordedCompletions[0].messages as Array<{ role: string; content: string }>;
-    const injected = msgs.find((m) => m.role === 'system' && m.content === 'Dynamic context: High-priority customer turn.');
+    const injected = msgs.find(
+      (m) => m.role === 'system' && m.content === 'Dynamic context: High-priority customer turn.'
+    );
     expect(injected).toBeDefined();
     expect(afterTurnCount).toBe(1);
   });

@@ -6,7 +6,7 @@ describe('DatabricksWorkspaceUserDirectory', () => {
     const fetchImpl = vi.fn();
     const directory = new DatabricksWorkspaceUserDirectory({
       host: 'https://example.cloud.databricks.com',
-      getToken: async () => 'test-token',
+      getToken: () => Promise.resolve('test-token'),
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
@@ -18,32 +18,33 @@ describe('DatabricksWorkspaceUserDirectory', () => {
   test('searches active users with SCIM filter and maps attributes', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        Resources: [
-          {
-            id: '123',
-            userName: 'alice@example.com',
-            displayName: 'Alice Smith',
-            active: true,
-          },
-          {
-            id: '456',
-            userName: 'inactive@example.com',
-            displayName: 'Inactive User',
-            active: false,
-          },
-          {
-            id: '789',
-            emails: [{ value: 'bob@example.com', primary: true }],
-            active: true,
-          },
-        ],
-      }),
+      json: () =>
+        Promise.resolve({
+          Resources: [
+            {
+              id: '123',
+              userName: 'alice@example.com',
+              displayName: 'Alice Smith',
+              active: true,
+            },
+            {
+              id: '456',
+              userName: 'inactive@example.com',
+              displayName: 'Inactive User',
+              active: false,
+            },
+            {
+              id: '789',
+              emails: [{ value: 'bob@example.com', primary: true }],
+              active: true,
+            },
+          ],
+        }),
     });
 
     const directory = new DatabricksWorkspaceUserDirectory({
       host: 'https://example.cloud.databricks.com',
-      getToken: async () => 'test-token',
+      getToken: () => Promise.resolve('test-token'),
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
@@ -76,12 +77,12 @@ describe('DatabricksWorkspaceUserDirectory', () => {
   test('escapes SCIM string characters in query', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ Resources: [] }),
+      json: () => Promise.resolve({ Resources: [] }),
     });
 
     const directory = new DatabricksWorkspaceUserDirectory({
       host: 'https://example.cloud.databricks.com',
-      getToken: async () => 'test-token',
+      getToken: () => Promise.resolve('test-token'),
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
@@ -94,21 +95,22 @@ describe('DatabricksWorkspaceUserDirectory', () => {
   test('findActiveUserByEmail returns matching user or null', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        Resources: [
-          {
-            id: '123',
-            userName: 'alice@example.com',
-            displayName: 'Alice Smith',
-            active: true,
-          },
-        ],
-      }),
+      json: () =>
+        Promise.resolve({
+          Resources: [
+            {
+              id: '123',
+              userName: 'alice@example.com',
+              displayName: 'Alice Smith',
+              active: true,
+            },
+          ],
+        }),
     });
 
     const directory = new DatabricksWorkspaceUserDirectory({
       host: 'https://example.cloud.databricks.com',
-      getToken: async () => 'test-token',
+      getToken: () => Promise.resolve('test-token'),
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
@@ -129,12 +131,12 @@ describe('DatabricksWorkspaceUserDirectory', () => {
       ok: false,
       status: 403,
       statusText: 'Forbidden',
-      text: async () => 'SCIM API disabled in workspace',
+      text: () => Promise.resolve('SCIM API disabled in workspace'),
     });
 
     const directory = new DatabricksWorkspaceUserDirectory({
       host: 'https://example.cloud.databricks.com',
-      getToken: async () => 'test-token',
+      getToken: () => Promise.resolve('test-token'),
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 

@@ -74,7 +74,12 @@ export class RegistryPluginLoader {
       let found = false;
       for (const candidate of candidates) {
         const candidatePath = path.join(entryFile, candidate);
-        if (await fs.access(candidatePath).then(() => true).catch(() => false)) {
+        if (
+          await fs
+            .access(candidatePath)
+            .then(() => true)
+            .catch(() => false)
+        ) {
           entryFile = candidatePath;
           found = true;
           break;
@@ -99,7 +104,10 @@ export class RegistryPluginLoader {
     const metadata: PluginMetadata = {
       name: record.name,
       version: typeof target === 'object' && target.metadata?.version ? target.metadata.version : '1.0.0',
-      description: typeof target === 'object' && target.metadata?.description ? target.metadata.description : `Plugin ${record.name}`,
+      description:
+        typeof target === 'object' && target.metadata?.description
+          ? target.metadata.description
+          : `Plugin ${record.name}`,
     };
 
     if (typeof target === 'function') {

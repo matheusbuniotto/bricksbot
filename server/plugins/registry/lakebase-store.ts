@@ -98,9 +98,6 @@ export class LakebasePluginRegistryStore implements PluginRegistryStore {
   }
 
   async deletePlugin(name: string): Promise<void> {
-    await this.query(
-      `DELETE FROM bricksbot.plugins WHERE name = $1`,
-      [name]
-    );
+    await this.query(`DELETE FROM bricksbot.plugins WHERE name = $1`, [name]);
   }
 }

@@ -16,9 +16,7 @@ export class MemoryPluginRegistryStore implements PluginRegistryStore {
     return Promise.resolve(this.records.get(name) ?? null);
   }
 
-  upsertPlugin(
-    input: Omit<PluginRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
-  ): Promise<PluginRecord> {
+  upsertPlugin(input: Omit<PluginRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<PluginRecord> {
     const existing = this.records.get(input.name);
     const now = nowIso();
     const record: PluginRecord = {

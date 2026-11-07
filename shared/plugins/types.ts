@@ -44,10 +44,7 @@ export interface PluginToolDefinition {
     args: Record<string, unknown>,
     ctx: PluginExecutionContext
   ) => Promise<Record<string, unknown>> | Record<string, unknown>;
-  preflight?: (
-    args: Record<string, unknown>,
-    ctx: PluginExecutionContext
-  ) => string | null | Promise<string | null>;
+  preflight?: (args: Record<string, unknown>, ctx: PluginExecutionContext) => string | null | Promise<string | null>;
   execute(args: Record<string, unknown>, ctx: PluginExecutionContext): Promise<string>;
 }
 
@@ -64,11 +61,7 @@ export interface PluginHooks {
     args: Record<string, unknown>,
     ctx: PluginExecutionContext
   ) => Promise<{ block?: string; overrideArgs?: Record<string, unknown> } | void>;
-  afterTool?: (
-    toolName: string,
-    result: string,
-    ctx: PluginExecutionContext
-  ) => Promise<string | void>;
+  afterTool?: (toolName: string, result: string, ctx: PluginExecutionContext) => Promise<string | void>;
 }
 
 export interface BricksbotPlugin {
@@ -106,10 +99,7 @@ export interface PluginRecord {
 export interface PluginRegistryStore {
   listPlugins(): Promise<PluginRecord[]>;
   getPlugin(name: string): Promise<PluginRecord | null>;
-  upsertPlugin(
-    record: Omit<PluginRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
-  ): Promise<PluginRecord>;
+  upsertPlugin(record: Omit<PluginRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<PluginRecord>;
   setPluginEnabled(name: string, enabled: boolean): Promise<PluginRecord>;
   deletePlugin(name: string): Promise<void>;
 }
-

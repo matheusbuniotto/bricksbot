@@ -591,14 +591,8 @@
       "link": null,
       "locked": false,
       "points": [
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          60
-        ]
+        [0, 0],
+        [0, 60]
       ],
       "lastCommittedPoint": null,
       "startBinding": null,
@@ -1130,14 +1124,8 @@
       "link": null,
       "locked": false,
       "points": [
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          70
-        ]
+        [0, 0],
+        [0, 70]
       ],
       "lastCommittedPoint": null,
       "startBinding": null,
@@ -1209,14 +1197,8 @@
       "link": null,
       "locked": false,
       "points": [
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          70
-        ]
+        [0, 0],
+        [0, 70]
       ],
       "lastCommittedPoint": null,
       "startBinding": null,
@@ -1288,14 +1270,8 @@
       "link": null,
       "locked": false,
       "points": [
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          70
-        ]
+        [0, 0],
+        [0, 70]
       ],
       "lastCommittedPoint": null,
       "startBinding": null,
@@ -1530,14 +1506,8 @@
       "link": null,
       "locked": false,
       "points": [
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          25
-        ]
+        [0, 0],
+        [0, 25]
       ],
       "lastCommittedPoint": null,
       "startBinding": null,
@@ -2430,14 +2400,8 @@
       "link": null,
       "locked": false,
       "points": [
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          60
-        ]
+        [0, 0],
+        [0, 60]
       ],
       "lastCommittedPoint": null,
       "startBinding": null,
@@ -2474,14 +2438,8 @@
       "link": null,
       "locked": false,
       "points": [
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          60
-        ]
+        [0, 0],
+        [0, 60]
       ],
       "lastCommittedPoint": null,
       "startBinding": null,
@@ -2553,14 +2511,8 @@
       "link": null,
       "locked": false,
       "points": [
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          60
-        ]
+        [0, 0],
+        [0, 60]
       ],
       "lastCommittedPoint": null,
       "startBinding": null,

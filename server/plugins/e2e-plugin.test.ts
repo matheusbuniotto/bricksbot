@@ -195,9 +195,7 @@ export default {
       const approvalData = (await approvalRes.json()) as {
         assistant: { content: string };
       };
-      expect(approvalData.assistant.content).toBe(
-        'There are 42 SKU-WIDGET-01 units in stock at [REDACTED_LOCATION].'
-      );
+      expect(approvalData.assistant.content).toBe('There are 42 SKU-WIDGET-01 units in stock at [REDACTED_LOCATION].');
 
       // Verify the redacted tool message in chat history
       const history = await store.listMessages(chat.id);
