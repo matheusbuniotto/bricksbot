@@ -5,6 +5,12 @@ import type { MemorySkillStore } from '../shared/agents/memory/types.js';
 import type { RoutineStore } from '../shared/routines/types.js';
 import type { VolumeUsageStore } from '../shared/agents/volume-namespace.js';
 import type { SandboxStore } from '../shared/sandbox/types.js';
+import type { PluginRegistryStore } from '../shared/plugins/types.js';
+import { PluginHost } from './plugins/host/plugin-host.js';
+import { VolumePluginLoader } from './plugins/loaders/volume-loader.js';
+import { LakebasePluginRegistryStore } from './plugins/registry/lakebase-store.js';
+import { MemoryPluginRegistryStore } from './plugins/registry/memory-store.js';
+import { registerPluginRoutes } from './plugins/routes.js';
 import { ApprovalStore } from './chat/approvals.js';
 import { LakebaseChatStore, type LakebaseQuery } from './chat/lakebase-store.js';
 import { MemoryChatStore } from './chat/memory-store.js';
@@ -46,6 +52,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   approvals: ApprovalStore;
   sandbox: SandboxStore;
   volumeUsage: VolumeUsageStore;
+  plugins: PluginRegistryStore;
 }> {
   const ownerId = process.env.BRICKSBOT_USER_ID?.trim() || 'workspace-user';
   if (lakebaseConfigured() && query) {
@@ -61,6 +68,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       approvals: new ApprovalStore(query),
       sandbox: new LakebaseSandboxStore(query),
       volumeUsage: new LakebaseVolumeUsageStore(query),
+      plugins: new LakebasePluginRegistryStore(query),
     };
   }
 
@@ -76,6 +84,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     approvals: new ApprovalStore(),
     sandbox: new MemorySandboxStore(),
     volumeUsage: new MemoryVolumeUsageStore(),
+    plugins: new MemoryPluginRegistryStore(),
   };
 }
 
@@ -88,8 +97,17 @@ createApp({
       'lakebase' in appkit && appkit.lakebase
         ? (sql: string, params?: unknown[]) => appkit.lakebase.query(sql, params)
         : undefined;
-    const { chats, routines, memory, compaction, idempotency, approvals, sandbox, volumeUsage } =
-      await createStores(query);
+    const {
+      chats,
+      routines,
+      memory,
+      compaction,
+      idempotency,
+      approvals,
+      sandbox,
+      volumeUsage,
+      plugins: pluginRegistry,
+    } = await createStores(query);
     const volumeRoot = resolveVolumeRoot(process.env);
     const client = createChatClientFromEnv(process.env);
     console.info(`[bricksbot] ChatClient provider=${client.provider}`);
@@ -139,6 +157,26 @@ createApp({
     if (systemAiMcp) {
       mcpDiscovery.markConnected(systemAiMcp.serviceName ?? DEFAULT_GENIE_SERVICE_NAME);
     }
+    const pluginHost = new PluginHost({
+      host: sqlQuery.host,
+    });
+    const volumePluginLoader = new VolumePluginLoader({
+      volumeRoot: process.env.BRICKSBOT_PLUGIN_VOLUME,
+      host: pluginHost,
+    });
+    try {
+      const loaded = await volumePluginLoader.loadAll();
+      if (loaded.loaded.length > 0) {
+        console.info(`[bricksbot] Loaded plugins: ${loaded.loaded.map((p) => p.name).join(', ')}`);
+      }
+      if (loaded.errors.length > 0) {
+        console.warn(
+          `[bricksbot] Plugin loading errors: ${loaded.errors.map((e) => `${String(e.pluginName)}: ${String(e.error)}`).join('; ')}`
+        );
+      }
+    } catch (err) {
+      console.warn(`[bricksbot] Volume plugin loader failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
     const chatService = new ChatService({
       store: chats,
       client,
@@ -147,6 +185,7 @@ createApp({
       compaction,
       idempotency,
       approvals,
+      pluginHost,
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
       sqlQuery,
       sandbox: sandboxService,
@@ -180,6 +219,11 @@ createApp({
       registerRoutineRoutes(app, routines, routineService, {
         provider: client.provider,
         chats,
+      });
+      registerPluginRoutes(app, {
+        pluginHost,
+        volumeLoader: volumePluginLoader,
+        registryStore: pluginRegistry,
       });
     });
   },

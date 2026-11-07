@@ -187,4 +187,16 @@ export const CHAT_SCHEMA_STATEMENTS = [
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (user_id, bot_id)
 )`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.plugins (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL CHECK (source IN ('volume', 'npm', 'builtin')),
+  source_path TEXT NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_plugins_enabled
+  ON bricksbot.plugins(enabled)`,
 ] as const;

@@ -59,6 +59,8 @@ import type { SandboxSessionService } from '../sandbox/session-service.js';
 import { MemoryVolumeUsageStore } from '../volumes/usage-store.js';
 import { ApprovalStore } from './approvals.js';
 import { ChoiceStore } from './choices.js';
+import { PluginHost } from '../plugins/host/plugin-host.js';
+import type { PluginExecutionContext, PluginPromptContext, PluginTurnContext } from '../../shared/plugins/types.js';
 
 /** Never persist “Always allow” for these tools. */
 function requiresAlwaysAsk(toolName: string): boolean {
@@ -96,6 +98,8 @@ export interface ChatServiceOptions {
   sandboxArtifactSync?: ArtifactSyncService;
   /** Optional Databricks One (Genie) and system.ai MCP tools. */
   systemAiMcp?: SystemAiMcpOptions | RegisteredTool[];
+  /** Optional PluginHost for dynamically loaded plugins and extensions. */
+  pluginHost?: PluginHost;
 }
 
 export type RegisteredTool = {
@@ -187,6 +191,7 @@ export class ChatService {
   private dynamicMcpTools: RegisteredTool[] = [];
   private readonly compactionSettings: CompactionSettings;
   private readonly memory: MemorySkillStore;
+  private readonly pluginHost?: PluginHost;
   private readonly activeTurnsByBot = new Map<string, number>();
   /** After a deny, skip auto-continue until the next user message for that chat. */
   private readonly denyPauseByChat = new Set<string>();
@@ -195,6 +200,7 @@ export class ChatService {
     this.approvals = options.approvals ?? new ApprovalStore();
     this.choices = options.choices ?? new ChoiceStore();
     this.compactionSettings = options.compactionSettings ?? DEFAULT_COMPACTION_SETTINGS;
+    this.pluginHost = options.pluginHost;
     // Meta tools (remember / skills / list_memories) are default for every bot.
     this.memory = options.memory ?? new MemoryMemorySkillStore();
     const allowlist = options.webFetchAllowlist ?? [];
@@ -251,7 +257,8 @@ export class ChatService {
   }
 
   private get tools(): RegisteredTool[] {
-    return [...this.baseTools, ...this.dynamicMcpTools];
+    const pluginTools = this.pluginHost ? this.pluginHost.getRegisteredTools() : [];
+    return [...this.baseTools, ...this.dynamicMcpTools, ...pluginTools];
   }
 
   /**
@@ -348,7 +355,7 @@ export class ChatService {
     }
 
     const effectiveDecision: ApprovalDecision =
-      decision === 'all_the_time' && requiresAlwaysAsk(pending.toolCall.name) ? 'once' : decision;
+      decision === 'all_the_time' && this.requiresAlwaysAsk(pending.toolCall.name) ? 'once' : decision;
     const isAlways = effectiveDecision === 'all_the_time' || effectiveDecision === 'always';
     const isDenial = effectiveDecision === 'denied' || effectiveDecision === 'not_approved';
 
@@ -604,7 +611,7 @@ export class ChatService {
 
     try {
       let history = await this.options.store.listMessages(chatId);
-      const systemPrompt = await this.systemPromptFor(bot, chat?.userId);
+      const systemPrompt = await this.systemPromptFor(bot, chat?.userId, chatId);
 
       if (this.options.compaction && shouldCompact(history, systemPrompt, this.compactionSettings)) {
         await runCompaction({
@@ -620,8 +627,28 @@ export class ChatService {
       const compaction = this.options.compaction ? await this.options.compaction.getLatest(chatId) : null;
       const { messages: windowed, summarySystem } = applyCompactionToHistory(history, compaction);
 
+      let pluginInjectedSystemPrompt: string | undefined;
+      if (this.pluginHost) {
+        const turnCtx: PluginTurnContext = {
+          chatId,
+          botId: botId ?? '',
+          userId: opts.callerUserId ?? chat?.userId,
+          host: this.options.sqlQuery?.host ?? 'localhost',
+          messages: windowed.map((m) => ({ role: m.role, content: m.content })),
+          model: this.options.client.provider,
+          log: {
+            info: () => {},
+            warn: () => {},
+            error: () => {},
+          },
+        };
+        const beforeTurnResult = await this.pluginHost.executeBeforeTurn(turnCtx);
+        pluginInjectedSystemPrompt = beforeTurnResult.injectSystemPrompt;
+      }
+
       const llmMessages: LlmMessage[] = [
         { role: 'system', content: systemPrompt },
+        ...(pluginInjectedSystemPrompt ? [{ role: 'system' as const, content: pluginInjectedSystemPrompt }] : []),
         ...(summarySystem ? [{ role: 'system' as const, content: summarySystem }] : []),
         ...toLlmHistory(windowed),
       ];
@@ -649,19 +676,23 @@ export class ChatService {
             refusals.push({ toolCall, reason: refusal });
             continue;
           }
+          const isPluginTool = Boolean(this.pluginHost?.hasTool(toolCall.name));
+          const isPluginAskFirst = isPluginTool && (this.pluginHost?.isAskFirst(toolCall.name) ?? true);
           // create_bot / sandbox_delete / ask_choice / genie_ask always Ask-first.
           // Default meta + sandbox_stop never Ask-first.
-          // Handoff autoApproveAll still requires Ask-first for sandbox, volume_write, and MCP tools.
+          // Handoff autoApproveAll still requires Ask-first for sandbox, volume_write, MCP tools, and plugin tools.
           const handoffAuto =
             opts.autoApproveAll &&
             !isAskFirstSandboxTool(toolCall.name) &&
             !isAskFirstVolumeWrite(toolCall.name) &&
-            !isConnectedMcpTool(toolCall.name);
+            !isConnectedMcpTool(toolCall.name) &&
+            !isPluginAskFirst;
           if (
-            !requiresAlwaysAsk(toolCall.name) &&
+            !this.requiresAlwaysAsk(toolCall.name) &&
             (isDefaultMetaTool(toolCall.name) ||
               isAutoRoutineTool(toolCall.name) ||
               isAutoSandboxTool(toolCall.name) ||
+              (isPluginTool && !isPluginAskFirst) ||
               (await this.approvals.isAutoApproved(chatId, toolCall.name)) ||
               handoffAuto)
           ) {
@@ -736,6 +767,23 @@ export class ChatService {
         completion.content?.trim() || '(empty model response)'
       );
 
+      if (this.pluginHost) {
+        const turnCtx: PluginTurnContext = {
+          chatId,
+          botId: botId ?? '',
+          userId: opts.callerUserId ?? chat?.userId,
+          host: this.options.sqlQuery?.host ?? 'localhost',
+          messages: [...windowed, assistant].map((m) => ({ role: m.role, content: m.content })),
+          model: this.options.client.provider,
+          log: {
+            info: () => {},
+            warn: () => {},
+            error: () => {},
+          },
+        };
+        await this.pluginHost.executeAfterTurn(turnCtx);
+      }
+
       const pause = await this.pauseSnapshot(chatId);
       return {
         user: user ?? [...history].reverse().find((m) => m.role === 'user')!,
@@ -761,7 +809,7 @@ export class ChatService {
       .map((tool) => tool.definition);
   }
 
-  private async systemPromptFor(bot: Bot | null, userId?: string): Promise<string> {
+  private async systemPromptFor(bot: Bot | null, userId?: string, chatId?: string): Promise<string> {
     const botName = bot?.name ?? 'Primary';
     const toolNames = this.toolsFor(bot).map((t) => t.name);
 
@@ -797,6 +845,18 @@ export class ChatService {
       baseSections.push(`Bot instructions: ${bot.description.trim()}`);
     }
     baseSections.push(formatCapabilityPrompt(catalog));
+    if (this.pluginHost) {
+      const promptCtx: PluginPromptContext = {
+        chatId: chatId ?? '',
+        botId: bot?.id ?? '',
+        botName,
+        isPrimary: Boolean(bot?.isPrimary),
+      };
+      const pluginSections = await this.pluginHost.renderPromptSections(promptCtx);
+      if (pluginSections.length > 0) {
+        baseSections.push(...pluginSections);
+      }
+    }
     const base = baseSections.join('\n\n');
 
     // Memories keep values in-window; skills already appear as an index in Capabilities.
@@ -804,7 +864,38 @@ export class ChatService {
     return memorySection ? `${base}\n\n${memorySection}` : base;
   }
 
+  private pluginHostContext(ctx: HandoffTurnContext): PluginExecutionContext {
+    return {
+      chatId: ctx.chatId,
+      botId: ctx.bot?.id ?? '',
+      userId: ctx.userId,
+      host: this.options.sqlQuery?.host ?? 'localhost',
+      log: {
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      },
+    };
+  }
+
+  private requiresAlwaysAsk(toolName: string): boolean {
+    if (this.pluginHost?.requiresAlwaysAsk(toolName)) {
+      return true;
+    }
+    return requiresAlwaysAsk(toolName);
+  }
+
   private async refusalFor(toolCall: ToolCall, ctx: HandoffTurnContext): Promise<string | null> {
+    if (this.pluginHost) {
+      const execCtx = this.pluginHostContext(ctx);
+      const hookResult = await this.pluginHost.executeBeforeTool(toolCall.name, toolCall.arguments, execCtx);
+      if (hookResult.block) {
+        return hookResult.block;
+      }
+      if (hookResult.overrideArgs) {
+        toolCall.arguments = { ...toolCall.arguments, ...hookResult.overrideArgs };
+      }
+    }
     return (await this.toolFor(toolCall.name)?.preflight?.(toolCall.arguments, ctx)) ?? null;
   }
 
@@ -823,7 +914,12 @@ export class ChatService {
       }
       throw new Error(`Unknown tool: ${toolCall.name}`);
     }
-    return tool.execute(toolCall.arguments, ctx);
+    let result = await tool.execute(toolCall.arguments, ctx);
+    if (this.pluginHost) {
+      const execCtx = this.pluginHostContext(ctx);
+      result = await this.pluginHost.executeAfterTool(toolCall.name, result, execCtx);
+    }
+    return result;
   }
 
   /**
