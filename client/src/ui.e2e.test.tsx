@@ -134,7 +134,7 @@ describe('UI End-to-End Tests', () => {
     });
 
     const initial = await discovery.listViableMcps({ refresh: true });
-    expect(initial.map((m) => m.service)).toEqual(['system.ai.genie_one_mcp', 'system.ai.dbsql']);
+    expect(initial.map((m) => m.service)).toEqual(['system.ai.genie_one_mcp', 'system.ai.dbsql', 'plugin.teatools']);
 
     fakeTools['system.ai.slack'] = ['search_messages', 'read_channel'];
     const afterAdd = await discovery.listViableMcps({ refresh: true });

@@ -5,11 +5,22 @@ dist/
 build/
 .env
 dev.local.yml
+*.local.yml
 *.databricks.env
 .databricks/
 .smoke-test/
 test-results/
 playwright-report/
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Auto-generated types (endpoint-specific, varies per developer)
 shared/appkit-types/serving.d.ts

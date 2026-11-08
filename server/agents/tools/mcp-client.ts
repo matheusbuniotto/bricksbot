@@ -5,6 +5,7 @@ import type {
   McpToolCallResult,
   McpToolDefinition,
 } from '../../../shared/agents/mcp-types.js';
+import { callTeatoolsMcp, TEATOOLS_MCP_DEFINITIONS, TEATOOLS_MCP_SERVICE } from './teatools/mcp-server.js';
 
 export class UnityGatewayMcpClient {
   private requestId = 0;
@@ -93,6 +94,10 @@ export class UnityGatewayMcpClient {
   }
 
   async listTools(serviceName: string): Promise<McpToolDefinition[]> {
+    const clean = serviceName.trim().replace(/^\/+/, '');
+    if (clean === TEATOOLS_MCP_SERVICE) {
+      return TEATOOLS_MCP_DEFINITIONS;
+    }
     const result = await this.fetchRpc<{ tools?: McpToolDefinition[] }>(serviceName, 'tools/list', {});
     return result.tools ?? [];
   }
@@ -102,6 +107,10 @@ export class UnityGatewayMcpClient {
     toolName: string,
     args: Record<string, unknown> = {}
   ): Promise<McpToolCallResult> {
+    const clean = serviceName.trim().replace(/^\/+/, '');
+    if (clean === TEATOOLS_MCP_SERVICE) {
+      return callTeatoolsMcp(toolName, args);
+    }
     return this.fetchRpc<McpToolCallResult>(serviceName, 'tools/call', {
       name: toolName,
       arguments: args,

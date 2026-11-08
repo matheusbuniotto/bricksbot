@@ -157,6 +157,35 @@ export function buildDatabricksMcpServiceUrl(servicePath: string, options?: { ho
   return `${host}/explore/mcp-services/${cleanPath}?o=${orgId}&activeTab=overview`;
 }
 
+export const BUILTIN_PLUGIN_MCPS: DatabricksMcpApp[] = [
+  {
+    id: 'teatools-experimentation',
+    name: 'Experimentation & A/B Tests',
+    service: 'plugin.teatools',
+    source: 'system',
+    category: 'lakehouse',
+    categoryLabel: 'Lakehouse & Analytics',
+    description:
+      'Experiment design, sample size & power, SRM checks, A/B analysis (CUPED, delta method, Yuen, bootstrap), mSPRT sequential monitoring, and agent eval comparisons',
+    tools: [
+      'design',
+      'power',
+      'srm_check',
+      'analyze',
+      'sequential_check',
+      'compare_eval_runs',
+      'agreement_kappa',
+      'report',
+    ],
+    status: 'active',
+    isViable: true,
+    recommended: true,
+    iconBg: '#7c3aed',
+    iconColor: '#ffffff',
+    iconType: 'custom',
+  },
+];
+
 export const AVAILABLE_DATABRICKS_MCPS: DatabricksMcpApp[] = [
   {
     id: 'genie-one',

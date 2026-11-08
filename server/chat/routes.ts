@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { Bot, ChatStore, MarketplaceBot } from '../../shared/chat/types.js';
-import { AVAILABLE_DATABRICKS_MCPS } from '../../shared/agents/mcp-types.js';
+import { AVAILABLE_DATABRICKS_MCPS, BUILTIN_PLUGIN_MCPS } from '../../shared/agents/mcp-types.js';
 import type { McpDiscoveryService } from '../agents/tools/mcp-discovery.js';
 import { buildConnectedMcpTools } from '../agents/tools/mcp-tools.js';
 import { canManageSpaceMembers, canViewerAccessSpace } from './access-policy.js';
@@ -203,10 +203,12 @@ export function registerChatRoutes(
         res.json({ mcps });
         return;
       }
-      const viable = AVAILABLE_DATABRICKS_MCPS.filter((m) => m.isViable !== false).map((m) => ({
-        ...m,
-        connected: false,
-      }));
+      const viable = [...AVAILABLE_DATABRICKS_MCPS, ...BUILTIN_PLUGIN_MCPS]
+        .filter((m) => m.isViable !== false)
+        .map((m) => ({
+          ...m,
+          connected: false,
+        }));
       res.json({ mcps: viable });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err) });

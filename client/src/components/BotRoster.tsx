@@ -1026,6 +1026,8 @@ export function BotRoster({
         isOpen={connectorsOpen}
         onClose={() => setConnectorsOpen(false)}
         onOpenMarketplace={() => onMarketplaceOpenChange?.(true)}
+        botId={selectedBotId}
+        botName={bots.find((bot) => bot.id === selectedBotId)?.name}
       />
 
       <SpaceMembersDialog

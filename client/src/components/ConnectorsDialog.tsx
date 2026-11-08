@@ -18,8 +18,16 @@ import {
   RotateCw,
   Plus,
   Trash2,
+  Wand2,
 } from 'lucide-react';
-import { AVAILABLE_DATABRICKS_MCPS, type DatabricksMcpApp } from '../../../shared/agents/mcp-types.js';
+import {
+  AVAILABLE_DATABRICKS_MCPS,
+  BUILTIN_PLUGIN_MCPS,
+  type DatabricksMcpApp,
+} from '../../../shared/agents/mcp-types.js';
+import type { BotSkill } from '../../../shared/agents/memory/types.js';
+import { SKILL_PACK_CATALOG, type SkillPackCatalogEntry } from '../../../shared/agents/skill-packs.js';
+import { deleteSkill, fetchSkills, importSkill, installSkillPack } from '../lib/memory-api.js';
 import { connectMcp, disconnectMcp, fetchMcps, registerCustomMcp, removeCustomMcp } from '../lib/chat-api.js';
 
 export type ConnectorApp = DatabricksMcpApp;
@@ -46,6 +54,26 @@ function saveConnectedApps(set: Set<string>): void {
   } catch {}
 }
 
+function summarizeSkillBody(body: string): string {
+  const trimmed = body.trim();
+  if (trimmed.startsWith('---')) {
+    const endIdx = trimmed.indexOf('\n---', 3);
+    if (endIdx !== -1) {
+      const frontmatter = trimmed.slice(3, endIdx);
+      const descMatch = frontmatter.match(/^\s*description\s*:\s*(.+)$/m);
+      if (descMatch?.[1]) {
+        return descMatch[1].trim().replace(/^['"]|['"]$/g, '');
+      }
+    }
+  }
+  const withoutFrontmatter = trimmed.replace(/^---[\s\S]*?\n---\s*/, '');
+  const firstLine = withoutFrontmatter
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l.length > 0 && !l.startsWith('#'));
+  return firstLine ?? '';
+}
+
 const CATEGORIES = [
   { id: 'all', label: 'All' },
   { id: 'lakehouse', label: 'Lakehouse' },
@@ -54,16 +82,22 @@ const CATEGORIES = [
   { id: 'compute', label: 'Code' },
   { id: 'search', label: 'Search' },
   { id: 'custom', label: 'Custom' },
+  { id: 'skills', label: 'Skills' },
 ] as const;
 
 export function ConnectorsDialog({
   isOpen,
   onClose,
   onOpenMarketplace,
+  botId,
+  botName,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onOpenMarketplace?: () => void;
+  /** Selected bot; enables the Skills tab (per-bot installable skills). */
+  botId?: string | null;
+  botName?: string;
 }) {
   const [apps, setApps] = useState<ConnectorApp[]>(DEFAULT_VIABLE_MCPS);
   const [connectedIds, setConnectedIds] = useState<Set<string>>(() => readConnectedApps());
@@ -76,6 +110,92 @@ export function ConnectorsDialog({
   const [submittingCustom, setSubmittingCustom] = useState<boolean>(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
+  const [skills, setSkills] = useState<BotSkill[]>([]);
+  const [skillUrl, setSkillUrl] = useState<string>('');
+
+  const isSkillsTab = activeCategory === 'skills';
+
+  const loadSkills = useCallback(async () => {
+    if (!botId) {
+      setSkills([]);
+      return;
+    }
+    try {
+      setSkills(await fetchSkills(botId));
+    } catch {
+      setSkills([]);
+    }
+  }, [botId]);
+
+  useEffect(() => {
+    if (isOpen) void loadSkills();
+  }, [isOpen, loadSkills]);
+
+  const handleImportSkill = async (e: FormEvent) => {
+    e.preventDefault();
+    const url = skillUrl.trim();
+    if (!url || !botId) return;
+    setSubmittingCustom(true);
+    setAddError(null);
+    try {
+      const skill = await importSkill(botId, url);
+      setSkills((prev) => [...prev.filter((s) => s.name !== skill.name), skill]);
+      setSkillUrl('');
+      setShowAddCustom(false);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to import skill');
+    } finally {
+      setSubmittingCustom(false);
+    }
+  };
+
+  const handleRemoveSkill = async (skill: BotSkill) => {
+    if (!botId) return;
+    try {
+      await deleteSkill(botId, skill.id);
+      setSkills((prev) => prev.filter((s) => s.id !== skill.id));
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to remove skill');
+    }
+  };
+
+  const handleToggleSkillPack = async (pack: SkillPackCatalogEntry) => {
+    if (!botId || togglingId) return;
+    const existing = skills.find((s) => s.name.toLowerCase() === pack.name.toLowerCase());
+    setTogglingId(`pack:${pack.name}`);
+    setAddError(null);
+    try {
+      if (existing) {
+        await deleteSkill(botId, existing.id);
+        setSkills((prev) => prev.filter((s) => s.id !== existing.id));
+      } else {
+        const installed = await installSkillPack(botId, pack.name);
+        setSkills((prev) => [...prev.filter((s) => s.name !== installed.name), installed]);
+        if (pack.companionMcpService) {
+          const companionApp =
+            apps.find((a) => a.service === pack.companionMcpService) ??
+            BUILTIN_PLUGIN_MCPS.find((a) => a.service === pack.companionMcpService);
+          if (companionApp && !connectedIds.has(companionApp.id)) {
+            const updated = await connectMcp(companionApp.service);
+            setConnectedIds((prev) => {
+              const next = new Set(prev);
+              next.add(updated.id);
+              saveConnectedApps(next);
+              return next;
+            });
+            setApps((prev) => {
+              const without = prev.filter((a) => a.service !== updated.service);
+              return [...without, { ...updated, connected: true }];
+            });
+          }
+        }
+      }
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to update skill pack');
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const applyServerConnected = useCallback((list: ConnectorApp[]) => {
     const next = new Set(list.filter((app) => app.connected).map((app) => app.id));
@@ -91,8 +211,28 @@ export function ConnectorsDialog({
         const data = await fetchMcps(refresh);
         if (Array.isArray(data) && data.length > 0) {
           const viable = data.filter((item) => item.isViable !== false);
-          setApps(viable);
-          applyServerConnected(viable);
+          const byService = new Map<string, ConnectorApp>();
+          for (const item of [...viable, ...BUILTIN_PLUGIN_MCPS]) {
+            if (!byService.has(item.service)) {
+              byService.set(item.service, item);
+            }
+          }
+          const storedIds = readConnectedApps();
+          const merged: ConnectorApp[] = [];
+          for (const item of byService.values()) {
+            if (!item.connected && storedIds.has(item.id)) {
+              try {
+                const reconnected = await connectMcp(item.service);
+                merged.push({ ...reconnected, connected: true });
+                continue;
+              } catch {
+                // Keep server state if auto-reconnect fails
+              }
+            }
+            merged.push(item);
+          }
+          setApps(merged);
+          applyServerConnected(merged);
         }
       } catch {
       } finally {
@@ -101,6 +241,10 @@ export function ConnectorsDialog({
     },
     [applyServerConnected]
   );
+
+  useEffect(() => {
+    void loadMcps(false);
+  }, [loadMcps]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -280,7 +424,8 @@ export function ConnectorsDialog({
 
   const renderCard = (app: ConnectorApp) => {
     const isConnected = connectedIds.has(app.id);
-    const isCustom = app.source === 'custom' || !app.service.startsWith('system.ai');
+    const isCustom =
+      app.source === 'custom' || (!app.service.startsWith('system.ai') && !app.service.startsWith('plugin.'));
 
     return (
       <div key={app.id} className="connector-card">
@@ -328,13 +473,106 @@ export function ConnectorsDialog({
     );
   };
 
-  const sectionTitle = searchQuery.trim()
-    ? `Results for "${searchQuery}"`
-    : activeCategory === '__connected'
-      ? 'Connected'
-      : activeCategory === 'all'
-        ? 'Recommended for you'
-        : (CATEGORIES.find((c) => c.id === activeCategory)?.label ?? 'Connectors');
+  const skillQuery = searchQuery.trim().toLowerCase();
+  const catalogNames = new Set(SKILL_PACK_CATALOG.map((p) => p.name.toLowerCase()));
+  const filteredCatalogPacks = skillQuery
+    ? SKILL_PACK_CATALOG.filter(
+        (p) =>
+          p.name.toLowerCase().includes(skillQuery) ||
+          p.title.toLowerCase().includes(skillQuery) ||
+          p.description.toLowerCase().includes(skillQuery)
+      )
+    : SKILL_PACK_CATALOG;
+  const filteredCustomSkills = (
+    skillQuery
+      ? skills.filter((s) => s.name.toLowerCase().includes(skillQuery) || s.body.toLowerCase().includes(skillQuery))
+      : skills
+  ).filter((s) => !catalogNames.has(s.name.toLowerCase()));
+
+  const renderSkillPackCard = (pack: SkillPackCatalogEntry) => {
+    const installed = skills.some((s) => s.name.toLowerCase() === pack.name.toLowerCase());
+    const busy = togglingId === `pack:${pack.name}`;
+    return (
+      <div key={pack.name} className="connector-card connector-card-skill">
+        <div className="connector-card-main">
+          <div className="connector-card-icon" style={{ background: '#7c3aed', color: '#ffffff' }}>
+            <Wand2 size={18} strokeWidth={2.2} />
+          </div>
+          <div className="connector-card-text">
+            <span className="connector-card-name">{pack.title}</span>
+            <span className="connector-card-sub">{pack.description}</span>
+          </div>
+        </div>
+        <div className="connector-card-actions">
+          <button
+            type="button"
+            className={installed ? 'connector-action-btn is-connected' : 'connector-action-btn'}
+            onClick={() => void handleToggleSkillPack(pack)}
+            disabled={busy || !botId}
+            aria-label={installed ? `Remove ${pack.title}` : `Install ${pack.title}`}
+          >
+            {busy ? (
+              <>
+                <RotateCw size={14} className="spin" />
+                <span>{installed ? 'Removing…' : 'Installing…'}</span>
+              </>
+            ) : installed ? (
+              <>
+                <Check size={14} strokeWidth={2.5} />
+                <span>Installed</span>
+              </>
+            ) : (
+              <span>Connect</span>
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSkillCard = (skill: BotSkill) => {
+    const summary = summarizeSkillBody(skill.body);
+    return (
+      <div key={skill.id} className="connector-card connector-card-skill">
+        <div className="connector-card-main">
+          <div className="connector-card-icon" style={{ background: '#7c3aed', color: '#ffffff' }}>
+            <Wand2 size={18} strokeWidth={2.2} />
+          </div>
+          <div className="connector-card-text">
+            <span className="connector-card-name">{skill.name}</span>
+            {summary ? <span className="connector-card-sub">{summary}</span> : null}
+          </div>
+        </div>
+        <div className="connector-card-actions">
+          <button
+            type="button"
+            className="connector-remove-btn"
+            title={`Remove ${skill.name}`}
+            aria-label={`Remove skill ${skill.name}`}
+            onClick={() => void handleRemoveSkill(skill)}
+          >
+            <Trash2 size={14} />
+          </button>
+          <span className="connector-action-btn is-connected">
+            <Check size={14} strokeWidth={2.5} />
+            <span>Installed</span>
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  const sectionTitle = isSkillsTab
+    ? botName
+      ? `Skills for ${botName}`
+      : 'Skills'
+    : searchQuery.trim()
+      ? `Results for "${searchQuery}"`
+      : activeCategory === '__connected'
+        ? 'Connected'
+        : activeCategory === 'all'
+          ? 'Recommended for you'
+          : (CATEGORIES.find((c) => c.id === activeCategory)?.label ?? 'Connectors');
 
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
@@ -411,8 +649,8 @@ export function ConnectorsDialog({
           <button
             type="button"
             className={showAddCustom ? 'connectors-icon-btn is-active' : 'connectors-icon-btn'}
-            title="Add a custom MCP"
-            aria-label="Add MCP"
+            title={isSkillsTab ? 'Import a skill' : 'Add a custom MCP'}
+            aria-label={isSkillsTab ? 'Import skill' : 'Add MCP'}
             onClick={() => setShowAddCustom((prev) => !prev)}
           >
             <Plus size={16} />
@@ -433,7 +671,62 @@ export function ConnectorsDialog({
           ) : null}
         </div>
 
-        {showAddCustom ? (
+        {showAddCustom && isSkillsTab ? (
+          <div className="connectors-custom-panel">
+            <div className="connectors-custom-panel-header">
+              <div>
+                <h3 className="connectors-custom-panel-title">Import skill</h3>
+                <p className="connectors-custom-panel-sub">
+                  Link a SKILL.md on GitHub{botName ? ` to install it for ${botName}` : ''}.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="dialog-close-btn"
+                aria-label="Close import skill"
+                onClick={() => setShowAddCustom(false)}
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <form onSubmit={(e) => void handleImportSkill(e)} className="connectors-custom-form">
+              <div className="connectors-custom-fields">
+                <div className="connectors-field-group">
+                  <label className="connectors-field-label">SKILL.md URL</label>
+                  <input
+                    type="text"
+                    className="connectors-custom-input"
+                    placeholder="https://github.com/org/repo/blob/main/skill/SKILL.md"
+                    value={skillUrl}
+                    onChange={(e) => setSkillUrl(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+              {addError ? <div className="connectors-error-banner">{addError}</div> : null}
+              <div className="connectors-custom-actions">
+                <button type="button" className="connectors-btn-secondary" onClick={() => setShowAddCustom(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="connector-action-btn is-connected"
+                  disabled={submittingCustom || !botId}
+                >
+                  {submittingCustom ? (
+                    <>
+                      <RotateCw size={13} className="spin" />
+                      <span>Importing…</span>
+                    </>
+                  ) : (
+                    <span>Import</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : showAddCustom ? (
           <div className="connectors-custom-panel">
             <div className="connectors-custom-panel-header">
               <div>
@@ -528,7 +821,22 @@ export function ConnectorsDialog({
               ) : null}
             </div>
 
-            {displayApps.length === 0 ? (
+            {isSkillsTab ? (
+              !botId ? (
+                <div className="connectors-empty">
+                  <p>Select a bot to manage its skills.</p>
+                </div>
+              ) : filteredCatalogPacks.length === 0 && filteredCustomSkills.length === 0 ? (
+                <div className="connectors-empty">
+                  <p>No skills found. Use + to import a SKILL.md.</p>
+                </div>
+              ) : (
+                <div className="connectors-grid connectors-grid-skills">
+                  {filteredCatalogPacks.map(renderSkillPackCard)}
+                  {filteredCustomSkills.map(renderSkillCard)}
+                </div>
+              )
+            ) : displayApps.length === 0 ? (
               <div className="connectors-empty">
                 <p>No connectors found.</p>
               </div>
