@@ -7,7 +7,7 @@
 | **Is** | Workspace-installable AppKit app; OpenAI-compatible or Serving LLMs; SQL / UC catalog / Volume read / web fetch; Primary → teammate handoff; Ask-first approvals; scheduled routines via Job → webhook; optional sandbox exec |
 | **Is not** | Desktop/browser “computer” UI; always-on Genie; PartnerOps listing required |
 
-Product locks: [docs/project-context.md](docs/project-context.md). Community release map: [docs/oss-community-release.md](docs/oss-community-release.md). What’s next: [docs/roadmap-next.md](docs/roadmap-next.md).
+System architecture: [docs/architecture.md](docs/architecture.md). Documentation index: [docs/README.md](docs/README.md). Product locks: [docs/project-context.md](docs/project-context.md). Community release map: [docs/oss-community-release.md](docs/oss-community-release.md). What’s next: [docs/roadmap-next.md](docs/roadmap-next.md).
 
 ## Prerequisites
 
@@ -127,7 +127,7 @@ Layout: `client/` UI, `server/` API + agent loop, `shared/` types. Conventions: 
 
 ## Out of scope (for now)
 
-No `volume_write` or Vector Search yet. No Genie by default (opt-in later — [docs/databricks-platform-integration-plan.md](docs/databricks-platform-integration-plan.md)). No PartnerOps Apps listing required for this OSS path. Desktop “computer” UI stays deferred; sandbox exec is the Phase 5 path.
+No Vector Search yet (Ask-first `volume_write` with user/bot namespaces is supported). No Genie by default (opt-in later — [docs/databricks-platform-integration-plan.md](docs/databricks-platform-integration-plan.md)). No PartnerOps Apps listing required for this OSS path. Desktop “computer” UI stays deferred; sandbox exec is the Phase 5 path.
 
 ## License
 

@@ -24,7 +24,7 @@ Remaining before announce: run the smoke path once on a **fresh** workspace (or 
 | 2 | ~~`volume_write` + bot namespaces~~ | **Done** — Ask-first `volume_write` when `BRICKSBOT_VOLUME_ROOT` is set. Per-user folders, per-bot subfolders, Lakebase quotas. [specs/2026-11-02-volume-write-bot-namespaces.md](specs/2026-11-02-volume-write-bot-namespaces.md) |
 | 3 | ~~Deny-until-new-message~~ | **Done** — deny writes tool error, no auto-`continueTurn` until next user message. [specs/2026-11-02-deny-until-new-message.md](specs/2026-11-02-deny-until-new-message.md) |
 | 4 | ~~Approval trail~~ | **Done** — append-only `bricksbot.approval_events` (requested/decided + actor). UC Delta export later. [specs/2026-11-02-approval-trail.md](specs/2026-11-02-approval-trail.md) |
-| 5 | Plugin and extension contract | Contract layer and UC Volume discovery. [ADR 0001](adr/0001-plugin-and-extension-contract.md), [spec](specs/2026-11-07-plugin-extension-system.md) |
+| 5 | ~~Plugin and extension contract~~ | **Done** — Dynamic plugin loader, UC Volume discovery, and Lakebase registry. [ADR 0001](adr/0001-plugin-and-extension-contract.md), [spec](specs/2026-11-07-plugin-extension-system.md) |
 
 ## Explicitly not next
 
@@ -48,6 +48,7 @@ Remaining before announce: run the smoke path once on a **fresh** workspace (or 
 - [specs/2026-10-30-dataviz-pins.md](specs/2026-10-30-dataviz-pins.md)
 - [specs/2026-11-02-deny-until-new-message.md](specs/2026-11-02-deny-until-new-message.md)
 - [specs/2026-11-02-approval-trail.md](specs/2026-11-02-approval-trail.md)
+- [specs/2026-11-07-plugin-extension-system.md](specs/2026-11-07-plugin-extension-system.md)
 
 ## One-line north star
 

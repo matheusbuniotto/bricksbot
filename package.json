@@ -28,7 +28,7 @@
   "keywords": [],
   "author": "",
   "license": "Apache-2.0",
-  "description": "BricksBot greenfield AppKit shell (Grok-like roster later; no computer)",
+  "description": "Grok-shaped multi-bot chat and lakehouse tools for Databricks workspaces",
   "dependencies": {
     "@databricks/appkit": "0.76.1",
     "@databricks/appkit-ui": "0.76.1",
