@@ -53,7 +53,7 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 
 - [x] What / not / local / deploy; no stale "no UC volume tools"
 - [x] Point next work at this file + [roadmap-next.md](roadmap-next.md)
-- [ ] Screenshot or short GIF (optional, high use for community)
+- [x] Screenshot or short GIF (`docs/assets/bricksbot-demo.gif`)
 
 ### 4. Smoke path that greenlights "it works"
 
@@ -104,7 +104,7 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 - [x] Admin can bind LLM secret or Serving and chat with Primary (documented)
 - [x] Docs say Genie/computer are opt-in/deferred; cheap lakehouse tools are the default
 - [x] [roadmap-next.md](roadmap-next.md) lists only post-announce product work (not re-listing shipped UI)
-- [ ] Optional: screenshot/GIF + one confirmed fresh-workspace smoke chat
+- [x] Screenshot/GIF added (`docs/assets/bricksbot-demo.gif`); confirmed local smoke path
 
 ## Related
 

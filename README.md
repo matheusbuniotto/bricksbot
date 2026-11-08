@@ -9,6 +9,28 @@
 
 System architecture: [docs/architecture.md](docs/architecture.md). Documentation index: [docs/README.md](docs/README.md). Product locks: [docs/project-context.md](docs/project-context.md). Community release map: [docs/oss-community-release.md](docs/oss-community-release.md). What’s next: [docs/roadmap-next.md](docs/roadmap-next.md).
 
+<p align="center">
+  <img src="docs/assets/bricksbot-demo.gif" alt="BricksBot Demo: Grok-Style Multi-Bot Lakehouse Chat with 3-Way Approvals" width="880" />
+</p>
+
+## Highlights for Databricks Teams
+
+- **Runs inside Databricks**: Deployed via Databricks Asset Bundles (DAB) directly into your workspace as an AppKit application. No external proxy; durable state lives in your PostgreSQL Lakebase.
+- **Multi-Agent Roster & Handoff**: Front-desk Primary bot routes tasks to specialized teammates (e.g., SQL Analyst, Experimentation Engine, Routine Runner) with bidirectional transcript links.
+- **Strict 3-Way Human Approvals**: `[Always allow (A)]` `[Approve Once (B)]` `[Deny (C)]`. Mutating SQL, volume writes, and sandbox operations require explicit operator consent.
+- **Native Lakehouse Tools**: Serverless SQL queries with strict row/byte caps, Unity Catalog schema exploration, and namespaced Volume I/O with Lakebase storage quotas.
+- **Zero-Egress Serving Option**: Connect to external OpenAI-compatible models (OpenRouter) or keep everything inside your VPC with Databricks Model Serving (DBRX, Llama 3 70B).
+- **Scheduled Lakeflow Routines**: Automated recurring agent prompts triggered via Databricks Jobs and authenticated webhooks.
+
+### Example Walkthrough: Multi-Agent Lakehouse Analysis
+
+1. **User asks**: *"Analyze our top 5 enterprise accounts by churn probability and graph revenue at risk."*
+2. **Primary evaluates & delegates**: Primary plans the approach and executes `handoff_to_bot("SQL Analyst", ...)`. A clean handoff badge appears in both bot chats.
+3. **Preflight human approval**: The SQL Analyst evaluates the generated SQL query against Serverless SQL warehouse boundaries and pauses the turn with a 3-way approval card.
+4. **One-click signoff**: The operator reviews the SQL statement and approves (`Once` or shortcut `B`). The query executes in 28ms with Unity Catalog governance and row limits.
+5. **Chart auto-pinning**: An interactive Vega-Lite chart pins directly to the transcript showing MRR exposure per account.
+6. **Automated routine**: The analyst schedules a weekly Lakeflow Job webhook routine to track future churn alerts automatically.
+
 ## Prerequisites
 
 - Node.js 22+ and npm
