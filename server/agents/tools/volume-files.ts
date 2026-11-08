@@ -1,7 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { normalizeHostUrl } from '../../chat/databricks-auth.js';
-import { validateVolumePath } from './volume-read.js';
+import { filesApiUrl, validateVolumePath } from './volume-read.js';
 
 export interface VolumeFileClient {
   host?: string;
@@ -39,10 +38,9 @@ export async function writeVolumeBytes(
   }
 
   if (client.host && client.getToken) {
-    const host = normalizeHostUrl(client.host);
     const token = await client.getToken();
     const fetchImpl = client.fetchImpl ?? globalThis.fetch;
-    const url = `${host}/api/2.0/fs/files${volumePath}?overwrite=${overwrite ? 'true' : 'false'}`;
+    const url = `${filesApiUrl(client.host, 'files', volumePath)}?overwrite=${overwrite}`;
     const res = await fetchImpl(url, {
       method: 'PUT',
       headers: {

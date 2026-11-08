@@ -3,7 +3,7 @@ import { parseBotCreatedNotice } from './bot-created-notice.js';
 import { parseHandoffNotice } from './handoff-notice.js';
 import type { Message } from './types.js';
 
-function looksLikeJsonBlob(content: string): boolean {
+export function looksLikeJsonBlob(content: string): boolean {
   const trimmed = content.trim();
   return trimmed.startsWith('{') || trimmed.startsWith('[');
 }

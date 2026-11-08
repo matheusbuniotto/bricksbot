@@ -3,6 +3,7 @@ import type { RoutineStore } from '../../../shared/routines/types.js';
 import { describeCronExpression } from '../../../shared/routines/types.js';
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { HandoffTurnContext } from '../handoff.js';
+import { readText } from '../../lib/coerce.js';
 
 export const SCHEDULE_ROUTINE_TOOL_NAME = 'schedule_routine';
 
@@ -36,10 +37,6 @@ export const scheduleRoutineToolDefinition: ToolDefinition = {
   },
 };
 
-function readText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 export interface ScheduleRoutineArgs {
   name: string;
   cron: string;
@@ -71,7 +68,7 @@ export function planScheduleRoutine(args: Record<string, unknown>, bot: HandoffT
     };
   }
 
-  const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : '';
+  const prompt = readText(args.prompt);
   if (!prompt) {
     return { ok: false, error: 'schedule_routine requires prompt' };
   }

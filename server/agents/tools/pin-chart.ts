@@ -4,6 +4,7 @@ import { MAX_CHART_ROWS, VEGA_LITE_SCHEMA, validateVegaLiteSpec } from '../../..
 import type { ChatStore } from '../../../shared/chat/types.js';
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { HandoffTurnContext } from '../handoff.js';
+import { readText } from '../../lib/coerce.js';
 
 export const PIN_CHART_TOOL_NAME = 'pin_chart';
 
@@ -31,10 +32,6 @@ export const pinChartToolDefinition: ToolDefinition = {
     required: ['title', 'source_tool_call_id', 'spec'],
   },
 };
-
-function readText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
-}
 
 type Planned =
   | { ok: true; title: string; sourceToolCallId: string; spec: Record<string, unknown>; summary?: string }

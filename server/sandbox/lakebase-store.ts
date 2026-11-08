@@ -9,36 +9,10 @@ import type {
   SandboxStore,
 } from '../../shared/sandbox/types.js';
 import type { LakebaseQuery } from '../chat/lakebase-store.js';
-
-function asString(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
-  if (value === null || value === undefined) return '';
-  return String(value);
-}
+import { asJsonObject, asString } from '../lib/coerce.js';
 
 function asNullableString(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
-  if (value instanceof Date) return value.toISOString();
-  const str = String(value);
-  return str ? str : null;
-}
-
-function asObject(value: unknown): Record<string, unknown> {
-  if (!value) return {};
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    return { ...(value as Record<string, unknown>) };
-  }
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      return {};
-    }
-  }
-  return {};
+  return asString(value) || null;
 }
 
 function mapSession(row: Record<string, unknown>): SandboxSession {
@@ -53,7 +27,7 @@ function mapSession(row: Record<string, unknown>): SandboxSession {
     createdAt: asString(row.created_at),
     lastUsedAt: asString(row.last_used_at),
     stoppedAt: asNullableString(row.stopped_at),
-    metadata: asObject(row.metadata),
+    metadata: asJsonObject(row.metadata),
   };
 }
 
@@ -62,7 +36,7 @@ function mapEvent(row: Record<string, unknown>): SandboxEvent {
     id: asString(row.id),
     sessionId: asString(row.session_id),
     type: asString(row.type) as SandboxEventType,
-    payload: asObject(row.payload),
+    payload: asJsonObject(row.payload),
     createdAt: asString(row.created_at),
   };
 }

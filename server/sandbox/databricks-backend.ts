@@ -1,6 +1,7 @@
 import type { ExecutionResult } from '../../shared/sandbox/types.js';
 import type { ExecutionBackend, RunCommandOptions } from './backend.js';
 import { SystemAiPythonBackend } from './python-exec-backend.js';
+import { normalizeHostUrl } from '../chat/databricks-auth.js';
 
 export interface DatabricksSandboxConfig {
   host: string;
@@ -102,8 +103,7 @@ export class DatabricksSandboxBackend implements ExecutionBackend {
   }
 
   private baseHost(): string {
-    const trimmed = this.config.host.trim().replace(/\/+$/, '');
-    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    return normalizeHostUrl(this.config.host);
   }
 
   private async authHeaders(): Promise<Record<string, string>> {

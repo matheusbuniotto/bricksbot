@@ -1,5 +1,6 @@
 import type { Routine } from '../../../shared/routines/types';
 import type { Message } from '../../../shared/chat/types';
+import { readJson } from './http';
 
 export interface SetupStatus {
   provider: string;
@@ -11,14 +12,6 @@ export interface SetupStatus {
   putSecretExamples: string[];
   appPublicUrl?: string | null;
   routineWebhookSecretPutExample?: string[];
-}
-
-async function readJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Request failed (${res.status})`);
-  }
-  return res.json() as Promise<T>;
 }
 
 export async function fetchSetupStatus(): Promise<SetupStatus> {

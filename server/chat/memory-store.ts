@@ -18,18 +18,8 @@ import type {
 import type { ToolCall } from '../../shared/agents/types.js';
 import { messagePreviewLine } from '../../shared/chat/preview.js';
 import { canViewerAccessSpace, isBotVisibleToViewer } from './access-policy.js';
-
-const PRIMARY_NAME = 'Primary';
-const DEFAULT_SPACE_NAME = 'Personal';
-
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-function avatarFromName(name: string): string {
-  const trimmed = name.trim();
-  return (trimmed[0] ?? '?').toUpperCase();
-}
+import { avatarFromName, DEFAULT_SPACE_NAME, PRIMARY_NAME, updatedAvatarLabel } from './bot-defaults.js';
+import { nowIso } from '../lib/coerce.js';
 
 function sortBots(a: Bot, b: Bot): number {
   if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
@@ -214,14 +204,7 @@ export class MemoryChatStore implements ChatStore {
     }
     const name = input.name !== undefined ? input.name.trim() : bot.name;
     if (!name) throw new Error('Bot name is required');
-    const avatarLabel =
-      input.avatarLabel !== undefined
-        ? input.avatarLabel.trim() || avatarFromName(name)
-        : input.name !== undefined
-          ? bot.avatarLabel.length === 1
-            ? avatarFromName(name)
-            : bot.avatarLabel
-          : bot.avatarLabel;
+    const avatarLabel = updatedAvatarLabel(bot.avatarLabel, input, name);
     if (input.isShared !== undefined) {
       if (bot.isPrimary && input.isShared) {
         throw new Error('Cannot share the Primary bot');

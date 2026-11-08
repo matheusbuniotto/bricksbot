@@ -8,6 +8,7 @@ import {
   SCHEDULE_ROUTINE_TOOL_NAME,
   scheduleRoutineToolDefinition,
 } from './schedule-routine.js';
+import { readText } from '../../lib/coerce.js';
 
 export { SCHEDULE_ROUTINE_TOOL_NAME, scheduleRoutineToolDefinition, createScheduleRoutineTool };
 
@@ -20,10 +21,6 @@ export const AUTO_ROUTINE_TOOL_NAMES = [LIST_ROUTINES_TOOL_NAME] as const;
 
 export function isAutoRoutineTool(name: string): boolean {
   return (AUTO_ROUTINE_TOOL_NAMES as readonly string[]).includes(name);
-}
-
-function readText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
 }
 
 function summarize(routine: Routine) {
@@ -158,7 +155,7 @@ export function createUpdateRoutineTool(routines: RoutineStore, store: ChatStore
       const patch: UpdateRoutineInput = {};
       const newName = readText(args.new_name);
       const cron = readText(args.cron);
-      const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : '';
+      const prompt = readText(args.prompt);
       if (newName) patch.name = newName;
       if (cron) {
         if (cron.split(/\s+/).length !== 5) {

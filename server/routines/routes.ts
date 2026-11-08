@@ -4,6 +4,8 @@ import type { ChatStore } from '../../shared/chat/types.js';
 import type { ChatClient } from '../../shared/agents/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
 import { resolveOwnerId } from '../chat/identity.js';
+import { requireBotAccess } from '../chat/route-guards.js';
+import { createErrorResponder } from '../lib/http.js';
 import type { ChatHttpApp } from '../chat/routes.js';
 import { RoutineService } from './service.js';
 import { buildSetupStatus } from './setup-status.js';
@@ -24,24 +26,11 @@ const patchRoutineSchema = z.object({
   prompt: z.string().trim().min(1).max(4000).optional(),
 });
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'Unexpected error';
-}
-
-function isNotFound(err: unknown): boolean {
-  return err instanceof Error && /not found/i.test(err.message);
-}
-
-function isBadRequest(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    (/required/i.test(err.message) || /disabled/i.test(err.message) || /invalid webhook/i.test(err.message))
-  );
-}
-
-function isUnauthorized(err: unknown): boolean {
-  return err instanceof Error && /invalid webhook/i.test(err.message);
-}
+const sendError = createErrorResponder([[400, /required|disabled/i]]);
+const sendWebhookError = createErrorResponder([
+  [401, /invalid webhook/i],
+  [403, /required|disabled/i],
+]);
 
 export type RoutineHttpApp = ChatHttpApp & {
   patch?(path: string, handler: (req: Request, res: Response) => unknown): unknown;
@@ -69,7 +58,7 @@ export function registerRoutineRoutes(
       const routines = await store.listRoutines(resolveOwnerId(req));
       res.json({ routines });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err) });
+      sendError(res, err);
     }
   });
 
@@ -80,18 +69,15 @@ export function registerRoutineRoutes(
       return;
     }
     try {
-      const bot = await options.chats.getBot(parsed.data.botId);
-      if (!bot) {
-        res.status(404).json({ error: 'Bot not found' });
-        return;
-      }
+      const access = await requireBotAccess(options.chats, parsed.data.botId, req, res);
+      if (!access) return;
       const created = await store.createRoutine({
         ...parsed.data,
-        ownerId: resolveOwnerId(req),
+        ownerId: access.callerId,
       });
       res.status(201).json(created);
     } catch (err) {
-      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+      sendError(res, err);
     }
   });
 
@@ -105,7 +91,7 @@ export function registerRoutineRoutes(
       const routine = await store.updateRoutine(String(req.params.id), resolveOwnerId(req), parsed.data);
       res.json({ routine });
     } catch (err) {
-      res.status(isNotFound(err) ? 404 : isBadRequest(err) ? 400 : 500).json({ error: errorMessage(err) });
+      sendError(res, err);
     }
   };
 
@@ -120,7 +106,7 @@ export function registerRoutineRoutes(
       const result = await service.runNow(String(req.params.id), resolveOwnerId(req));
       res.status(201).json(result);
     } catch (err) {
-      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+      sendError(res, err);
     }
   });
 
@@ -129,7 +115,7 @@ export function registerRoutineRoutes(
       await store.deleteRoutine(String(req.params.id), resolveOwnerId(req));
       res.status(204).end();
     } catch (err) {
-      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+      sendError(res, err);
     }
   };
 
@@ -158,15 +144,7 @@ export function registerRoutineRoutes(
       const result = await service.runFromWebhook(String(req.params.routineId), secret);
       res.status(201).json(result);
     } catch (err) {
-      if (isUnauthorized(err)) {
-        res.status(401).json({ error: errorMessage(err) });
-        return;
-      }
-      if (isBadRequest(err)) {
-        res.status(403).json({ error: errorMessage(err) });
-        return;
-      }
-      res.status(isNotFound(err) ? 404 : 500).json({ error: errorMessage(err) });
+      sendWebhookError(res, err);
     }
   });
 }

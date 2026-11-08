@@ -3,6 +3,7 @@ import {
   DEFAULT_VOLUME_WRITE_MAX_BYTES,
   type VolumeQuotaLimits,
 } from '../../../shared/agents/volume-namespace.js';
+import { presentEnv } from '../../lib/env.js';
 
 export interface VolumeNamespace {
   root: string;
@@ -14,14 +15,8 @@ export type NamespacedVolumePath =
   | { ok: true; path: string; userSegment: string; botSegment: string; relativePath: string }
   | { ok: false; error: string };
 
-function present(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  if (!trimmed || trimmed === '__UNSET__') return undefined;
-  return trimmed;
-}
-
 function parsePositiveBytes(raw: string | undefined, fallback: number): number {
-  const clean = present(raw);
+  const clean = presentEnv(raw);
   if (!clean) return fallback;
   const parsed = Number.parseInt(clean, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -30,7 +25,7 @@ function parsePositiveBytes(raw: string | undefined, fallback: number): number {
 
 /** `BRICKSBOT_VOLUME_ROOT`, with `SANDBOX_ARTIFACT_VOLUME_PATH` as a one-release alias. */
 export function resolveVolumeRoot(env: Record<string, string | undefined>): string | undefined {
-  const raw = present(env.BRICKSBOT_VOLUME_ROOT) ?? present(env.SANDBOX_ARTIFACT_VOLUME_PATH);
+  const raw = presentEnv(env.BRICKSBOT_VOLUME_ROOT) ?? presentEnv(env.SANDBOX_ARTIFACT_VOLUME_PATH);
   if (!raw) return undefined;
   const root = raw.replace(/\/+$/, '');
   if (!root.startsWith('/Volumes/') || root.includes('..') || root.includes('\0')) {
@@ -44,7 +39,7 @@ export function parseVolumeQuotaLimits(env: Record<string, string | undefined> =
     maxWriteBytes: parsePositiveBytes(env.BRICKSBOT_VOLUME_WRITE_MAX_BYTES, DEFAULT_VOLUME_WRITE_MAX_BYTES),
     userQuotaBytes: parsePositiveBytes(env.BRICKSBOT_VOLUME_USER_QUOTA_BYTES, DEFAULT_VOLUME_USER_QUOTA_BYTES),
   };
-  const botRaw = present(env.BRICKSBOT_VOLUME_BOT_QUOTA_BYTES);
+  const botRaw = presentEnv(env.BRICKSBOT_VOLUME_BOT_QUOTA_BYTES);
   if (botRaw) {
     const parsed = Number.parseInt(botRaw, 10);
     if (Number.isFinite(parsed) && parsed > 0) limits.botQuotaBytes = parsed;

@@ -1,4 +1,6 @@
 import type { ToolDefinition } from '../../../shared/agents/types.js';
+import { clip, readText } from '../../lib/coerce.js';
+import { presentEnv } from '../../lib/env.js';
 
 export function isUrlAllowlisted(url: string, allowlist: string[]): boolean {
   let parsed: URL;
@@ -17,8 +19,7 @@ export function isUrlAllowlisted(url: string, allowlist: string[]): boolean {
 }
 
 export function parseAllowlist(raw: string | undefined): string[] {
-  if (!raw?.trim() || raw.trim() === '__UNSET__') return [];
-  return raw
+  return (presentEnv(raw) ?? '')
     .split(',')
     .map((part) => part.trim())
     .filter(Boolean);
@@ -75,7 +76,7 @@ export function createWebFetchTool(options: {
   return {
     definition: webFetchToolDefinition,
     preflight(args: Record<string, unknown>): string | null {
-      const url = typeof args.url === 'string' ? args.url.trim() : '';
+      const url = readText(args.url);
       if (!url) return 'web_fetch requires a url';
       if (!isUrlAllowlisted(url, options.allowlist)) {
         return `URL is not on the web_fetch allowlist: ${url}`;
@@ -84,32 +85,62 @@ export function createWebFetchTool(options: {
     },
     async execute(args: Record<string, unknown>): Promise<string> {
       const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-      const url = typeof args.url === 'string' ? args.url.trim() : '';
+      const url = readText(args.url);
       if (!isUrlAllowlisted(url, options.allowlist)) {
         throw new Error(`URL is not on the web_fetch allowlist: ${url}`);
       }
 
-      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-
-      try {
-        const response = await fetchImpl(url, {
-          method: 'GET',
-          redirect: 'follow',
-          signal: controller?.signal,
-          headers: { Accept: 'text/plain, text/html, application/json' },
-        });
-        if (!response.ok) {
-          throw new Error(`web_fetch failed (${response.status}) for ${url}`);
-        }
-        const contentType = response.headers?.get?.('content-type') ?? '';
-        const rawText = await response.text();
-        const text =
-          contentType.includes('text/html') || /<html[\s>]/i.test(rawText) ? cleanHtmlText(rawText) : rawText;
-        return text.length > maxChars ? `${text.slice(0, maxChars)}\n…[truncated]` : text;
-      } finally {
-        if (timer) clearTimeout(timer);
+      const response = await fetchFollowingAllowlist(url, options.allowlist, fetchImpl, AbortSignal.timeout(timeoutMs));
+      if (!response.ok) {
+        throw new Error(`web_fetch failed (${response.status}) for ${url}`);
       }
+      const contentType = response.headers?.get?.('content-type') ?? '';
+      const rawText = await readBodyCapped(response, MAX_BODY_BYTES);
+      const text = contentType.includes('text/html') || /<html[\s>]/i.test(rawText) ? cleanHtmlText(rawText) : rawText;
+      return clip(text, maxChars);
     },
   };
+}
+
+const MAX_REDIRECTS = 5;
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
+
+/** Follow redirects by hand so every hop is re-checked against the allowlist. */
+async function fetchFollowingAllowlist(
+  url: string,
+  allowlist: string[],
+  fetchImpl: typeof fetch,
+  signal: AbortSignal
+): Promise<Response> {
+  let current = url;
+  for (let hop = 0; ; hop += 1) {
+    const response = await fetchImpl(current, {
+      method: 'GET',
+      redirect: 'manual',
+      signal,
+      headers: { Accept: 'text/plain, text/html, application/json' },
+    });
+    const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+    if (!location) return response;
+    if (hop === MAX_REDIRECTS) throw new Error(`web_fetch stopped after ${MAX_REDIRECTS} redirects`);
+    current = new URL(location, current).href;
+    if (!isUrlAllowlisted(current, allowlist)) {
+      throw new Error(`web_fetch redirect left the allowlist: ${current}`);
+    }
+  }
+}
+
+async function readBodyCapped(response: Response, maxBytes: number): Promise<string> {
+  const reader: ReadableStreamDefaultReader<Uint8Array> | undefined = response.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (total < maxBytes) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    total += value.byteLength;
+  }
+  await reader.cancel().catch(() => undefined);
+  return new TextDecoder().decode(Buffer.concat(chunks).subarray(0, maxBytes));
 }

@@ -1,6 +1,8 @@
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import { createDatabricksTokenProvider, normalizeHostUrl } from '../../chat/databricks-auth.js';
 import { UnityGatewayMcpClient } from './mcp-client.js';
+import { clip, readText } from '../../lib/coerce.js';
+import { presentEnv } from '../../lib/env.js';
 
 export { normalizeHostUrl };
 
@@ -49,12 +51,6 @@ export const sqlQueryToolDefinition: ToolDefinition = {
     required: ['statement'],
   },
 };
-
-function presentEnv(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  if (!trimmed || trimmed === '__UNSET__') return undefined;
-  return trimmed;
-}
 
 export function sqlQueryConfigFromEnv(
   env: Record<string, string | undefined>,
@@ -123,6 +119,7 @@ export function readOnlySqlError(statement: string): string | null {
   return null;
 }
 
+/** Blank out comments, string literals, and quoted identifiers, following Databricks SQL quoting rules. */
 function stripSqlForCheck(sql: string): string {
   let out = '';
   let i = 0;
@@ -140,20 +137,10 @@ function stripSqlForCheck(sql: string): string {
       out += ' ';
       continue;
     }
-    if (ch === "'") {
-      i += 1;
-      while (i < sql.length) {
-        if (sql[i] === "'" && sql[i + 1] === "'") {
-          i += 2;
-          continue;
-        }
-        if (sql[i] === "'") {
-          i += 1;
-          break;
-        }
-        i += 1;
-      }
-      out += "''";
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const backslashEscapes = ch !== '`' && !isRawStringPrefix(sql, i);
+      i = skipQuoted(sql, i, backslashEscapes);
+      out += `${ch}${ch}`;
       continue;
     }
     out += ch;
@@ -162,8 +149,28 @@ function stripSqlForCheck(sql: string): string {
   return out;
 }
 
-function clip(text: string, maxChars: number): string {
-  return text.length > maxChars ? `${text.slice(0, maxChars)}\n…[truncated]` : text;
+/** `r'...'` / `R"..."` raw literals do not treat backslash as an escape. */
+function isRawStringPrefix(sql: string, quoteIndex: number): boolean {
+  return /[rR]/.test(sql[quoteIndex - 1] ?? '') && !/\w/.test(sql[quoteIndex - 2] ?? '');
+}
+
+/** Index just past the quoted run that opens at `start` (doubled quotes and, optionally, `\` escape). */
+function skipQuoted(sql: string, start: number, backslashEscapes: boolean): number {
+  const quote = sql[start];
+  let i = start + 1;
+  while (i < sql.length) {
+    if (backslashEscapes && sql[i] === '\\') {
+      i += 2;
+      continue;
+    }
+    if (sql[i] === quote) {
+      if (sql[i + 1] !== quote) return i + 1;
+      i += 2;
+      continue;
+    }
+    i += 1;
+  }
+  return i;
 }
 
 interface StatementBody {
@@ -189,28 +196,42 @@ function cellText(value: unknown): string {
   return cleanCellText(JSON.stringify(value) ?? '');
 }
 
+/** Value keys seen across Statement API / MCP typed-array encodings, in lookup order. */
+const TYPED_CELL_KEYS = [
+  'str',
+  'string_value',
+  'double',
+  'double_value',
+  'f64',
+  'long',
+  'long_value',
+  'i64',
+  'boolean',
+  'boolean_value',
+  'bool',
+  'date_value',
+  'date',
+  'timestamp_value',
+  'timestamp',
+  'decimal_value',
+  'decimal',
+];
+
 function typedCellText(cell: Record<string, unknown> | null | undefined): string {
   if (!cell) return '';
   if (cell.null === true || cell.is_null === true) return '';
-  if ('str' in cell) return cellText(cell.str);
-  if ('string_value' in cell) return cellText(cell.string_value);
-  if ('double' in cell) return cellText(cell.double);
-  if ('double_value' in cell) return cellText(cell.double_value);
-  if ('f64' in cell) return cellText(cell.f64);
-  if ('long' in cell) return cellText(cell.long);
-  if ('long_value' in cell) return cellText(cell.long_value);
-  if ('i64' in cell) return cellText(cell.i64);
-  if ('boolean' in cell) return cellText(cell.boolean);
-  if ('boolean_value' in cell) return cellText(cell.boolean_value);
-  if ('bool' in cell) return cellText(cell.bool);
-  if ('date_value' in cell) return cellText(cell.date_value);
-  if ('date' in cell) return cellText(cell.date);
-  if ('timestamp_value' in cell) return cellText(cell.timestamp_value);
-  if ('timestamp' in cell) return cellText(cell.timestamp);
-  if ('decimal_value' in cell) return cellText(cell.decimal_value);
-  if ('decimal' in cell) return cellText(cell.decimal);
-  return cellText(cell);
+  const key = TYPED_CELL_KEYS.find((candidate) => candidate in cell);
+  return cellText(key ? cell[key] : cell);
 }
+
+const TERMINAL_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELED', 'CLOSED']);
+
+function isStatementPending(body: StatementBody | null): body is StatementBody & { statement_id: string } {
+  const state = body?.status?.state;
+  return Boolean(body?.statement_id && state && !TERMINAL_STATES.has(state));
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function formatStatementResult(body: unknown, maxChars: number, label = 'sql_query'): string {
   const row = (body && typeof body === 'object' ? body : {}) as StatementBody;
@@ -267,30 +288,19 @@ async function executeSqlStatement(
     return 'sql_query error: response was not JSON';
   }
 
-  const statementId = body.statement_id;
-  let state = body.status?.state;
-  const pollLimitMs = (input.pollSeconds ?? 50) * 1000;
-  const pollDeadline = Date.now() + pollLimitMs;
+  const pollDeadline = Date.now() + (input.pollSeconds ?? 50) * 1000;
   let interval = input.pollIntervalMs ?? 500;
 
-  while (
-    statementId &&
-    state &&
-    !['SUCCEEDED', 'FAILED', 'CANCELED', 'CLOSED'].includes(state) &&
-    Date.now() < pollDeadline
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, interval));
+  while (isStatementPending(body) && Date.now() < pollDeadline) {
+    await sleep(interval);
     interval = Math.min(Math.round(interval * 1.5), 2000);
-    const pollRes = await input.fetchImpl(`${host}/api/2.0/sql/statements/${statementId}`, {
+    const pollRes = await input.fetchImpl(`${host}/api/2.0/sql/statements/${encodeURIComponent(body.statement_id)}`, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (!pollRes.ok) break;
     try {
       body = (await pollRes.json()) as StatementBody;
-      state = body.status?.state;
     } catch {
       break;
     }
@@ -337,18 +347,11 @@ async function executeViaDbsqlMcp(input: {
   }
 
   let text = call.content[0]?.text ?? '';
-  let payload =
-    parseMcpPayload(text, (call as { structuredContent?: unknown }).structuredContent) ?? parseMcpPayload(text);
+  let payload = parseMcpPayload(text, (call as { structuredContent?: unknown }).structuredContent);
 
-  const start = Date.now();
-  while (
-    payload &&
-    payload.status?.state &&
-    !['SUCCEEDED', 'FAILED', 'CANCELED', 'CLOSED'].includes(payload.status.state) &&
-    payload.statement_id &&
-    Date.now() - start < input.pollSeconds * 1000
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, input.pollIntervalMs));
+  const pollDeadline = Date.now() + input.pollSeconds * 1000;
+  while (isStatementPending(payload) && Date.now() < pollDeadline) {
+    await sleep(input.pollIntervalMs);
     const poll = await client.callTool(input.serviceName, 'poll_sql_result', {
       statement_id: payload.statement_id,
     });
@@ -359,8 +362,7 @@ async function executeViaDbsqlMcp(input: {
       );
     }
     text = poll.content[0]?.text ?? '';
-    payload =
-      parseMcpPayload(text, (poll as { structuredContent?: unknown }).structuredContent) ?? parseMcpPayload(text);
+    payload = parseMcpPayload(text, (poll as { structuredContent?: unknown }).structuredContent);
   }
 
   if (!payload) {
@@ -439,7 +441,7 @@ export function createSqlQueryTool(options: SqlQueryToolOptions = {}) {
       const statement = typeof args.statement === 'string' ? args.statement : '';
       const refusal = readOnlySqlError(statement);
       if (refusal) return refusal;
-      const fromArgs = typeof args.warehouse_id === 'string' ? args.warehouse_id.trim() : '';
+      const fromArgs = readText(args.warehouse_id);
       return executeReadOnlySql(options, statement, fromArgs);
     },
   };

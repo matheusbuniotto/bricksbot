@@ -3,6 +3,7 @@ import type { MemorySkillStore } from '../../../shared/agents/memory/types.js';
 import { mergeEffectiveSkills, resolveEffectiveSkill } from '../../../shared/agents/effective-skills.js';
 import { loadBundledSkillPack } from '../memory/skill-packs.js';
 import type { HandoffTurnContext } from '../handoff.js';
+import { readText } from '../../lib/coerce.js';
 
 type RegisteredTool = {
   definition: ToolDefinition;
@@ -12,10 +13,6 @@ type RegisteredTool = {
 
 /** Primary markdown body path (Agent Skills SKILL.md equivalent for Lakebase skills). */
 export const SKILL_BODY_PATH = 'SKILL.md';
-
-function readText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
-}
 
 function parseSkillResourceRef(args: Record<string, unknown>): { name: string; path: string } | null {
   const name = readText(args.name) || readText(args.skill);

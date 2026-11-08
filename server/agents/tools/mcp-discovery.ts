@@ -8,6 +8,7 @@ import {
   type McpSource,
 } from '../../../shared/agents/mcp-types.js';
 import { UnityGatewayMcpClient } from './mcp-client.js';
+import { normalizeHostUrl } from '../../chat/databricks-auth.js';
 
 export interface McpDiscoveryConfig {
   host?: string;
@@ -176,11 +177,10 @@ export class McpDiscoveryService {
   }
 
   private async fetchUnityCatalogMcpServices(schema: string): Promise<UnityCatalogMcpServiceItem[]> {
-    const rawHost = (this.config.host ?? '').trim().replace(/\/+$/, '');
-    const host = /^https?:\/\//i.test(rawHost) ? rawHost : `https://${rawHost}`;
-    if (!rawHost || !this.config.getToken) {
+    if (!this.config.host?.trim() || !this.config.getToken) {
       return [];
     }
+    const host = normalizeHostUrl(this.config.host);
 
     const token = await this.config.getToken();
     if (!token) {
@@ -309,8 +309,9 @@ export class McpDiscoveryService {
 
     const discoveredCandidates = new Map<string, { name?: string; description?: string }>();
 
-    for (const schema of schemas) {
-      const items = await this.fetchUnityCatalogMcpServices(schema);
+    const itemsBySchema = await Promise.all(schemas.map((schema) => this.fetchUnityCatalogMcpServices(schema)));
+    for (const [index, items] of itemsBySchema.entries()) {
+      const schema = schemas[index];
       for (const item of items) {
         const fullService = item.full_name || `${schema}.${item.name}`;
         discoveredCandidates.set(fullService, {

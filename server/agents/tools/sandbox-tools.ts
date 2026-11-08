@@ -3,6 +3,7 @@ import type { ChatStore } from '../../../shared/chat/types.js';
 import type { HandoffTurnContext } from '../handoff.js';
 import { ArtifactSyncService, resolveArtifactVolumePath } from '../../sandbox/artifact-sync.js';
 import type { SandboxSessionService } from '../../sandbox/session-service.js';
+import { clip, readText } from '../../lib/coerce.js';
 
 export const SANDBOX_EXEC_TOOL_NAME = 'sandbox_exec';
 export const SANDBOX_PYTHON_EXEC_TOOL_NAME = 'python_exec';
@@ -36,10 +37,6 @@ export function isAskFirstSandboxTool(toolName: string): boolean {
     toolName === SANDBOX_SAVE_ARTIFACT_TOOL_NAME ||
     toolName === SANDBOX_DELETE_TOOL_NAME
   );
-}
-
-function clip(text: string, maxChars: number): string {
-  return text.length > maxChars ? `${text.slice(0, maxChars)}\n…[truncated]` : text;
 }
 
 export const sandboxExecToolDefinition: ToolDefinition = {
@@ -202,7 +199,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
       definition: sandboxExecToolDefinition,
       preflight(args: Record<string, unknown>, ctx: HandoffTurnContext): string | null {
         if (!ctx.bot) return 'sandbox_exec requires an active Bot';
-        const command = typeof args.command === 'string' ? args.command.trim() : '';
+        const command = readText(args.command);
         if (!command) return 'sandbox_exec requires a non-empty command';
         return null;
       },
@@ -214,7 +211,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
             tool: SANDBOX_EXEC_TOOL_NAME,
           });
         }
-        const command = typeof args.command === 'string' ? args.command.trim() : '';
+        const command = readText(args.command);
         if (!command) {
           return JSON.stringify({
             ok: false,
@@ -262,7 +259,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
       definition: sandboxPythonExecToolDefinition,
       preflight(args: Record<string, unknown>, ctx: HandoffTurnContext): string | null {
         if (!ctx.bot) return 'python_exec requires an active Bot';
-        const code = typeof args.code === 'string' ? args.code.trim() : '';
+        const code = readText(args.code);
         if (!code) return 'python_exec requires non-empty Python code';
         return null;
       },
@@ -320,7 +317,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
       definition: sandboxUploadToolDefinition,
       preflight(args: Record<string, unknown>, ctx: HandoffTurnContext): string | null {
         if (!ctx.bot) return 'sandbox_upload requires an active Bot';
-        const dest = typeof args.destination === 'string' ? args.destination.trim() : '';
+        const dest = readText(args.destination);
         if (!dest) return 'sandbox_upload requires destination';
         if (typeof args.content !== 'string') return 'sandbox_upload requires content';
         return null;
@@ -333,7 +330,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
             tool: SANDBOX_UPLOAD_TOOL_NAME,
           });
         }
-        const dest = typeof args.destination === 'string' ? args.destination.trim() : '';
+        const dest = readText(args.destination);
         const content = typeof args.content === 'string' ? args.content : '';
         try {
           const uploaded = await sessionService.uploadFile(
@@ -364,7 +361,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
       definition: sandboxDownloadToolDefinition,
       preflight(args: Record<string, unknown>, ctx: HandoffTurnContext): string | null {
         if (!ctx.bot) return 'sandbox_download requires an active Bot';
-        const src = typeof args.source === 'string' ? args.source.trim() : '';
+        const src = readText(args.source);
         if (!src) return 'sandbox_download requires source';
         return null;
       },
@@ -376,7 +373,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
             tool: SANDBOX_DOWNLOAD_TOOL_NAME,
           });
         }
-        const src = typeof args.source === 'string' ? args.source.trim() : '';
+        const src = readText(args.source);
         try {
           const downloaded = await sessionService.downloadFile(
             {
@@ -408,7 +405,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
       definition: sandboxSaveArtifactToolDefinition,
       preflight(args: Record<string, unknown>, ctx: HandoffTurnContext): string | null {
         if (!ctx.bot) return 'sandbox_save_artifact requires an active Bot';
-        const sourcePath = typeof args.source_path === 'string' ? args.source_path.trim() : '';
+        const sourcePath = readText(args.source_path);
         if (!sourcePath) return 'sandbox_save_artifact requires source_path';
         const volumePath = typeof args.volume_path === 'string' ? args.volume_path.trim() : undefined;
         const resolved = resolveArtifactVolumePath(
@@ -422,7 +419,7 @@ export function createSandboxTools(options: CreateSandboxToolsOptions) {
       },
       async execute(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string> {
         try {
-          const sourcePath = typeof args.source_path === 'string' ? args.source_path.trim() : '';
+          const sourcePath = readText(args.source_path);
           const volumePath = typeof args.volume_path === 'string' ? args.volume_path.trim() : undefined;
           const title = typeof args.title === 'string' ? args.title.trim() : undefined;
           const summary = typeof args.summary === 'string' ? args.summary.trim() : undefined;

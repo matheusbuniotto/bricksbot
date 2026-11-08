@@ -73,6 +73,28 @@ describe('createWebFetchTool', () => {
     expect(result).not.toContain('alert(1)');
   });
 
+  test('follows redirects that stay on the allowlist', async () => {
+    const fetchImpl = vi.fn((url: string) =>
+      Promise.resolve(
+        url.endsWith('/old')
+          ? new Response(null, { status: 301, headers: { location: '/new' } })
+          : new Response('moved page', { status: 200, headers: { 'content-type': 'text/plain' } })
+      )
+    );
+    const tool = createWebFetchTool({ allowlist: ['example.com'], fetchImpl: fetchImpl as unknown as typeof fetch });
+    await expect(tool.execute({ url: 'https://example.com/old' })).resolves.toContain('moved page');
+    expect(fetchImpl).toHaveBeenLastCalledWith('https://example.com/new', expect.anything());
+  });
+
+  test('refuses redirects that leave the allowlist', async () => {
+    const fetchImpl = vi.fn(() =>
+      Promise.resolve(new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/latest' } }))
+    );
+    const tool = createWebFetchTool({ allowlist: ['example.com'], fetchImpl: fetchImpl as typeof fetch });
+    await expect(tool.execute({ url: 'https://example.com/hop' })).rejects.toThrow(/left the allowlist/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   test('rejects non-allowlisted hosts', async () => {
     const tool = createWebFetchTool({ allowlist: ['example.com'] });
     await expect(tool.execute({ url: 'https://not-allowed.test' })).rejects.toThrow(/allowlist/i);

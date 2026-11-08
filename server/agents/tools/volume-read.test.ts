@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { createVolumeReadTool, validateVolumePath, volumeReadToolDefinition } from './volume-read.js';
+import { createVolumeReadTool, filesApiUrl, validateVolumePath, volumeReadToolDefinition } from './volume-read.js';
 
 describe('validateVolumePath', () => {
   test('accepts valid /Volumes/ path', () => {
@@ -18,6 +18,14 @@ describe('validateVolumePath', () => {
 
   test('rejects empty paths', () => {
     expect(validateVolumePath('')).toMatch(/requires a path/);
+  });
+});
+
+describe('filesApiUrl', () => {
+  test('encodes segments so encoded dots and query characters stay inside the path', () => {
+    const url = filesApiUrl('host.example', 'files', '/Volumes/c/s/v/%2e%2e/a?b#c');
+    expect(url).toBe('https://host.example/api/2.0/fs/files/Volumes/c/s/v/%252e%252e/a%3Fb%23c');
+    expect(new URL(url).pathname).toMatch(/^\/api\/2\.0\/fs\/files\/Volumes\//);
   });
 });
 

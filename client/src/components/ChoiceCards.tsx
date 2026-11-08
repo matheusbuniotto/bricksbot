@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { PendingChoice } from '../../../shared/chat/choice-notice';
+import { isTypingTarget } from '../lib/keyboard';
 
 export function ChoiceCards({
   chatId,
@@ -18,10 +19,7 @@ export function ChoiceCards({
     if (!first || busyId) return;
 
     function handleKeyDown(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
-        return;
-      }
+      if (isTypingTarget(event.target)) return;
 
       const index = Number.parseInt(event.key, 10);
       if (index >= 1 && index <= first.options.length) {

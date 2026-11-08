@@ -1,15 +1,6 @@
 import type { IdempotencyRecord, IdempotencyStore } from '../../shared/durable/types.js';
 import type { LakebaseQuery } from '../chat/lakebase-store.js';
-
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-function asString(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
-  if (value === null || value === undefined) return '';
-  return String(value);
-}
+import { asString, nowIso } from '../lib/coerce.js';
 
 export class MemoryIdempotencyStore implements IdempotencyStore {
   private byId = new Map<string, IdempotencyRecord>();

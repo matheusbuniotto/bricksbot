@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import type { ExecutionResult } from '../../shared/sandbox/types.js';
 import type { ExecutionBackend, RunCommandOptions } from './backend.js';
 import { buildShellScript, formatDatabricksSandboxId, validateSandboxFilePath } from './databricks-backend.js';
+import { normalizeHostUrl } from '../chat/databricks-auth.js';
 
 export interface SystemAiPythonConfig {
   host: string;
@@ -167,8 +168,7 @@ export class SystemAiPythonBackend implements ExecutionBackend {
   }
 
   private baseHost(): string {
-    const trimmed = this.config.host.trim().replace(/\/+$/, '');
-    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    return normalizeHostUrl(this.config.host);
   }
 
   private ensureFileMap(externalId: string): Map<string, string> {

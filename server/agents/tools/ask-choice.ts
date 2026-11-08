@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import { normalizeOptions } from '../../../shared/chat/choice-notice.js';
 import type { HandoffTurnContext } from '../handoff.js';
+import { readText } from '../../lib/coerce.js';
 
 export const ASK_CHOICE_TOOL_NAME = 'ask_choice';
 
@@ -25,10 +26,6 @@ export const askChoiceToolDefinition: ToolDefinition = {
     required: ['prompt', 'options'],
   },
 };
-
-function readText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
-}
 
 type Planned = { ok: true; prompt: string; options: string[] } | { ok: false; error: string };
 

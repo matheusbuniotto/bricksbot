@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { presentEnv } from '../lib/env.js';
 
 /** Default cap for command/output previews stored in `sandbox_events`. */
 export const MAX_PREVIEW_CHARS = 2_048;
@@ -24,8 +25,8 @@ export function redactSecrets(text: string, secrets: Iterable<string> = []): str
   let out = text;
 
   for (const raw of secrets) {
-    const trimmed = raw?.trim();
-    if (!trimmed || trimmed === '__UNSET__' || trimmed.length < 4) continue;
+    const trimmed = presentEnv(raw);
+    if (!trimmed || trimmed.length < 4) continue;
     out = out.replace(new RegExp(escapeRegExp(trimmed), 'g'), '[REDACTED]');
   }
 

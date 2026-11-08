@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Request } from 'express';
+import { presentEnv } from '../lib/env.js';
 
 /**
  * Request-scoped Databricks credentials for lakehouse tools.
@@ -15,12 +16,6 @@ type DatabricksAuthStore = {
 };
 
 const authAls = new AsyncLocalStorage<DatabricksAuthStore>();
-
-function present(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  if (!trimmed || trimmed === '__UNSET__') return undefined;
-  return trimmed;
-}
 
 function headerValue(req: Request | undefined, name: string): string | undefined {
   if (!req) return undefined;
@@ -108,10 +103,10 @@ export function createDatabricksTokenProvider(
   options: DatabricksTokenProviderOptions = {}
 ): (() => Promise<string>) | undefined {
   const env = options.env ?? process.env;
-  const staticToken = options.staticToken ?? present(env.DATABRICKS_TOKEN);
-  const host = present(env.DATABRICKS_HOST) ?? present(env.DATABRICKS_WORKSPACE_URL);
-  const clientId = present(env.DATABRICKS_CLIENT_ID);
-  const clientSecret = present(env.DATABRICKS_CLIENT_SECRET);
+  const staticToken = options.staticToken ?? presentEnv(env.DATABRICKS_TOKEN);
+  const host = presentEnv(env.DATABRICKS_HOST) ?? presentEnv(env.DATABRICKS_WORKSPACE_URL);
+  const clientId = presentEnv(env.DATABRICKS_CLIENT_ID);
+  const clientSecret = presentEnv(env.DATABRICKS_CLIENT_SECRET);
   const m2mGetToken =
     options.m2mGetToken ??
     (host && clientId && clientSecret

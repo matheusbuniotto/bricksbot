@@ -1,6 +1,7 @@
 import { handoffBriefUserLine, serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
 import type { Bot, ChatStore } from '../../shared/chat/types.js';
 import type { ToolDefinition } from '../../shared/agents/types.js';
+import { readText } from '../lib/coerce.js';
 
 export const HANDOFF_TOOL_NAME = 'handoff_to_bot';
 
@@ -48,10 +49,6 @@ export function primaryRouterPrompt(teammates: Array<{ id: string; name: string 
     'Use create_bot only when a job needs a durable owner and no teammate fits — it always needs approval. ' +
     `Teammates: ${list}. Only you may hand off or create bots, and only within this Space.`
   );
-}
-
-function readText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
 }
 
 export async function planHandoff(

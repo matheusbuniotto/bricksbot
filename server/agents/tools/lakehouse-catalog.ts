@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import { executeReadOnlySql, type SqlQueryToolOptions } from './sql-query.js';
+import { readText } from '../../lib/coerce.js';
 
 export const lakehouseCatalogArgsSchema = z.object({
   action: z.enum(['list_catalogs', 'list_schemas', 'list_tables', 'describe_table']),
@@ -137,7 +138,7 @@ export function createLakehouseCatalogTool(options: SqlQueryToolOptions = {}) {
         return `lakehouse_catalog error: ${parsed.error ?? 'invalid request'}`;
       }
       const statement = parsed.statement;
-      const fromArgs = typeof args.warehouse_id === 'string' ? args.warehouse_id.trim() : '';
+      const fromArgs = readText(args.warehouse_id);
       const result = await executeReadOnlySql(
         { ...options, maxChars: options.maxChars ?? maxChars },
         statement,

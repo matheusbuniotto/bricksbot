@@ -51,7 +51,7 @@ describe('writeVolumeBytes', () => {
       true
     );
     expect(calls).toEqual([
-      `https://example.cloud.databricks.com/api/2.0/fs/files${ROOT}/users/alice@co.com/bots/${BOT}/notes/a.md?overwrite=true`,
+      `https://example.cloud.databricks.com/api/2.0/fs/files${ROOT}/users/alice%40co.com/bots/${BOT}/notes/a.md?overwrite=true`,
     ]);
 
     await expect(

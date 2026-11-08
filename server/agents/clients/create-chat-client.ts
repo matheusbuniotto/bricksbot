@@ -1,18 +1,11 @@
 import type { ChatClient } from '../../../shared/agents/types.js';
+import { presentEnv } from '../../lib/env.js';
 import { DatabricksServingChatClient } from './databricks-serving-client.js';
 import { OpenAICompatibleChatClient } from './openai-compatible-client.js';
 import { resolveLlmEnv } from './resolve-llm-env.js';
 import { StubChatClient } from './stub-client.js';
 
 export type ChatClientEnv = Record<string, string | undefined>;
-
-function truthy(value: string | undefined): value is string {
-  if (!value) return false;
-  const trimmed = value.trim();
-  // Placeholder used when a Databricks secret resource must exist but is not configured yet.
-  if (!trimmed || trimmed === '__UNSET__') return false;
-  return true;
-}
 
 /**
  * Resolve ChatClient from env.
@@ -23,39 +16,41 @@ function truthy(value: string | undefined): value is string {
 export function createChatClientFromEnv(env: ChatClientEnv = process.env): ChatClient {
   const resolved = resolveLlmEnv(env);
   const provider = (resolved.LLM_PROVIDER ?? '').trim().toLowerCase();
-  const hasOpenAI = truthy(resolved.LLM_BASE_URL) && truthy(resolved.LLM_API_KEY);
-  const hasServing = truthy(resolved.DATABRICKS_SERVING_ENDPOINT_NAME);
+  const baseUrl = presentEnv(resolved.LLM_BASE_URL);
+  const apiKey = presentEnv(resolved.LLM_API_KEY);
+  const endpointName = presentEnv(resolved.DATABRICKS_SERVING_ENDPOINT_NAME);
+  const hasOpenAI = Boolean(baseUrl && apiKey);
 
   if (provider === 'stub') {
     return new StubChatClient();
   }
 
-  if (provider === 'databricks' || (!hasOpenAI && hasServing)) {
-    if (!hasServing) {
+  if (provider === 'databricks' || (!hasOpenAI && endpointName)) {
+    if (!endpointName) {
       throw new Error('LLM_PROVIDER=databricks requires DATABRICKS_SERVING_ENDPOINT_NAME');
     }
-    const host = resolved.DATABRICKS_HOST ?? resolved.DATABRICKS_WORKSPACE_URL;
-    if (!truthy(host)) {
+    const host = presentEnv(resolved.DATABRICKS_HOST ?? resolved.DATABRICKS_WORKSPACE_URL);
+    if (!host) {
       throw new Error('Databricks Serving client requires DATABRICKS_HOST');
     }
-    const staticToken = resolved.DATABRICKS_TOKEN;
+    const staticToken = presentEnv(resolved.DATABRICKS_TOKEN);
     return new DatabricksServingChatClient({
       host,
-      endpointName: resolved.DATABRICKS_SERVING_ENDPOINT_NAME!,
+      endpointName,
       getToken: async () => {
-        if (truthy(staticToken)) return staticToken;
+        if (staticToken) return staticToken;
         throw new Error('DATABRICKS_TOKEN is required for Serving outside the App runtime');
       },
     });
   }
 
   if (provider === 'openai' || hasOpenAI) {
-    if (!hasOpenAI) {
+    if (!baseUrl || !apiKey) {
       throw new Error('LLM_PROVIDER=openai requires LLM_BASE_URL and LLM_API_KEY');
     }
     return new OpenAICompatibleChatClient({
-      baseUrl: resolved.LLM_BASE_URL!,
-      apiKey: resolved.LLM_API_KEY!,
+      baseUrl,
+      apiKey,
       model: resolved.LLM_MODEL?.trim() || 'default',
     });
   }
