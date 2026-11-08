@@ -6,6 +6,7 @@ import type {
   McpToolDefinition,
 } from '../../../shared/agents/mcp-types.js';
 import { callTeatoolsMcp, TEATOOLS_MCP_DEFINITIONS, TEATOOLS_MCP_SERVICE } from './teatools/mcp-server.js';
+import { normalizeHostUrl } from '../../chat/databricks-auth.js';
 
 export class UnityGatewayMcpClient {
   private requestId = 0;
@@ -16,12 +17,13 @@ export class UnityGatewayMcpClient {
   }
 
   private getUrl(serviceName: string): string {
-    let host = this.config.host.trim().replace(/\/+$/, '');
-    if (!/^https?:\/\//i.test(host)) {
-      host = `https://${host}`;
+    const host = normalizeHostUrl(this.config.host);
+    // Service names come from users (Connectors dialog); keep them inside mcp-services/.
+    const segments = serviceName.trim().replace(/^\/+/, '').split('/');
+    if (segments.some((segment) => !segment || segment === '.' || segment === '..')) {
+      throw new Error(`Invalid MCP service name: ${serviceName}`);
     }
-    const cleanService = serviceName.trim().replace(/^\/+/, '');
-    const base = `${host}/ai-gateway/mcp-services/${cleanService}`;
+    const base = `${host}/ai-gateway/mcp-services/${segments.map(encodeURIComponent).join('/')}`;
     if (this.config.workspaceId) {
       const sp = new URLSearchParams({ o: this.config.workspaceId });
       return `${base}?${sp.toString()}`;

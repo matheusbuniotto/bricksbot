@@ -1,5 +1,6 @@
 import type { ChatClient } from '../../shared/agents/types.js';
 import { resolveLlmEnv } from '../agents/clients/resolve-llm-env.js';
+import { presentEnv } from '../lib/env.js';
 
 export interface SetupStatus {
   provider: ChatClient['provider'];
@@ -15,12 +16,6 @@ export interface SetupStatus {
   routineWebhookSecretPutExample: string[];
 }
 
-function truthySecret(value: string | undefined): boolean {
-  if (!value) return false;
-  const trimmed = value.trim();
-  return Boolean(trimmed) && trimmed !== '__UNSET__';
-}
-
 /** Build install-wizard status from env + resolved ChatClient (no invented secrets). */
 export function buildSetupStatus(
   env: Record<string, string | undefined>,
@@ -30,7 +25,7 @@ export function buildSetupStatus(
   const scope = env.LLM_SECRET_SCOPE?.trim() || 'bricksbot';
   const secretKey = env.LLM_SECRET_KEY?.trim() || 'openrouter-api-key';
   const lakebaseConfigured = Boolean(env.LAKEBASE_ENDPOINT || env.PGHOST);
-  const hasOpenAI = truthySecret(resolved.LLM_BASE_URL) && truthySecret(resolved.LLM_API_KEY);
+  const hasOpenAI = Boolean(presentEnv(resolved.LLM_BASE_URL) && presentEnv(resolved.LLM_API_KEY));
   const needsLlmSetup = provider === 'stub' || (!hasOpenAI && provider !== 'databricks-serving');
 
   const appPublicUrl = env.BRICKSBOT_PUBLIC_APP_URL?.trim() || null;

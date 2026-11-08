@@ -1,9 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { PluginRecord, PluginRegistryStore } from '../../../shared/plugins/types.js';
-
-function nowIso(): string {
-  return new Date().toISOString();
-}
+import { nowIso } from '../../lib/coerce.js';
 
 export class MemoryPluginRegistryStore implements PluginRegistryStore {
   private readonly records = new Map<string, PluginRecord>();

@@ -3,14 +3,7 @@ import type { PendingChoice } from '../../../shared/chat/choice-notice';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
 import type { SandboxUiStatus } from '../../../shared/sandbox/types';
 import type { DatabricksMcpApp } from '../../../shared/agents/mcp-types';
-
-async function readJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Request failed (${res.status})`);
-  }
-  return res.json() as Promise<T>;
-}
+import { readJson } from './http';
 
 export async function fetchSpaces(): Promise<Space[]> {
   const data = await readJson<{ spaces: Space[] }>(await fetch('/api/spaces'));

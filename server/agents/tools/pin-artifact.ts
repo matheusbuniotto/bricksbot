@@ -9,6 +9,7 @@ import { validateVegaLiteSpec } from '../../../shared/chat/vega-spec.js';
 import type { ChatStore } from '../../../shared/chat/types.js';
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { HandoffTurnContext } from '../handoff.js';
+import { readText } from '../../lib/coerce.js';
 
 export const PIN_ARTIFACT_TOOL_NAME = 'pin_artifact';
 
@@ -47,10 +48,6 @@ export const pinArtifactToolDefinition: ToolDefinition = {
   },
 };
 
-function readText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 type Planned = { ok: true; args: PinArgs } | { ok: false; error: string };
 
 export interface PinArgs {
@@ -76,7 +73,7 @@ export function planPinArtifact(args: Record<string, unknown>, bot: HandoffTurnC
   }
   const kind = kindRaw as ArtifactPinKind;
 
-  const body = typeof args.body === 'string' ? args.body.trim() : '';
+  const body = readText(args.body);
   if (!body) {
     return { ok: false, error: 'pin_artifact requires body' };
   }

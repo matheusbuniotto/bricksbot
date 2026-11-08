@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
 import { approvalTitle } from '../lib/user-facing';
+import { isTypingTarget } from '../lib/keyboard';
 
 function readStr(val: unknown): string {
   return typeof val === 'string' ? val : '';
@@ -259,11 +260,7 @@ export function ApprovalCards({
     if (!firstApproval || busyId) return;
 
     function handleKeyDown(event: KeyboardEvent) {
-      // Don't intercept if user is typing in an input or textarea
-      const target = event.target as HTMLElement | null;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
-        return;
-      }
+      if (isTypingTarget(event.target)) return;
 
       const key = event.key.toLowerCase();
       const onceOnly = isOnceOnlyApproval(firstApproval.toolCall.name);

@@ -1,12 +1,5 @@
 import type { BotMemory, BotSkill } from '../../../shared/agents/memory/types';
-
-async function readJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Request failed (${res.status})`);
-  }
-  return res.json() as Promise<T>;
-}
+import { readJson } from './http';
 
 export async function fetchMemories(botId: string): Promise<BotMemory[]> {
   const data = await readJson<{ memories: BotMemory[] }>(await fetch(`/api/bots/${botId}/memories`));

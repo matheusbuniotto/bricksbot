@@ -7,6 +7,7 @@ import type {
 } from '../../../shared/agents/mcp-types.js';
 import type { HandoffTurnContext } from '../handoff.js';
 import { UnityGatewayMcpClient } from './mcp-client.js';
+import { readText } from '../../lib/coerce.js';
 
 export const GENIE_ASK_TOOL_NAME = 'genie_ask';
 export const GENIE_POLL_TOOL_NAME = 'genie_poll_response';
@@ -167,14 +168,14 @@ export function createSystemAiMcpTools(options: SystemAiMcpOptions = {}): Regist
   const genieAsk: RegisteredTool = {
     definition: genieAskToolDefinition,
     preflight(args: Record<string, unknown>): string | null {
-      const question = typeof args.question === 'string' ? args.question.trim() : '';
+      const question = readText(args.question);
       if (!question) {
         return 'genie_ask requires a question';
       }
       return null;
     },
     async execute(args: Record<string, unknown>): Promise<string> {
-      const question = typeof args.question === 'string' ? args.question.trim() : '';
+      const question = readText(args.question);
       if (!question) {
         return 'genie_ask error: question is required';
       }

@@ -6,15 +6,9 @@ import type {
   RoutineStore,
   UpdateRoutineInput,
 } from '../../shared/routines/types.js';
+import { assertValidRoutinePatch, normalizeNewRoutine } from './input.js';
 import { generateWebhookSecret, hashWebhookSecret } from './webhook-auth.js';
-
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-function defaultPrompt(name: string): string {
-  return `Scheduled routine: ${name}`;
-}
+import { nowIso } from '../lib/coerce.js';
 
 /** In-memory RoutineStore for tests and local runs without Lakebase. */
 export class MemoryRoutineStore implements RoutineStore {
@@ -39,21 +33,12 @@ export class MemoryRoutineStore implements RoutineStore {
   }
 
   async createRoutine(input: CreateRoutineInput): Promise<CreateRoutineResult> {
-    const name = input.name.trim();
-    const cron = input.cron.trim();
-    if (!name) throw new Error('Routine name is required');
-    if (!cron) throw new Error('Cron expression is required');
-    if (!input.botId.trim()) throw new Error('Bot id is required');
-
     const webhookSecret = generateWebhookSecret();
     const routine: Routine = {
       id: randomUUID(),
       botId: input.botId,
       ownerId: input.ownerId,
-      name,
-      cron,
-      prompt: (input.prompt?.trim() || defaultPrompt(name)).trim(),
-      enabled: input.enabled ?? true,
+      ...normalizeNewRoutine(input),
       lastRunAt: null,
       createdAt: nowIso(),
     };
@@ -67,19 +52,14 @@ export class MemoryRoutineStore implements RoutineStore {
     if (!routine || routine.ownerId !== ownerId) {
       throw new Error('Routine not found');
     }
+    assertValidRoutinePatch(patch);
     const updated: Routine = {
       ...routine,
       enabled: patch.enabled ?? routine.enabled,
-      name: patch.name !== undefined ? patch.name.trim() || routine.name : routine.name,
-      cron: patch.cron !== undefined ? patch.cron.trim() || routine.cron : routine.cron,
-      prompt: patch.prompt !== undefined ? patch.prompt.trim() || routine.prompt : routine.prompt,
+      name: patch.name?.trim() ?? routine.name,
+      cron: patch.cron?.trim() ?? routine.cron,
+      prompt: patch.prompt?.trim() || routine.prompt,
     };
-    if (patch.name !== undefined && !patch.name.trim()) {
-      throw new Error('Routine name is required');
-    }
-    if (patch.cron !== undefined && !patch.cron.trim()) {
-      throw new Error('Cron expression is required');
-    }
     this.routines.set(routineId, updated);
     return updated;
   }

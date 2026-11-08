@@ -5,6 +5,7 @@ import type { ExecutionBackend } from './backend.js';
 import { DatabricksSandboxBackend } from './databricks-backend.js';
 import { E2BSandboxBackend } from './e2b-backend.js';
 import { SystemAiPythonBackend } from './python-exec-backend.js';
+import { presentEnv } from '../lib/env.js';
 
 export interface SandboxConfig {
   backend: SandboxBackendSetting;
@@ -20,12 +21,6 @@ export interface SandboxConfig {
   egressAllowlist: string[];
   artifactVolumeRoot?: string;
   secretsToRedact: string[];
-}
-
-function presentEnv(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  if (!trimmed || trimmed === '__UNSET__') return undefined;
-  return trimmed;
 }
 
 function parsePositiveInt(raw: string | undefined, fallback: number): number {

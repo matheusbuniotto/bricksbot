@@ -93,11 +93,6 @@
       "count": 1
     }
   },
-  "server/agents/memory/lakebase-store.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    }
-  },
   "server/agents/memory/memory-store.ts": {
     "@typescript-eslint/require-await": {
       "count": 8
@@ -157,7 +152,7 @@
   },
   "server/agents/tools/volume-read.ts": {
     "@typescript-eslint/no-base-to-string": {
-      "count": 4
+      "count": 2
     }
   },
   "server/agents/tools/volume-write.test.ts": {
@@ -176,9 +171,6 @@
     }
   },
   "server/chat/approvals.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
@@ -202,9 +194,6 @@
     }
   },
   "server/chat/lakebase-store.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
@@ -243,13 +232,10 @@
   },
   "server/chat/service.ts": {
     "@typescript-eslint/await-thenable": {
-      "count": 5
+      "count": 4
     }
   },
   "server/durable/compaction-store.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
     "@typescript-eslint/require-await": {
       "count": 2
     }
@@ -260,16 +246,8 @@
     }
   },
   "server/durable/idempotency-store.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
     "@typescript-eslint/require-await": {
       "count": 2
-    }
-  },
-  "server/routines/lakebase-store.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
     }
   },
   "server/routines/memory-store.ts": {
@@ -291,11 +269,6 @@
     },
     "@typescript-eslint/require-await": {
       "count": 7
-    }
-  },
-  "server/sandbox/lakebase-store.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
     }
   },
   "server/sandbox/memory-store.ts": {

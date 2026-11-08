@@ -1,33 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PluginRecord, PluginRegistryStore, PluginSource } from '../../../shared/plugins/types.js';
 import type { LakebaseQuery } from '../../chat/lakebase-store.js';
-
-function asString(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return '';
-}
-
-function asBool(value: unknown): boolean {
-  return value === true || value === 't' || value === 'true';
-}
-
-function asConfig(value: unknown): Record<string, unknown> {
-  if (!value) return {};
-  if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      return {};
-    }
-  }
-  return {};
-}
+import { asBool, asJsonObject, asString } from '../../lib/coerce.js';
 
 function mapPluginRecord(row: Record<string, unknown>): PluginRecord {
   return {
@@ -36,7 +10,7 @@ function mapPluginRecord(row: Record<string, unknown>): PluginRecord {
     source: asString(row.source) as PluginSource,
     sourcePath: asString(row.source_path),
     enabled: asBool(row.enabled),
-    config: asConfig(row.config),
+    config: asJsonObject(row.config),
     createdAt: asString(row.created_at),
     updatedAt: asString(row.updated_at),
   };

@@ -19,28 +19,13 @@ import type { ToolCall } from '../../shared/agents/types.js';
 import { messagePreviewLine } from '../../shared/chat/preview.js';
 import { buildBotVisibilitySqlClause } from './access-policy.js';
 import { CHAT_SCHEMA_STATEMENTS } from './schema.js';
+import { avatarFromName, DEFAULT_SPACE_NAME, PRIMARY_NAME, updatedAvatarLabel } from './bot-defaults.js';
+import { asBool, asString } from '../lib/coerce.js';
 
 const BOT_COLUMNS =
   'id, name, avatar_label, presence, space_id, is_primary, is_shared, description, source_bot_id, owner_id, sort_order, archived_at, created_at, last_message_preview';
 
 export type LakebaseQuery = (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
-
-const PRIMARY_NAME = 'Primary';
-const DEFAULT_SPACE_NAME = 'Personal';
-
-function asString(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
-  if (value === null || value === undefined) return '';
-  return String(value);
-}
-
-function asBool(value: unknown): boolean {
-  return value === true || value === 't' || value === 'true';
-}
-
-function avatarFromName(name: string): string {
-  return (name.trim()[0] ?? '?').toUpperCase();
-}
 
 function mapSpace(row: Record<string, unknown>): Space {
   return {
@@ -411,12 +396,7 @@ export class LakebaseChatStore implements ChatStore {
     }
     const name = input.name !== undefined ? input.name.trim() : bot.name;
     if (!name) throw new Error('Bot name is required');
-    const avatarLabel =
-      input.avatarLabel !== undefined
-        ? input.avatarLabel.trim() || avatarFromName(name)
-        : input.name !== undefined && bot.avatarLabel.length === 1
-          ? avatarFromName(name)
-          : bot.avatarLabel;
+    const avatarLabel = updatedAvatarLabel(bot.avatarLabel, input, name);
     let spaceId = bot.spaceId;
     let sortOrder = bot.sortOrder;
     if (input.spaceId !== undefined && input.spaceId !== bot.spaceId) {

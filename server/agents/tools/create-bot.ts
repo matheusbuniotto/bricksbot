@@ -3,6 +3,7 @@ import type { Bot, ChatStore } from '../../../shared/chat/types.js';
 import type { MemorySkillStore } from '../../../shared/agents/memory/types.js';
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { HandoffTurnContext } from '../handoff.js';
+import { readText } from '../../lib/coerce.js';
 
 export const CREATE_BOT_TOOL_NAME = 'create_bot';
 
@@ -52,10 +53,6 @@ export interface CreateBotPlan {
 }
 
 type Planned = { ok: true; plan: CreateBotPlan } | { ok: false; error: string };
-
-function readText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
-}
 
 export async function planCreateBot(
   store: ChatStore,

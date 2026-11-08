@@ -1,13 +1,9 @@
 import type { Presence } from '../../../shared/chat/types';
 import { toolLabel } from '../../../shared/agents/tool-labels';
+import { looksLikeJsonBlob } from '../../../shared/chat/preview';
 
 export { approvalTitle, toolLabel } from '../../../shared/agents/tool-labels';
 export { lastUserFacingPreview, messagePreviewLine } from '../../../shared/chat/preview';
-
-function looksLikeJsonBlob(content: string): boolean {
-  const trimmed = content.trim();
-  return trimmed.startsWith('{') || trimmed.startsWith('[');
-}
 
 export function presenceTooltip(presence: Presence): string {
   switch (presence) {

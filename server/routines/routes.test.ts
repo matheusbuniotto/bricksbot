@@ -41,6 +41,17 @@ async function withRoutineApp(run: (ctx: { baseUrl: string; botId: string }) => 
 }
 
 describe('routines HTTP API', () => {
+  test('refuses to schedule a routine on another user private bot', async () => {
+    await withRoutineApp(async ({ baseUrl, botId }) => {
+      const res = await fetch(`${baseUrl}/api/routines`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-email': 'mallory@example.com' },
+        body: JSON.stringify({ botId, name: 'Snoop', cron: '0 * * * *' }),
+      });
+      expect(res.status).toBe(403);
+    });
+  });
+
   test('lists, creates, toggles, runs, and accepts authenticated webhooks', async () => {
     await withRoutineApp(async ({ baseUrl, botId }) => {
       const statusRes = await fetch(`${baseUrl}/api/setup/status`);

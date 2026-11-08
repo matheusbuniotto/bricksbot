@@ -2,12 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { BotMemory, BotSkill, MemorySkillStore } from '../../../shared/agents/memory/types.js';
 import type { LakebaseQuery } from '../../chat/lakebase-store.js';
 import { normalizeMemory, normalizeSkill, requireBotId } from './input.js';
-
-function asString(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
-  if (value === null || value === undefined) return '';
-  return String(value);
-}
+import { asString } from '../../lib/coerce.js';
 
 function mapMemory(row: Record<string, unknown>): BotMemory {
   return {

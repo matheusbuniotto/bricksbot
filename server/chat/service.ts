@@ -8,7 +8,7 @@ import {
   type PendingChoice,
 } from '../../shared/chat/choice-notice.js';
 import { handoffBriefUserLine, parseHandoffNotice, serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
-import type { Bot, ChatStore, Message } from '../../shared/chat/types.js';
+import type { Bot, Chat, ChatStore, Message } from '../../shared/chat/types.js';
 import type { CompactionSettings, CompactionStore, IdempotencyStore } from '../../shared/durable/types.js';
 import { DEFAULT_COMPACTION_SETTINGS } from '../../shared/durable/types.js';
 import { buildCapabilityCatalog, formatCapabilityPrompt } from '../../shared/agents/capability-catalog.js';
@@ -61,6 +61,15 @@ import { ApprovalStore } from './approvals.js';
 import { ChoiceStore } from './choices.js';
 import { PluginHost } from '../plugins/host/plugin-host.js';
 import type { PluginExecutionContext, PluginPromptContext, PluginTurnContext } from '../../shared/plugins/types.js';
+
+const SILENT_LOG: PluginExecutionContext['log'] = { info: () => {}, warn: () => {}, error: () => {} };
+
+function latestOfRole(history: Message[], role: Message['role']): Message | undefined {
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (history[i].role === role) return history[i];
+  }
+  return undefined;
+}
 
 /** Never persist “Always allow” for these tools. */
 function requiresAlwaysAsk(toolName: string): boolean {
@@ -318,15 +327,39 @@ export class ChatService {
     return result;
   }
 
-  private async decidedPauseResult(chatId: string): Promise<SendMessageResult> {
-    const history = await this.options.store.listMessages(chatId);
-    const pause = await this.pauseSnapshot(chatId);
+  /** What the UI gets whenever a turn stops; missing user/assistant default to the latest in the chat. */
+  private async turnResult(chatId: string, user?: Message, assistant?: Message | null): Promise<SendMessageResult> {
+    const [history, pause] = await Promise.all([
+      user && assistant !== undefined ? Promise.resolve([]) : this.options.store.listMessages(chatId),
+      this.pauseSnapshot(chatId),
+    ]);
     return {
-      user: [...history].reverse().find((m) => m.role === 'user')!,
-      assistant: [...history].reverse().find((m) => m.role === 'assistant') ?? null,
+      user: user ?? latestOfRole(history, 'user')!,
+      assistant: assistant === undefined ? (latestOfRole(history, 'assistant') ?? null) : assistant,
       ...pause,
       provider: this.options.client.provider,
     };
+  }
+
+  /** Continue the model turn unless approvals, choices, or (optionally) a denial still hold it. */
+  private async resumeUnlessPaused(chatId: string, { honorDenyPause }: { honorDenyPause: boolean }) {
+    const [pendingApprovals, pendingChoices] = await Promise.all([
+      this.approvals.listPending(chatId),
+      this.choices.listPending(chatId),
+    ]);
+    const paused =
+      pendingApprovals.length > 0 || pendingChoices.length > 0 || (honorDenyPause && this.denyPauseByChat.has(chatId));
+    if (!paused) return this.continueTurn(chatId);
+    await this.syncBotPresenceAfterTurn(chatId, await this.options.store.findBotIdForChat(chatId));
+    return this.turnResult(chatId);
+  }
+
+  /** The chat row, its bot id, and the bot itself. */
+  private async chatContext(chatId: string): Promise<{ chat: Chat | null; botId: string | null; bot: Bot | null }> {
+    const chat = await this.options.store.getChat(chatId);
+    const botId = chat?.botId ?? (await this.options.store.findBotIdForChat(chatId));
+    const bot = botId ? await this.options.store.getBot(botId) : null;
+    return { chat, botId, bot };
   }
 
   private async trailMetaForChat(
@@ -364,7 +397,7 @@ export class ChatService {
     const chatId = approval.chatId;
     // Double-click / race: already settled — return current pause without re-running tools.
     if (!applied) {
-      return this.decidedPauseResult(chatId);
+      return this.turnResult(chatId);
     }
     if (isDenial) {
       this.denyPauseByChat.add(chatId);
@@ -390,31 +423,8 @@ export class ChatService {
 
     // OpenAI requires every tool_call id from the assistant turn to have a tool
     // result before the next completion — wait if siblings are still pending.
-    const stillPending = await this.approvals.listPending(chatId);
-    const pendingChoices = await this.choices.listPending(chatId);
-    if (stillPending.length > 0 || pendingChoices.length > 0) {
-      const botId = await this.options.store.findBotIdForChat(chatId);
-      await this.syncBotPresenceAfterTurn(chatId, botId);
-      const history = await this.options.store.listMessages(chatId);
-      const lastAssistant = [...history].reverse().find((m) => m.role === 'assistant') ?? null;
-      return {
-        user: [...history].reverse().find((m) => m.role === 'user')!,
-        assistant: lastAssistant,
-        pendingApprovals: stillPending,
-        pendingChoices,
-        autoApprovedTools: await this.approvals.listAutoApproved(chatId),
-        provider: this.options.client.provider,
-      };
-    }
-
     // Deny-until-new-message: do not auto-retry the model after a denial wave.
-    if (this.denyPauseByChat.has(chatId)) {
-      const botId = await this.options.store.findBotIdForChat(chatId);
-      await this.syncBotPresenceAfterTurn(chatId, botId);
-      return this.decidedPauseResult(chatId);
-    }
-
-    return this.continueTurn(chatId);
+    return this.resumeUnlessPaused(chatId, { honorDenyPause: true });
   }
 
   private async applyDecidedApproval(approval: ApprovalRequest, isDenial: boolean): Promise<void> {
@@ -441,9 +451,7 @@ export class ChatService {
       return;
     }
 
-    const chat = await this.options.store.getChat(chatId);
-    const botId = chat?.botId ?? (await this.options.store.findBotIdForChat(chatId));
-    const bot = botId ? await this.options.store.getBot(botId) : null;
+    const { chat, botId, bot } = await this.chatContext(chatId);
     if (botId) {
       await this.options.store.setBotPresence(botId, 'working');
     }
@@ -489,24 +497,7 @@ export class ChatService {
       { toolCallId: answered.toolCallId }
     );
 
-    const stillPendingApprovals = await this.approvals.listPending(chatId);
-    const pendingChoices = await this.choices.listPending(chatId);
-    if (stillPendingApprovals.length > 0 || pendingChoices.length > 0) {
-      const botId = await this.options.store.findBotIdForChat(chatId);
-      await this.syncBotPresenceAfterTurn(chatId, botId);
-      const history = await this.options.store.listMessages(chatId);
-      const lastAssistant = [...history].reverse().find((m) => m.role === 'assistant') ?? null;
-      return {
-        user: [...history].reverse().find((m) => m.role === 'user')!,
-        assistant: lastAssistant,
-        pendingApprovals: stillPendingApprovals,
-        pendingChoices,
-        autoApprovedTools: await this.approvals.listAutoApproved(chatId),
-        provider: this.options.client.provider,
-      };
-    }
-
-    return this.continueTurn(chatId);
+    return this.resumeUnlessPaused(chatId, { honorDenyPause: false });
   }
 
   /** After approval: post choice_prompt system row and keep the turn open. */
@@ -589,19 +580,10 @@ export class ChatService {
         'assistant',
         'Reached maximum tool execution steps for this turn.'
       );
-      const history = await this.options.store.listMessages(chatId);
-      const pause = await this.pauseSnapshot(chatId);
-      return {
-        user: user ?? history.find((m) => m.role === 'user')!,
-        assistant,
-        ...pause,
-        provider: this.options.client.provider,
-      };
+      return this.turnResult(chatId, user, assistant);
     }
 
-    const chat = await this.options.store.getChat(chatId);
-    const botId = chat?.botId ?? (await this.options.store.findBotIdForChat(chatId));
-    const bot = botId ? await this.options.store.getBot(botId) : null;
+    const { chat, botId, bot } = await this.chatContext(chatId);
     if (botId) {
       if (depth === 0) {
         this.markBotTurnStart(botId);
@@ -627,22 +609,21 @@ export class ChatService {
       const compaction = this.options.compaction ? await this.options.compaction.getLatest(chatId) : null;
       const { messages: windowed, summarySystem } = applyCompactionToHistory(history, compaction);
 
+      const turnCtx: HandoffTurnContext = {
+        chatId,
+        bot,
+        userId: opts.callerUserId ?? chat?.userId,
+        routine: opts.routine,
+      };
+      const pluginTurnContext = (messages: Message[]): PluginTurnContext => ({
+        ...this.pluginHostContext(turnCtx),
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        model: this.options.client.provider,
+      });
+
       let pluginInjectedSystemPrompt: string | undefined;
       if (this.pluginHost) {
-        const turnCtx: PluginTurnContext = {
-          chatId,
-          botId: botId ?? '',
-          userId: opts.callerUserId ?? chat?.userId,
-          host: this.options.sqlQuery?.host ?? 'localhost',
-          messages: windowed.map((m) => ({ role: m.role, content: m.content })),
-          model: this.options.client.provider,
-          log: {
-            info: () => {},
-            warn: () => {},
-            error: () => {},
-          },
-        };
-        const beforeTurnResult = await this.pluginHost.executeBeforeTurn(turnCtx);
+        const beforeTurnResult = await this.pluginHost.executeBeforeTurn(pluginTurnContext(windowed));
         pluginInjectedSystemPrompt = beforeTurnResult.injectSystemPrompt;
       }
 
@@ -663,12 +644,6 @@ export class ChatService {
         const needsApproval: ToolCall[] = [];
         const toAutoExecute: ToolCall[] = [];
         const refusals: Array<{ toolCall: ToolCall; reason: string }> = [];
-        const turnCtx: HandoffTurnContext = {
-          chatId,
-          bot,
-          userId: opts.callerUserId ?? chat?.userId,
-          routine: opts.routine,
-        };
 
         for (const toolCall of completion.toolCalls) {
           const refusal = await this.refusalFor(toolCall, turnCtx);
@@ -736,26 +711,15 @@ export class ChatService {
               return this.approvals.create(chatId, call, trailMeta);
             })
           );
-          const pause = await this.pauseSnapshot(chatId);
           return {
-            user: user ?? history.find((m) => m.role === 'user')!,
-            assistant,
+            ...(await this.turnResult(chatId, user ?? latestOfRole(history, 'user'), assistant)),
             pendingApprovals,
-            pendingChoices: pause.pendingChoices,
-            autoApprovedTools: pause.autoApprovedTools,
-            provider: this.options.client.provider,
           };
         }
 
         const openChoices = await this.choices.listPending(chatId);
         if (openChoices.length > 0) {
-          const pause = await this.pauseSnapshot(chatId);
-          return {
-            user: user ?? history.find((m) => m.role === 'user')!,
-            assistant,
-            ...pause,
-            provider: this.options.client.provider,
-          };
+          return this.turnResult(chatId, user ?? latestOfRole(history, 'user'), assistant);
         }
 
         return await this.continueTurn(chatId, user, depth + 1, opts);
@@ -768,29 +732,10 @@ export class ChatService {
       );
 
       if (this.pluginHost) {
-        const turnCtx: PluginTurnContext = {
-          chatId,
-          botId: botId ?? '',
-          userId: opts.callerUserId ?? chat?.userId,
-          host: this.options.sqlQuery?.host ?? 'localhost',
-          messages: [...windowed, assistant].map((m) => ({ role: m.role, content: m.content })),
-          model: this.options.client.provider,
-          log: {
-            info: () => {},
-            warn: () => {},
-            error: () => {},
-          },
-        };
-        await this.pluginHost.executeAfterTurn(turnCtx);
+        await this.pluginHost.executeAfterTurn(pluginTurnContext([...windowed, assistant]));
       }
 
-      const pause = await this.pauseSnapshot(chatId);
-      return {
-        user: user ?? [...history].reverse().find((m) => m.role === 'user')!,
-        assistant,
-        ...pause,
-        provider: this.options.client.provider,
-      };
+      return this.turnResult(chatId, user ?? latestOfRole(history, 'user'), assistant);
     } finally {
       if (depth === 0) {
         await this.markBotTurnEnd(chatId, botId);
@@ -870,11 +815,7 @@ export class ChatService {
       botId: ctx.bot?.id ?? '',
       userId: ctx.userId,
       host: this.options.sqlQuery?.host ?? 'localhost',
-      log: {
-        info: () => {},
-        warn: () => {},
-        error: () => {},
-      },
+      log: SILENT_LOG,
     };
   }
 

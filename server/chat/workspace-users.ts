@@ -1,5 +1,6 @@
 import type { WorkspaceUser, WorkspaceUserDirectory } from '../../shared/chat/types.js';
 import { createDatabricksTokenProvider, normalizeHostUrl } from './databricks-auth.js';
+import { presentEnv } from '../lib/env.js';
 
 interface ScimUserResource {
   id?: string;
@@ -42,8 +43,8 @@ export class DatabricksWorkspaceUserDirectory implements WorkspaceUserDirectory 
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: DatabricksWorkspaceUserDirectoryOptions = {}) {
-    const rawHost = (options.host ?? process.env.DATABRICKS_HOST ?? process.env.DATABRICKS_WORKSPACE_URL ?? '').trim();
-    this.host = rawHost && rawHost !== '__UNSET__' ? normalizeHostUrl(rawHost) : undefined;
+    const rawHost = presentEnv(options.host ?? process.env.DATABRICKS_HOST ?? process.env.DATABRICKS_WORKSPACE_URL);
+    this.host = rawHost ? normalizeHostUrl(rawHost) : undefined;
     this.getToken = options.getToken ?? createDatabricksTokenProvider();
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
   }

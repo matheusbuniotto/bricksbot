@@ -8,12 +8,7 @@ import type {
   ToolCall,
 } from '../../shared/agents/types.js';
 import type { LakebaseQuery } from './lakebase-store.js';
-
-function asString(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
-  if (value === null || value === undefined) return '';
-  return String(value);
-}
+import { asJsonObject, asString } from '../lib/coerce.js';
 
 function parseToolCall(raw: unknown): ToolCall {
   const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
@@ -21,23 +16,6 @@ function parseToolCall(raw: unknown): ToolCall {
   const row = parsed as { id?: string; name?: string; arguments?: Record<string, unknown> };
   if (!row.id || !row.name) throw new Error('Invalid tool call');
   return { id: row.id, name: row.name, arguments: row.arguments ?? {} };
-}
-
-function parsePayload(raw: unknown): Record<string, unknown> {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    return raw as Record<string, unknown>;
-  }
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      return { raw };
-    }
-  }
-  return {};
 }
 
 /** Optional context attached to create / decide for the approval trail. */
@@ -333,7 +311,7 @@ export class ApprovalStore {
         userId: row.user_id == null ? null : asString(row.user_id),
         type: asString(row.type) as ApprovalEventType,
         toolName: asString(row.tool_name),
-        payload: parsePayload(row.payload),
+        payload: asJsonObject(row.payload),
         createdAt: asString(row.created_at),
       }));
     }

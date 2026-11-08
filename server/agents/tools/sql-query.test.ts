@@ -25,6 +25,13 @@ describe('readOnlySqlError', () => {
     ['WITH t AS (SELECT 1) INSERT INTO foo SELECT * FROM t', 'mutating keywords inside WITH are blocked'],
     ['WITH t AS (UPDATE foo SET bar = 1) SELECT 1', 'mutating keywords inside WITH are blocked'],
     ['WITH t AS (SELECT 1 AS col) SELECT * FROM t', null],
+    ['SELECT "a;b", `c;d`', null],
+    ["SELECT 'it\\'s; fine'", null],
+    [`SELECT "'" ; DROP TABLE t; SELECT "'"`, 'one statement'],
+    ["SELECT `'` ; DROP TABLE t; SELECT `'`", 'one statement'],
+    ["SELECT '\\'' ; DROP TABLE t; --'", 'one statement'],
+    ["SELECT r'\\', '\\'' ; DROP TABLE t; --'", 'one statement'],
+    ["WITH x AS (SELECT '\\'' ) INSERT INTO t SELECT 1 --'", 'mutating keywords inside WITH are blocked'],
   ])('classifies %j', (statement, pattern) => {
     const error = readOnlySqlError(statement);
     if (pattern === null) {

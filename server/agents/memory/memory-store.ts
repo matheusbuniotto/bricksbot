@@ -1,10 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { BotMemory, BotSkill, MemorySkillStore } from '../../../shared/agents/memory/types.js';
 import { normalizeMemory, normalizeSkill, requireBotId } from './input.js';
-
-function nowIso(): string {
-  return new Date().toISOString();
-}
+import { nowIso } from '../../lib/coerce.js';
 
 /** In-memory MemorySkillStore for tests and local runs without Lakebase. */
 export class MemoryMemorySkillStore implements MemorySkillStore {
