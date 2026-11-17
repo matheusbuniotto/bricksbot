@@ -105,8 +105,10 @@ export interface ChatServiceOptions {
   /** Optional Phase 5 sandbox execution service (tools registered only when enabled). */
   sandbox?: SandboxSessionService;
   sandboxArtifactSync?: ArtifactSyncService;
-  /** Optional Databricks One (Genie) and system.ai MCP tools. */
+  /** Optional Databricks One (Genie) and system.ai MCP tools offered to every user. */
   systemAiMcp?: SystemAiMcpOptions | RegisteredTool[];
+  /** Loads a user's connected MCP tools (connectors are user-level). Cached per user. */
+  resolveMcpTools?: (userId: string) => Promise<RegisteredTool[]>;
   /** Optional PluginHost for dynamically loaded plugins and extensions. */
   pluginHost?: PluginHost;
 }
@@ -196,8 +198,10 @@ export class ChatService {
   private readonly choices: ChoiceStore;
   /** Lakehouse + meta + sandbox tools fixed at construction. */
   private readonly baseTools: RegisteredTool[];
-  /** Connected Unity Gateway MCP tools; replaced when connectors change. */
-  private dynamicMcpTools: RegisteredTool[] = [];
+  /** Tests / legacy: MCP tools offered to every user. */
+  private readonly sharedMcpTools: RegisteredTool[] = [];
+  /** Each user's connected Unity Gateway MCP tools; replaced when that user's connectors change. */
+  private readonly mcpToolsByUser = new Map<string, RegisteredTool[]>();
   private readonly compactionSettings: CompactionSettings;
   private readonly memory: MemorySkillStore;
   private readonly pluginHost?: PluginHost;
@@ -259,28 +263,42 @@ export class ChatService {
     this.baseTools = tools;
     // Tests / legacy: seed Genie (or other MCP) tools without going through discovery connect.
     if (options.systemAiMcp) {
-      this.dynamicMcpTools = Array.isArray(options.systemAiMcp)
+      this.sharedMcpTools = Array.isArray(options.systemAiMcp)
         ? options.systemAiMcp
         : createSystemAiMcpTools(options.systemAiMcp);
     }
   }
 
-  private get tools(): RegisteredTool[] {
+  /** Tools for a turn run on behalf of `userId`: only that user's MCP connectors are included. */
+  private toolsForUser(userId?: string): RegisteredTool[] {
     const pluginTools = this.pluginHost ? this.pluginHost.getRegisteredTools() : [];
-    return [...this.baseTools, ...this.dynamicMcpTools, ...pluginTools];
+    const userMcpTools = userId ? (this.mcpToolsByUser.get(userId) ?? []) : [];
+    return [...this.baseTools, ...this.sharedMcpTools, ...userMcpTools, ...pluginTools];
+  }
+
+  /** Warm the per-user MCP tool cache (e.g. after restart) before a turn or approved tool runs. */
+  private async loadMcpTools(userId?: string): Promise<void> {
+    if (!userId || this.mcpToolsByUser.has(userId) || !this.options.resolveMcpTools) return;
+    try {
+      this.mcpToolsByUser.set(userId, await this.options.resolveMcpTools(userId));
+    } catch (err) {
+      console.warn(
+        `[bricksbot] Failed to load MCP tools for user: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
   }
 
   /**
-   * Replace connected MCP tools (Connectors dialog / discovery sync).
-   * Pass [] to disconnect everything that came from MCP.
+   * Replace one user's connected MCP tools (Connectors dialog / discovery sync).
+   * Pass [] to drop everything that came from that user's MCP connectors.
    */
-  replaceMcpTools(tools: RegisteredTool[]): void {
-    this.dynamicMcpTools = tools;
+  replaceMcpTools(userId: string, tools: RegisteredTool[]): void {
+    this.mcpToolsByUser.set(userId, tools);
   }
 
-  /** Tool names currently offered to the LLM (base + connected MCP). */
-  listToolNames(): string[] {
-    return this.tools.map((tool) => tool.definition.name);
+  /** Tool names currently offered to the LLM for `userId` (base + their connected MCP). */
+  listToolNames(userId?: string): string[] {
+    return this.toolsForUser(userId).map((tool) => tool.definition.name);
   }
 
   getApprovals(): ApprovalStore {
@@ -455,6 +473,7 @@ export class ChatService {
     if (botId) {
       await this.options.store.setBotPresence(botId, 'working');
     }
+    await this.loadMcpTools(chat?.userId);
     const toolResult = await this.executeTool(approval.toolCall, {
       chatId,
       bot,
@@ -593,7 +612,15 @@ export class ChatService {
 
     try {
       let history = await this.options.store.listMessages(chatId);
-      const systemPrompt = await this.systemPromptFor(bot, chat?.userId, chatId);
+      const turnUserId = opts.callerUserId ?? chat?.userId;
+      await this.loadMcpTools(turnUserId);
+      const tools = this.toolsFor(bot, turnUserId);
+      const systemPrompt = await this.systemPromptFor(
+        bot,
+        chat?.userId,
+        chatId,
+        tools.map((tool) => tool.name)
+      );
 
       if (this.options.compaction && shouldCompact(history, systemPrompt, this.compactionSettings)) {
         await runCompaction({
@@ -612,7 +639,7 @@ export class ChatService {
       const turnCtx: HandoffTurnContext = {
         chatId,
         bot,
-        userId: opts.callerUserId ?? chat?.userId,
+        userId: turnUserId,
         routine: opts.routine,
       };
       const pluginTurnContext = (messages: Message[]): PluginTurnContext => ({
@@ -634,7 +661,6 @@ export class ChatService {
         ...toLlmHistory(windowed),
       ];
 
-      const tools = this.toolsFor(bot);
       if (botId) {
         await this.options.store.setBotPresence(botId, 'working');
       }
@@ -706,7 +732,10 @@ export class ChatService {
           };
           const pendingApprovals = await Promise.all(
             needsApproval.map(async (toolCall) => {
-              const extra = await this.toolFor(toolCall.name)?.approvalArguments?.(toolCall.arguments, turnCtx);
+              const extra = await this.toolFor(toolCall.name, turnCtx.userId)?.approvalArguments?.(
+                toolCall.arguments,
+                turnCtx
+              );
               const call = extra ? { ...toolCall, arguments: { ...toolCall.arguments, ...extra } } : toolCall;
               return this.approvals.create(chatId, call, trailMeta);
             })
@@ -747,16 +776,20 @@ export class ChatService {
    * Every bot gets lakehouse tools + default meta tools.
    * `handoff_to_bot` and `create_bot` are Primary-gated.
    */
-  private toolsFor(bot: Bot | null): ToolDefinition[] {
+  private toolsFor(bot: Bot | null, userId?: string): ToolDefinition[] {
     const primaryOnly = new Set([HANDOFF_TOOL_NAME, CREATE_BOT_TOOL_NAME]);
-    return this.tools
+    return this.toolsForUser(userId)
       .filter((tool) => !primaryOnly.has(tool.definition.name) || Boolean(bot?.isPrimary))
       .map((tool) => tool.definition);
   }
 
-  private async systemPromptFor(bot: Bot | null, userId?: string, chatId?: string): Promise<string> {
+  private async systemPromptFor(
+    bot: Bot | null,
+    userId: string | undefined,
+    chatId: string,
+    toolNames: string[]
+  ): Promise<string> {
     const botName = bot?.name ?? 'Primary';
-    const toolNames = this.toolsFor(bot).map((t) => t.name);
 
     let teammates: Array<{ id: string; name: string }> = [];
     if (bot?.isPrimary) {
@@ -792,7 +825,7 @@ export class ChatService {
     baseSections.push(formatCapabilityPrompt(catalog));
     if (this.pluginHost) {
       const promptCtx: PluginPromptContext = {
-        chatId: chatId ?? '',
+        chatId,
         botId: bot?.id ?? '',
         botName,
         isPrimary: Boolean(bot?.isPrimary),
@@ -837,18 +870,18 @@ export class ChatService {
         toolCall.arguments = { ...toolCall.arguments, ...hookResult.overrideArgs };
       }
     }
-    return (await this.toolFor(toolCall.name)?.preflight?.(toolCall.arguments, ctx)) ?? null;
+    return (await this.toolFor(toolCall.name, ctx.userId)?.preflight?.(toolCall.arguments, ctx)) ?? null;
   }
 
-  private toolFor(name: string): RegisteredTool | undefined {
-    return this.tools.find((tool) => tool.definition.name === name);
+  private toolFor(name: string, userId?: string): RegisteredTool | undefined {
+    return this.toolsForUser(userId).find((tool) => tool.definition.name === name);
   }
 
   private async executeTool(toolCall: ToolCall, ctx: HandoffTurnContext): Promise<string> {
     if (toolCall.name === HANDOFF_TOOL_NAME) {
       return this.executeHandoffRoundTrip(toolCall.arguments, ctx);
     }
-    const tool = this.toolFor(toolCall.name);
+    const tool = this.toolFor(toolCall.name, ctx.userId);
     if (!tool) {
       if (toolCall.name === 'web_fetch') {
         throw new Error('web_fetch is not configured (empty allowlist)');

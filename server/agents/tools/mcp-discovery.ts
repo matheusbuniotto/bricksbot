@@ -5,9 +5,12 @@ import {
   DEFAULT_DATABRICKS_WORKSPACE_HOST,
   buildDatabricksMcpServiceUrl,
   type DatabricksMcpApp,
+  type McpConnectorRecord,
+  type McpConnectorStore,
   type McpSource,
 } from '../../../shared/agents/mcp-types.js';
 import { UnityGatewayMcpClient } from './mcp-client.js';
+import { MemoryMcpConnectorStore } from './mcp-connector-memory-store.js';
 import { normalizeHostUrl } from '../../chat/databricks-auth.js';
 
 export interface McpDiscoveryConfig {
@@ -17,6 +20,8 @@ export interface McpDiscoveryConfig {
   fetchImpl?: typeof fetch;
   userSchemas?: string[];
   cacheTtlMs?: number;
+  /** Per-user connector state; defaults to in-memory. */
+  store?: McpConnectorStore;
 }
 
 export interface UnityCatalogMcpServiceItem {
@@ -34,16 +39,22 @@ interface UnityCatalogListResponse {
 const DEFAULT_CACHE_TTL_MS = 60_000;
 const DEFAULT_SCHEMAS = ['system.ai', 'main.default'];
 
+function cleanServiceName(serviceName: string): string {
+  return serviceName.trim().replace(/^\/+/, '');
+}
+
 export class McpDiscoveryService {
+  /** Discovered catalog (UC + built-ins), shared by all users; per-user state is applied on read. */
   private cache: { timestamp: number; mcps: DatabricksMcpApp[] } | null = null;
-  private customServices: Map<string, Partial<DatabricksMcpApp>> = new Map();
-  /** Services whose tools should be registered on ChatService. */
-  private connectedServices = new Set<string>();
+  /** Services connected for every user unless that user disconnects them (env bootstrap). */
+  private readonly defaultConnected = new Set<string>();
+  private readonly store: McpConnectorStore;
   private readonly client: UnityGatewayMcpClient;
   private readonly config: McpDiscoveryConfig;
 
   constructor(config: McpDiscoveryConfig = {}) {
     this.config = config;
+    this.store = config.store ?? new MemoryMcpConnectorStore();
     this.client = new UnityGatewayMcpClient({
       host: config.host ?? DEFAULT_DATABRICKS_WORKSPACE_HOST,
       getToken: config.getToken,
@@ -74,30 +85,33 @@ export class McpDiscoveryService {
     };
   }
 
-  listConnectedServices(): string[] {
-    return [...this.connectedServices].sort((a, b) => a.localeCompare(b));
+  /** Services whose tools should be offered to this user's bot turns. */
+  async listConnectedServices(userId: string): Promise<string[]> {
+    const connected = this.connectedFrom(await this.store.listConnectors(userId));
+    return [...connected].sort((a, b) => a.localeCompare(b));
   }
 
-  isConnected(serviceName: string): boolean {
-    const clean = serviceName.trim().replace(/^\/+/, '');
-    return this.connectedServices.has(clean);
+  async isConnected(userId: string, serviceName: string): Promise<boolean> {
+    const clean = cleanServiceName(serviceName);
+    const record = await this.store.getConnector(userId, clean);
+    return record ? record.connected : this.defaultConnected.has(clean);
   }
 
   /**
-   * Mark connected without probing (env bootstrap / tests). Prefer `connect()` for UI.
+   * Connect for every user without probing (env bootstrap / tests). A user can still
+   * disconnect it for themselves. Prefer `connect()` for UI.
    */
-  markConnected(serviceName: string): void {
-    const clean = serviceName.trim().replace(/^\/+/, '');
+  markDefaultConnected(serviceName: string): void {
+    const clean = cleanServiceName(serviceName);
     if (!clean) return;
-    this.connectedServices.add(clean);
-    this.clearCache();
+    this.defaultConnected.add(clean);
   }
 
   /**
-   * Probe viability, then mark connected so ChatService can register tools.
+   * Probe viability, then mark connected for this user so their bot turns get the tools.
    */
-  async connect(serviceName: string): Promise<DatabricksMcpApp> {
-    const cleanService = serviceName.trim().replace(/^\/+/, '');
+  async connect(userId: string, serviceName: string): Promise<DatabricksMcpApp> {
+    const cleanService = cleanServiceName(serviceName);
     if (!cleanService) {
       throw new Error('MCP service name is required');
     }
@@ -109,20 +123,48 @@ export class McpDiscoveryService {
       );
     }
 
-    this.connectedServices.add(cleanService);
-    this.clearCache();
+    const existing = await this.store.getConnector(userId, cleanService);
+    await this.store.upsertConnector({
+      userId,
+      service: cleanService,
+      connected: true,
+      custom: existing?.custom ?? false,
+      name: existing?.name,
+      description: existing?.description,
+      tools: probe.tools,
+    });
 
-    const custom = this.customServices.get(cleanService);
-    return this.buildMcpAppFromService(cleanService, probe.tools, custom?.name, custom?.description, custom?.source);
+    return this.buildMcpAppFromService(
+      cleanService,
+      probe.tools,
+      existing?.name,
+      existing?.description,
+      existing?.custom ? 'custom' : undefined,
+      true
+    );
   }
 
-  disconnect(serviceName: string): boolean {
-    const cleanService = serviceName.trim().replace(/^\/+/, '');
-    const removed = this.connectedServices.delete(cleanService);
-    if (removed) {
-      this.clearCache();
+  /** Disconnect for this user only. Returns whether it was connected for them. */
+  async disconnect(userId: string, serviceName: string): Promise<boolean> {
+    const cleanService = cleanServiceName(serviceName);
+    if (!(await this.isConnected(userId, cleanService))) {
+      return false;
     }
-    return removed;
+    const existing = await this.store.getConnector(userId, cleanService);
+    if (existing?.custom || this.defaultConnected.has(cleanService)) {
+      await this.store.upsertConnector({
+        userId,
+        service: cleanService,
+        connected: false,
+        custom: existing?.custom ?? false,
+        name: existing?.name,
+        description: existing?.description,
+        tools: existing?.tools ?? [],
+      });
+    } else {
+      await this.store.deleteConnector(userId, cleanService);
+    }
+    return true;
   }
 
   async probeService(service: string): Promise<{ isViable: boolean; tools: string[]; error?: string }> {
@@ -144,8 +186,12 @@ export class McpDiscoveryService {
     }
   }
 
-  async registerCustomMcp(serviceName: string, metadata?: Partial<DatabricksMcpApp>): Promise<DatabricksMcpApp> {
-    const cleanService = serviceName.trim().replace(/^\/+/, '');
+  async registerCustomMcp(
+    userId: string,
+    serviceName: string,
+    metadata?: Partial<DatabricksMcpApp>
+  ): Promise<DatabricksMcpApp> {
+    const cleanService = cleanServiceName(serviceName);
     if (!cleanService) {
       throw new Error('MCP service name is required');
     }
@@ -157,23 +203,57 @@ export class McpDiscoveryService {
       );
     }
 
-    const app = this.buildMcpAppFromService(cleanService, probe.tools, metadata?.name, metadata?.description, 'custom');
-
-    this.customServices.set(cleanService, app);
     // Registering a custom MCP also connects it so tools become available immediately.
-    this.connectedServices.add(cleanService);
-    this.clearCache();
-    return { ...app, connected: true };
+    await this.store.upsertConnector({
+      userId,
+      service: cleanService,
+      connected: true,
+      custom: true,
+      name: metadata?.name,
+      description: metadata?.description,
+      tools: probe.tools,
+    });
+    return this.buildMcpAppFromService(
+      cleanService,
+      probe.tools,
+      metadata?.name,
+      metadata?.description,
+      'custom',
+      true
+    );
   }
 
-  removeCustomMcp(serviceName: string): boolean {
-    const cleanService = serviceName.trim().replace(/^\/+/, '');
-    const removedCustom = this.customServices.delete(cleanService);
-    const removedConnected = this.connectedServices.delete(cleanService);
-    if (removedCustom || removedConnected) {
-      this.clearCache();
+  /** Remove this user's custom registration and connection. Other users are untouched. */
+  async removeCustomMcp(userId: string, serviceName: string): Promise<boolean> {
+    const cleanService = cleanServiceName(serviceName);
+    const existing = await this.store.getConnector(userId, cleanService);
+    const wasConnected = await this.isConnected(userId, cleanService);
+    if (this.defaultConnected.has(cleanService)) {
+      if (existing || wasConnected) {
+        await this.store.upsertConnector({
+          userId,
+          service: cleanService,
+          connected: false,
+          custom: false,
+          tools: [],
+        });
+      }
+    } else {
+      await this.store.deleteConnector(userId, cleanService);
     }
-    return removedCustom || removedConnected;
+    return Boolean(existing?.custom) || wasConnected;
+  }
+
+  private connectedFrom(records: McpConnectorRecord[]): Set<string> {
+    const connected = new Set(this.defaultConnected);
+    for (const record of records) {
+      if (record.connected) {
+        connected.add(record.service);
+      } else {
+        connected.delete(record.service);
+      }
+    }
+    return connected;
   }
 
   private async fetchUnityCatalogMcpServices(schema: string): Promise<UnityCatalogMcpServiceItem[]> {
@@ -214,7 +294,8 @@ export class McpDiscoveryService {
     tools: string[],
     customName?: string,
     customDescription?: string,
-    forcedSource?: McpSource
+    forcedSource?: McpSource,
+    connected = false
   ): DatabricksMcpApp {
     const known =
       AVAILABLE_DATABRICKS_MCPS.find((item) => item.service === service) ??
@@ -225,8 +306,6 @@ export class McpDiscoveryService {
     const shortName = parts[parts.length - 1] ?? service;
     const source: McpSource =
       forcedSource ?? (service.startsWith('system.ai') || service.startsWith('plugin.') ? 'system' : 'user');
-
-    const connected = this.connectedServices.has(service);
 
     if (known) {
       return {
@@ -273,36 +352,38 @@ export class McpDiscoveryService {
     };
   }
 
-  async listViableMcps(options?: { refresh?: boolean }): Promise<DatabricksMcpApp[]> {
+  /**
+   * Viable connectors with `connected` resolved for `userId` (plus that user's custom MCPs).
+   * Without `userId`, only the shared catalog with env defaults is returned.
+   */
+  async listViableMcps(options?: { refresh?: boolean; userId?: string }): Promise<DatabricksMcpApp[]> {
+    const catalog = await this.listCatalog(options?.refresh === true);
+    const records = options?.userId ? await this.store.listConnectors(options.userId) : [];
+    const connected = this.connectedFrom(records);
+
+    const byService = new Map<string, DatabricksMcpApp>();
+    for (const app of catalog) {
+      byService.set(app.service, app);
+    }
+    for (const record of records.filter((item) => item.custom)) {
+      byService.set(
+        record.service,
+        this.buildMcpAppFromService(record.service, record.tools, record.name, record.description, 'custom')
+      );
+    }
+    return [...byService.values()].map((app) => ({ ...app, connected: connected.has(app.service) }));
+  }
+
+  private async listCatalog(refresh: boolean): Promise<DatabricksMcpApp[]> {
     const now = Date.now();
-    if (!options?.refresh && this.cache && now - this.cache.timestamp < this.getCacheTtlMs()) {
+    if (!refresh && this.cache && now - this.cache.timestamp < this.getCacheTtlMs()) {
       return this.cache.mcps;
     }
 
     if (!this.config.host || !this.config.getToken) {
-      const viable = [...AVAILABLE_DATABRICKS_MCPS, ...BUILTIN_PLUGIN_MCPS]
-        .filter((app) => app.isViable)
-        .map((app) => ({
-          ...app,
-          connected: this.connectedServices.has(app.service),
-        }));
-      const custom = Array.from(this.customServices.values()).map((meta) => {
-        const service = meta.service!;
-        return this.buildMcpAppFromService(
-          service,
-          meta.tools ?? [],
-          meta.name,
-          meta.description,
-          meta.source ?? 'custom'
-        );
-      });
-      const byService = new Map<string, DatabricksMcpApp>();
-      for (const app of [...viable, ...custom]) {
-        byService.set(app.service, app);
-      }
-      const combined = [...byService.values()];
-      this.cache = { timestamp: now, mcps: combined };
-      return combined;
+      const viable = [...AVAILABLE_DATABRICKS_MCPS, ...BUILTIN_PLUGIN_MCPS].filter((app) => app.isViable);
+      this.cache = { timestamp: now, mcps: viable };
+      return viable;
     }
 
     const schemas = [...new Set([...DEFAULT_SCHEMAS, ...(this.config.userSchemas ?? [])])];
@@ -328,13 +409,6 @@ export class McpDiscoveryService {
           description: app.description,
         });
       }
-    }
-
-    for (const [service, meta] of this.customServices) {
-      discoveredCandidates.set(service, {
-        name: meta.name,
-        description: meta.description,
-      });
     }
 
     const probeEntries = Array.from(discoveredCandidates.entries());

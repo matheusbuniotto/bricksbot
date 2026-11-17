@@ -12,10 +12,14 @@ import { resolveOwnerId } from './identity.js';
 import { requireBotAccess, requireBotUse, requireSpaceAccess } from './route-guards.js';
 import type { ChatService } from './service.js';
 
-async function syncConnectedMcpTools(discovery: McpDiscoveryService, service: ChatService): Promise<void> {
+async function syncConnectedMcpTools(
+  discovery: McpDiscoveryService,
+  service: ChatService,
+  userId: string
+): Promise<void> {
   const clientConfig = discovery.getClientConfig();
-  const tools = await buildConnectedMcpTools(discovery, clientConfig);
-  service.replaceMcpTools(tools);
+  const tools = await buildConnectedMcpTools(discovery, userId, clientConfig);
+  service.replaceMcpTools(userId, tools);
 }
 
 const postMessageSchema = z.object({
@@ -217,7 +221,7 @@ export function registerChatRoutes(
     try {
       const refresh = req.query.refresh === 'true' || req.query.refresh === '1';
       if (options?.mcpDiscovery) {
-        const mcps = await options.mcpDiscovery.listViableMcps({ refresh });
+        const mcps = await options.mcpDiscovery.listViableMcps({ refresh, userId: resolveOwnerId(req) });
         res.json({ mcps });
         return;
       }
@@ -244,11 +248,12 @@ export function registerChatRoutes(
       return;
     }
     try {
-      const mcp = await options.mcpDiscovery.connect(serviceName);
-      await syncConnectedMcpTools(options.mcpDiscovery, service);
+      const userId = resolveOwnerId(req);
+      const mcp = await options.mcpDiscovery.connect(userId, serviceName);
+      await syncConnectedMcpTools(options.mcpDiscovery, service, userId);
       res.json({
         mcp,
-        toolNames: service.listToolNames().filter((n) => n.startsWith('mcp_') || n.startsWith('genie_')),
+        toolNames: service.listToolNames(userId).filter((n) => n.startsWith('mcp_') || n.startsWith('genie_')),
       });
     } catch (err) {
       sendError(res, err, 400);
@@ -263,8 +268,9 @@ export function registerChatRoutes(
     const rawService = req.params.service;
     const serviceName = Array.isArray(rawService) ? rawService.join('/') : String(rawService ?? '');
     try {
-      const removed = options.mcpDiscovery.disconnect(serviceName);
-      await syncConnectedMcpTools(options.mcpDiscovery, service);
+      const userId = resolveOwnerId(req);
+      const removed = await options.mcpDiscovery.disconnect(userId, serviceName);
+      await syncConnectedMcpTools(options.mcpDiscovery, service, userId);
       res.json({ success: removed });
     } catch (err) {
       sendError(res, err, 400);
@@ -282,11 +288,12 @@ export function registerChatRoutes(
       return;
     }
     try {
-      const appItem = await options.mcpDiscovery.registerCustomMcp(serviceName, {
+      const userId = resolveOwnerId(req);
+      const appItem = await options.mcpDiscovery.registerCustomMcp(userId, serviceName, {
         name: typeof req.body?.name === 'string' ? req.body.name : undefined,
         description: typeof req.body?.description === 'string' ? req.body.description : undefined,
       });
-      await syncConnectedMcpTools(options.mcpDiscovery, service);
+      await syncConnectedMcpTools(options.mcpDiscovery, service, userId);
       res.status(201).json({ mcp: appItem });
     } catch (err) {
       sendError(res, err, 400);
@@ -306,8 +313,9 @@ export function registerChatRoutes(
       return;
     }
     try {
-      const removed = options.mcpDiscovery.removeCustomMcp(mcpService);
-      await syncConnectedMcpTools(options.mcpDiscovery, service);
+      const userId = resolveOwnerId(req);
+      const removed = await options.mcpDiscovery.removeCustomMcp(userId, mcpService);
+      await syncConnectedMcpTools(options.mcpDiscovery, service, userId);
       res.json({ success: removed });
     } catch (err) {
       sendError(res, err, 400);

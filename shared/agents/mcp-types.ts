@@ -137,6 +137,32 @@ export interface DatabricksMcpApp {
     | 'custom';
 }
 
+/**
+ * One user's connector state for a single MCP service. Connectors are user-level:
+ * every row belongs to exactly one `userId` and never affects other users.
+ */
+export interface McpConnectorRecord {
+  userId: string;
+  service: string;
+  connected: boolean;
+  /** Registered through "Add custom MCP" (listed even when not in the discovered catalog). */
+  custom: boolean;
+  name?: string;
+  description?: string;
+  tools: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type McpConnectorInput = Omit<McpConnectorRecord, 'createdAt' | 'updatedAt'>;
+
+export interface McpConnectorStore {
+  listConnectors(userId: string): Promise<McpConnectorRecord[]>;
+  getConnector(userId: string, service: string): Promise<McpConnectorRecord | null>;
+  upsertConnector(input: McpConnectorInput): Promise<McpConnectorRecord>;
+  deleteConnector(userId: string, service: string): Promise<boolean>;
+}
+
 /** Placeholder only — pass real host/org via discovery config / DATABRICKS_HOST. */
 export const DEFAULT_DATABRICKS_WORKSPACE_HOST = 'https://dbc-example.cloud.databricks.com';
 export const DEFAULT_DATABRICKS_ORG_ID = '0000000000000000';

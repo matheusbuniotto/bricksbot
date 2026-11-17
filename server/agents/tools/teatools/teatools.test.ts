@@ -151,12 +151,12 @@ describe('teatools MCP + hypothesis-testing-playbook skill pack', () => {
 
   it('registers plugin.teatools via McpDiscoveryService and exposes all 8 MCP tools', async () => {
     const discovery = new McpDiscoveryService({});
-    const connected = await discovery.connect(TEATOOLS_MCP_SERVICE);
+    const connected = await discovery.connect('alice', TEATOOLS_MCP_SERVICE);
     expect(connected.connected).toBe(true);
     expect(connected.tools).toContain('design');
     expect(connected.tools).toContain('compare_eval_runs');
 
-    const mcpTools = await buildConnectedMcpTools(discovery, discovery.getClientConfig());
+    const mcpTools = await buildConnectedMcpTools(discovery, 'alice', discovery.getClientConfig());
     const names = mcpTools.map((t) => t.definition.name);
     expect(names).toContain('mcp_plugin_teatools_design');
     expect(names).toContain('mcp_plugin_teatools_srm_check');

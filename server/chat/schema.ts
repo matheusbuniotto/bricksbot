@@ -199,4 +199,16 @@ export const CHAT_SCHEMA_STATEMENTS = [
 )`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_plugins_enabled
   ON bricksbot.plugins(enabled)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.mcp_connectors (
+  user_id TEXT NOT NULL,
+  service TEXT NOT NULL,
+  connected BOOLEAN NOT NULL DEFAULT TRUE,
+  is_custom BOOLEAN NOT NULL DEFAULT FALSE,
+  name TEXT,
+  description TEXT,
+  tools JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, service)
+)`,
 ] as const;

@@ -380,11 +380,11 @@ describe('chat HTTP API', () => {
 
     await withChatApp(
       async (baseUrl, { service }) => {
-        expect(service.listToolNames()).not.toContain('mcp_system_ai_web_search_web_search');
+        expect(service.listToolNames('alice')).not.toContain('mcp_system_ai_web_search_web_search');
 
         const connectRes = await fetch(`${baseUrl}/api/mcps/connect`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', 'x-forwarded-user': 'alice' },
           body: JSON.stringify({ service: 'system.ai.web_search' }),
         });
         expect(connectRes.status).toBe(200);
@@ -393,9 +393,9 @@ describe('chat HTTP API', () => {
         };
         expect(connectedBody.mcp.service).toBe('system.ai.web_search');
         expect(connectedBody.mcp.connected).toBe(true);
-        expect(service.listToolNames()).toContain('mcp_system_ai_web_search_web_search');
+        expect(service.listToolNames('alice')).toContain('mcp_system_ai_web_search_web_search');
 
-        const listRes = await fetch(`${baseUrl}/api/mcps`);
+        const listRes = await fetch(`${baseUrl}/api/mcps`, { headers: { 'x-forwarded-user': 'alice' } });
         const { mcps } = (await listRes.json()) as {
           mcps: Array<{ service: string; connected?: boolean }>;
         };
@@ -403,9 +403,110 @@ describe('chat HTTP API', () => {
 
         const disconnectRes = await fetch(`${baseUrl}/api/mcps/connect/${encodeURIComponent('system.ai.web_search')}`, {
           method: 'DELETE',
+          headers: { 'x-forwarded-user': 'alice' },
         });
         expect(disconnectRes.status).toBe(200);
-        expect(service.listToolNames()).not.toContain('mcp_system_ai_web_search_web_search');
+        expect(service.listToolNames('alice')).not.toContain('mcp_system_ai_web_search_web_search');
+      },
+      { mcpDiscovery }
+    );
+  });
+
+  test('connectors are user-level: one user cannot see, disconnect, or remove another user’s connectors', async () => {
+    const { McpDiscoveryService } = await import('../agents/tools/mcp-discovery.js');
+    const toolsByService: Record<string, string> = {
+      'system.ai.web_search': 'web_search',
+      'main.analytics.custom_mcp': 'query_custom_data',
+    };
+    const mockFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const match = url.match(/\/ai-gateway\/mcp-services\/([^?]+)/);
+      const toolName = match ? toolsByService[decodeURIComponent(match[1])] : undefined;
+      if (toolName) {
+        const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { id: number };
+        return Promise.resolve(
+          new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result: { tools: [{ name: toolName }] } }), {
+            status: 200,
+          })
+        );
+      }
+      return Promise.resolve(new Response('Not Found', { status: 404 }));
+    }) as typeof fetch;
+    const mcpDiscovery = new McpDiscoveryService({
+      host: 'https://workspace.cloud.databricks.com',
+      getToken: () => Promise.resolve('tok'),
+      fetchImpl: mockFetch,
+    });
+    const webSearchTool = 'mcp_system_ai_web_search_web_search';
+    const customTool = 'mcp_main_analytics_custom_mcp_query_custom_data';
+
+    await withChatApp(
+      async (baseUrl, { service }) => {
+        const as = (user: string, init: RequestInit = {}) => ({
+          ...init,
+          headers: { 'content-type': 'application/json', 'x-forwarded-user': user },
+        });
+        const listFor = async (user: string) => {
+          const res = await fetch(`${baseUrl}/api/mcps`, as(user));
+          return ((await res.json()) as { mcps: Array<{ service: string; connected?: boolean }> }).mcps;
+        };
+
+        const connectRes = await fetch(
+          `${baseUrl}/api/mcps/connect`,
+          as('alice', { method: 'POST', body: JSON.stringify({ service: 'system.ai.web_search' }) })
+        );
+        expect(connectRes.status).toBe(200);
+        const registerRes = await fetch(
+          `${baseUrl}/api/mcps/register`,
+          as('alice', { method: 'POST', body: JSON.stringify({ service: 'main.analytics.custom_mcp' }) })
+        );
+        expect(registerRes.status).toBe(201);
+
+        // Bob cannot see Alice's connection or custom registration.
+        const bobList = await listFor('bob');
+        expect(bobList.find((m) => m.service === 'system.ai.web_search')?.connected).toBe(false);
+        expect(bobList.some((m) => m.service === 'main.analytics.custom_mcp')).toBe(false);
+        expect(service.listToolNames('bob')).not.toContain(webSearchTool);
+        expect(service.listToolNames('bob')).not.toContain(customTool);
+
+        // Bob's disconnect / remove are no-ops for Alice.
+        const bobDisconnect = await fetch(
+          `${baseUrl}/api/mcps/connect/${encodeURIComponent('system.ai.web_search')}`,
+          as('bob', { method: 'DELETE' })
+        );
+        expect(await bobDisconnect.json()).toEqual({ success: false });
+        const bobRemove = await fetch(
+          `${baseUrl}/api/mcps/${encodeURIComponent('main.analytics.custom_mcp')}`,
+          as('bob', { method: 'DELETE' })
+        );
+        expect(await bobRemove.json()).toEqual({ success: false });
+
+        // Bob connecting and disconnecting the same service still leaves Alice connected.
+        await fetch(
+          `${baseUrl}/api/mcps/connect`,
+          as('bob', { method: 'POST', body: JSON.stringify({ service: 'system.ai.web_search' }) })
+        );
+        expect(service.listToolNames('bob')).toContain(webSearchTool);
+        await fetch(
+          `${baseUrl}/api/mcps/connect/${encodeURIComponent('system.ai.web_search')}`,
+          as('bob', { method: 'DELETE' })
+        );
+        expect(service.listToolNames('bob')).not.toContain(webSearchTool);
+
+        const aliceList = await listFor('alice');
+        expect(aliceList.find((m) => m.service === 'system.ai.web_search')?.connected).toBe(true);
+        expect(aliceList.find((m) => m.service === 'main.analytics.custom_mcp')?.connected).toBe(true);
+        expect(service.listToolNames('alice')).toContain(webSearchTool);
+        expect(service.listToolNames('alice')).toContain(customTool);
+
+        // Alice removing her own custom MCP works.
+        const aliceRemove = await fetch(
+          `${baseUrl}/api/mcps/${encodeURIComponent('main.analytics.custom_mcp')}`,
+          as('alice', { method: 'DELETE' })
+        );
+        expect(await aliceRemove.json()).toEqual({ success: true });
+        expect((await listFor('alice')).some((m) => m.service === 'main.analytics.custom_mcp')).toBe(false);
+        expect(service.listToolNames('alice')).not.toContain(customTool);
       },
       { mcpDiscovery }
     );

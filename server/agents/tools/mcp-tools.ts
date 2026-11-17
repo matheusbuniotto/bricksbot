@@ -80,14 +80,15 @@ export interface BuildConnectedMcpToolsOptions extends McpClientConfig {
 }
 
 /**
- * Build RegisteredTools for every service currently marked connected on discovery.
+ * Build RegisteredTools for every service connected for `userId`.
  * Genie keeps specialized polling tools; all other services use generic MCP wrappers.
  */
 export async function buildConnectedMcpTools(
   discovery: McpDiscoveryService,
+  userId: string,
   options: BuildConnectedMcpToolsOptions
 ): Promise<RegisteredTool[]> {
-  const connected = discovery.listConnectedServices();
+  const connected = await discovery.listConnectedServices(userId);
   if (connected.length === 0) {
     return [];
   }
