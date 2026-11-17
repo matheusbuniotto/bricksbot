@@ -2653,6 +2653,24 @@ textarea.field {
   font-weight: 600;
 }
 
+.space-members-remove {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.space-members-remove:hover:not(:disabled) {
+  color: var(--destructive);
+}
+
+.space-members-remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .space-members-form {
   display: flex;
   flex-direction: column;

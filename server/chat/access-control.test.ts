@@ -322,4 +322,61 @@ describe('security and access control (review blockers)', () => {
       expect(aliceBody.canManage).toBe(true);
     });
   });
+
+  test('space roles: viewers see shared bots but cannot chat; removed members lose access; members can leave', async () => {
+    await withChatApp(async (baseUrl) => {
+      const call = (user: string, path: string, init: { method?: string; body?: unknown } = {}) =>
+        fetch(`${baseUrl}${path}`, {
+          method: init.method ?? 'GET',
+          headers: { 'content-type': 'application/json', 'x-forwarded-user': user },
+          body: init.body === undefined ? undefined : JSON.stringify(init.body),
+        });
+      const sendAs = async (user: string, botId: string) => {
+        const { chat } = (await (await call(user, `/api/bots/${botId}/chat`)).json()) as { chat: { id: string } };
+        return call(user, `/api/chats/${chat.id}/messages`, { method: 'POST', body: { content: 'hello' } });
+      };
+
+      const { space } = (await (
+        await call('alice', '/api/spaces', { method: 'POST', body: { name: 'Team' } })
+      ).json()) as {
+        space: { id: string };
+      };
+      await call('alice', `/api/spaces/${space.id}/members`, {
+        method: 'POST',
+        body: { userId: 'bob', role: 'member' },
+      });
+      await call('alice', `/api/spaces/${space.id}/members`, {
+        method: 'POST',
+        body: { userId: 'vic', role: 'viewer' },
+      });
+      const { bot } = (await (
+        await call('alice', '/api/bots', {
+          method: 'POST',
+          body: { name: 'Analyst', spaceId: space.id, isShared: true },
+        })
+      ).json()) as { bot: { id: string } };
+
+      expect((await sendAs('bob', bot.id)).status).toBe(201);
+      expect((await call('vic', `/api/bots/${bot.id}/chat`)).status).toBe(200);
+      expect((await sendAs('vic', bot.id)).status).toBe(403);
+
+      expect((await call('bob', `/api/spaces/${space.id}/members/vic`, { method: 'DELETE' })).status).toBe(403);
+      expect((await call('alice', `/api/spaces/${space.id}/members/alice`, { method: 'DELETE' })).status).toBe(400);
+
+      const bobChat = (await (await call('bob', `/api/bots/${bot.id}/chat`)).json()) as { chat: { id: string } };
+      expect((await call('alice', `/api/spaces/${space.id}/members/bob`, { method: 'DELETE' })).status).toBe(204);
+      const afterRemoval = await call('bob', `/api/chats/${bobChat.chat.id}/messages`, {
+        method: 'POST',
+        body: { content: 'still here?' },
+      });
+      expect(afterRemoval.status).toBe(403);
+      expect((await call('bob', `/api/spaces/${space.id}/members`)).status).toBe(403);
+
+      expect((await call('vic', `/api/spaces/${space.id}/members/vic`, { method: 'DELETE' })).status).toBe(204);
+      const { members } = (await (await call('alice', `/api/spaces/${space.id}/members`)).json()) as {
+        members: Array<{ userId: string }>;
+      };
+      expect(members.map((m) => m.userId)).toEqual(['alice']);
+    });
+  });
 });

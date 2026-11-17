@@ -74,4 +74,28 @@ describe('RoutineService', () => {
     const manual = await service.runNow(created.routine.id, 'owner');
     expect(manual.chat.user.content).toBe('should wait');
   });
+
+  test('refuses to run once the routine owner loses access to a shared bot', async () => {
+    const chats = new MemoryChatStore();
+    const team = await chats.createSpace({ name: 'Team', ownerId: 'carol' });
+    await chats.addSpaceMember(team.id, 'bob', 'member');
+    const bot = await chats.createBot({ name: 'Analyst', ownerId: 'carol', spaceId: team.id, isShared: true });
+    const routines = new MemoryRoutineStore();
+    const service = new RoutineService(
+      routines,
+      chats,
+      new ChatService({ store: chats, client: new StubChatClient() })
+    );
+    const { routine } = await routines.createRoutine({
+      botId: bot.id,
+      ownerId: 'bob',
+      name: 'Daily',
+      cron: '0 8 * * *',
+      prompt: 'Brief me',
+    });
+
+    await expect(service.runNow(routine.id, 'bob')).resolves.toBeTruthy();
+    await chats.removeSpaceMember(team.id, 'bob');
+    await expect(service.runNow(routine.id, 'bob')).rejects.toThrow(/Bot access required/);
+  });
 });

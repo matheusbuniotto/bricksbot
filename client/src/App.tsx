@@ -330,22 +330,35 @@ export default function App() {
     }
   }
 
+  async function selectFallbackBot(nextBots: Bot[]) {
+    const fallback = nextBots.find((bot) => bot.isPrimary)?.id ?? nextBots[0]?.id ?? null;
+    setSelectedBotId(fallback);
+    if (fallback) await loadChat(fallback);
+    else {
+      setChat(null);
+      setMessages([]);
+    }
+  }
+
   async function handleDeleteBot(botId: string) {
     setError(null);
     try {
       await deleteBot(botId);
       const { nextBots } = await refreshRoster();
-      if (selectedBotId === botId) {
-        const fallback = nextBots.find((bot) => bot.isPrimary)?.id ?? nextBots[0]?.id ?? null;
-        setSelectedBotId(fallback);
-        if (fallback) await loadChat(fallback);
-        else {
-          setChat(null);
-          setMessages([]);
-        }
-      }
+      if (selectedBotId === botId) await selectFallbackBot(nextBots);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to delete bot');
+    }
+  }
+
+  async function handleLeaveSpace(spaceId: string) {
+    setError(null);
+    setSpaces((prev) => prev.filter((space) => space.id !== spaceId));
+    try {
+      const { nextBots } = await refreshRoster();
+      if (!nextBots.some((bot) => bot.id === selectedBotId)) await selectFallbackBot(nextBots);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to refresh after leaving');
     }
   }
 
@@ -553,6 +566,7 @@ export default function App() {
         onCreateBot={handleCreateBot}
         onInstallMarketplaceBot={handleInstallMarketplaceBot}
         onToggleShareBot={handleToggleShareBot}
+        onLeaveSpace={handleLeaveSpace}
         onCreateSpace={handleCreateSpace}
         onRenameBot={handleRenameBot}
         onChangeLook={handleChangeLook}

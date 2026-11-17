@@ -110,6 +110,11 @@ export class MemoryChatStore implements ChatStore {
     return member;
   }
 
+  async removeSpaceMember(spaceId: string, userId: string): Promise<void> {
+    if (!this.spaces.has(spaceId)) throw new Error('Space not found');
+    this.members = this.members.filter((m) => !(m.spaceId === spaceId && m.userId === userId));
+  }
+
   async listBots(options?: ListBotsOptions): Promise<Bot[]> {
     if (options?.ownerId) {
       await this.ensureBootstrap(options.ownerId);

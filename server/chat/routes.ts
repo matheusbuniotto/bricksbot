@@ -9,7 +9,7 @@ import { createErrorResponder } from '../lib/http.js';
 import { canManageSpaceMembers, canViewerAccessSpace } from './access-policy.js';
 import { runWithDatabricksRequestAuth } from './databricks-auth.js';
 import { resolveOwnerId } from './identity.js';
-import { requireBotAccess, requireSpaceAccess } from './route-guards.js';
+import { requireBotAccess, requireBotUse, requireSpaceAccess } from './route-guards.js';
 import type { ChatService } from './service.js';
 
 async function syncConnectedMcpTools(discovery: McpDiscoveryService, service: ChatService): Promise<void> {
@@ -152,6 +152,7 @@ export function registerChatRoutes(
       res.json({
         members,
         canManage: canManageSpaceMembers(space, members, callerId),
+        callerId,
       });
     } catch (err) {
       sendError(res, err);
@@ -180,6 +181,33 @@ export function registerChatRoutes(
       const userId = parsed.data.userId.trim().toLowerCase();
       const member = await store.addSpaceMember(spaceId, userId, parsed.data.role);
       res.status(201).json({ member });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.delete('/api/spaces/:spaceId/members/:userId', async (req: Request, res: Response) => {
+    try {
+      const spaceId = String(req.params.spaceId);
+      const space = await store.getSpace(spaceId);
+      if (!space) {
+        res.status(404).json({ error: 'Space not found' });
+        return;
+      }
+      const callerId = resolveOwnerId(req);
+      const userId = String(req.params.userId).trim().toLowerCase();
+      const members = await store.listSpaceMembers(spaceId);
+      const isLeaving = userId === callerId && canViewerAccessSpace(space, members, callerId);
+      if (!isLeaving && !canManageSpaceMembers(space, members, callerId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+      if (userId === space.ownerId) {
+        res.status(400).json({ error: 'Cannot remove the space owner' });
+        return;
+      }
+      await store.removeSpaceMember(spaceId, userId);
+      res.status(204).send();
     } catch (err) {
       sendError(res, err);
     }
@@ -570,6 +598,13 @@ export function registerChatRoutes(
     return chat;
   }
 
+  /** The caller's chat, provided they may still run its bot (not a viewer, still shared). */
+  async function assertChatUse(chatId: string, req: Request, res: Response) {
+    const chat = await assertChatOwnership(chatId, req, res);
+    if (!chat) return null;
+    return (await requireBotUse(store, chat.botId, req, res)) ? chat : null;
+  }
+
   app.get('/api/chats/:chatId/approvals/auto', async (req: Request, res: Response) => {
     try {
       const chatId = String(req.params.chatId);
@@ -623,7 +658,7 @@ export function registerChatRoutes(
 
     try {
       const chatId = String(req.params.chatId);
-      const chat = await assertChatOwnership(chatId, req, res);
+      const chat = await assertChatUse(chatId, req, res);
       if (!chat) return;
       const result = await runWithDatabricksRequestAuth(req, () =>
         service.sendUserMessage(chatId, parsed.data.content, {
@@ -650,7 +685,7 @@ export function registerChatRoutes(
         res.status(404).json({ error: 'Approval request not found' });
         return;
       }
-      const chat = await assertChatOwnership(pending.chatId, req, res);
+      const chat = await assertChatUse(pending.chatId, req, res);
       if (!chat) return;
       const result = await runWithDatabricksRequestAuth(req, () =>
         service.decideApproval(approvalId, parsed.data.decision, { decidedBy: chat.userId })
@@ -670,7 +705,7 @@ export function registerChatRoutes(
 
     try {
       const chatId = String(req.params.chatId);
-      const chat = await assertChatOwnership(chatId, req, res);
+      const chat = await assertChatUse(chatId, req, res);
       if (!chat) return;
       const choiceId = String(req.params.choiceId);
       const pending = await service.getChoices().get(choiceId);

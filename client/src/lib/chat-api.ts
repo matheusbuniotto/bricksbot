@@ -21,11 +21,22 @@ export async function createSpace(name: string): Promise<Space> {
   return data.space;
 }
 
-export async function fetchSpaceMembers(spaceId: string): Promise<{ members: SpaceMember[]; canManage: boolean }> {
-  const data = await readJson<{ members: SpaceMember[]; canManage?: boolean }>(
+export async function fetchSpaceMembers(
+  spaceId: string
+): Promise<{ members: SpaceMember[]; canManage: boolean; callerId: string | null }> {
+  const data = await readJson<{ members: SpaceMember[]; canManage?: boolean; callerId?: string }>(
     await fetch(`/api/spaces/${spaceId}/members`)
   );
-  return { members: data.members, canManage: data.canManage === true };
+  return { members: data.members, canManage: data.canManage === true, callerId: data.callerId ?? null };
+}
+
+/** Remove a member, or leave the space when `userId` is the caller. */
+export async function removeSpaceMember(spaceId: string, userId: string): Promise<void> {
+  const res = await fetch(`/api/spaces/${spaceId}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Request failed (${res.status})`);
+  }
 }
 
 export async function addSpaceMember(

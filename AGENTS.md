@@ -35,7 +35,7 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 
 ## Domains (vocabulary)
 
-- **Space.** Folder of bots; membership roles; Personal space on bootstrap.
+- **Space.** Folder of bots; Personal space on bootstrap. Roles: `viewer` sees shared bots, `member` also chats/approves/schedules with them, `admin` also manages members. Bot owners keep full control; only owners may `save_skill`. Members can leave; owners/admins remove others. Access is re-checked on every turn (`requireBotUse`, `canUseBot`), so unsharing or removal cuts off existing chats and routines.
 - **Bot.** Named agent; one is **Primary** (router + `handoff_to_bot`); presence includes thinking/working/waiting/blocked.
 - **Chat.** One chat per bot; messages: `user` \| `assistant` \| `system` \| `tool`.
 - **Tool call replay.** Assistant rows must store `toolCalls`; tool rows need matching `toolCallId`. Never send orphan tool results to the LLM.

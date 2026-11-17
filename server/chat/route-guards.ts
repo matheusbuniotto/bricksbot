@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import type { Bot, ChatStore } from '../../shared/chat/types.js';
-import { canViewerAccessSpace } from './access-policy.js';
+import { canUseBot, canViewBot, canViewerAccessSpace } from './access-policy.js';
 import { resolveOwnerId } from './identity.js';
 
 type AccessStore = Pick<ChatStore, 'getBot' | 'getSpace' | 'listSpaceMembers'>;
@@ -30,7 +30,7 @@ export async function requireSpaceAccess(
 }
 
 /**
- * The owner, or a member of the space holding a shared non-Primary bot, may use it.
+ * The owner, or a member of the space holding a shared non-Primary bot, may see it.
  * Otherwise responds 404/403 and returns null.
  */
 export async function requireBotAccess(
@@ -45,10 +45,21 @@ export async function requireBotAccess(
     return null;
   }
   const callerId = resolveOwnerId(req);
-  if (bot.ownerId === callerId) return { bot, callerId };
-  if (!bot.isPrimary && bot.isShared && bot.spaceId && (await spaceAccess(store, bot.spaceId, callerId)) === 'ok') {
-    return { bot, callerId };
-  }
+  if (await canViewBot(store, bot, callerId)) return { bot, callerId };
   res.status(403).json({ error: 'Forbidden' });
+  return null;
+}
+
+/** Like requireBotAccess, but Space viewers are refused: use it before running a bot turn. */
+export async function requireBotUse(
+  store: AccessStore,
+  botId: string,
+  req: Request,
+  res: Response
+): Promise<{ bot: Bot; callerId: string } | null> {
+  const access = await requireBotAccess(store, botId, req, res);
+  if (!access) return null;
+  if (await canUseBot(store, access.bot, access.callerId)) return access;
+  res.status(403).json({ error: 'Space viewers can see this bot but not chat with it' });
   return null;
 }

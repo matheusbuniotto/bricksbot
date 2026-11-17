@@ -2,6 +2,7 @@ import { handoffBriefUserLine, serializeHandoffNotice } from '../../shared/chat/
 import type { Bot, ChatStore } from '../../shared/chat/types.js';
 import type { ToolDefinition } from '../../shared/agents/types.js';
 import { readText } from '../lib/coerce.js';
+import { isBotVisibleToViewer } from '../chat/access-policy.js';
 
 export const HANDOFF_TOOL_NAME = 'handoff_to_bot';
 
@@ -90,7 +91,11 @@ export async function planHandoff(
     return { ok: false, error: 'handoff_to_bot requires Space membership' };
   }
 
-  const target = botId ? await store.getBot(botId) : await findTeammateByName(store, sender, botName);
+  const found = botId ? await store.getBot(botId) : await findTeammateByName(store, sender, botName);
+  const target =
+    found && found !== 'ambiguous' && !isBotVisibleToViewer(found, sender.ownerId, new Set([sender.spaceId]))
+      ? null
+      : found;
   if (!target) {
     return {
       ok: false,
