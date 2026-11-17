@@ -22,6 +22,8 @@ export function MermaidDiagram({ source }: { source: string }) {
           startOnLoad: false,
           securityLevel: 'strict',
           theme: dark ? 'dark' : 'default',
+          layout: 'dagre',
+          look: 'classic',
         });
         const { svg } = await mermaid.render(renderId, source.trim());
         if (!cancelled && ref.current) ref.current.innerHTML = svg;

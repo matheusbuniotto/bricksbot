@@ -22,7 +22,7 @@ export const pinArtifactToolDefinition: ToolDefinition = {
   name: PIN_ARTIFACT_TOOL_NAME,
   description:
     'Pin a finding, interactive Vega-Lite chart, table, or Mermaid diagram onto this chat as a rendered artifact (title + kind + body). ' +
-    'Use kind="chart" with a Vega-Lite v5 JSON spec (inline data.values) to render charts from python_exec or calculations; use pin_chart when charting an earlier sql_query. ' +
+    'Use kind="chart" with a Vega-Lite v6 JSON spec (inline data.values) to render charts from python_exec or calculations; use pin_chart when charting an earlier sql_query. ' +
     'Never draw ASCII charts or claim you cannot attach images. Never pin secrets.',
   parameters: {
     type: 'object',
@@ -33,7 +33,7 @@ export const pinArtifactToolDefinition: ToolDefinition = {
         type: 'string',
         enum: [...ARTIFACT_KINDS],
         description:
-          'note | sql | volume_path | link | table ({columns,rows} JSON) | chart (Vega-Lite v5 JSON, inline data.values only; prefer pin_chart for SQL results) | mermaid (diagram source: flowchart, sequenceDiagram, stateDiagram, classDiagram, erDiagram)',
+          'note | sql | volume_path | link | table ({columns,rows} JSON) | chart (Vega-Lite v6 JSON, inline data.values only; prefer pin_chart for SQL results) | mermaid (diagram source: flowchart, sequenceDiagram, stateDiagram, classDiagram, erDiagram)',
       },
       body: {
         type: 'string',

@@ -21,6 +21,16 @@ describe('validateVegaLiteSpec', () => {
     expect(validateVegaLiteSpec({ mark: 'geoshape' }, { allowData: false }).ok).toBe(false);
     expect(validateVegaLiteSpec({ mark: 'bar', description: 'x'.repeat(20_000) }, { allowData: false }).ok).toBe(false);
   });
+
+  it('accepts Vega-Lite v5 and v6 schemas and rejects other versions', () => {
+    const schemaFor = (version: string) => ({
+      $schema: `https://vega.github.io/schema/vega-lite/${version}.json`,
+      mark: 'bar',
+    });
+    expect(validateVegaLiteSpec(schemaFor('v5'), { allowData: false }).ok).toBe(true);
+    expect(validateVegaLiteSpec(schemaFor('v6'), { allowData: false }).ok).toBe(true);
+    expect(validateVegaLiteSpec(schemaFor('v4'), { allowData: false }).ok).toBe(false);
+  });
 });
 
 describe('validateMermaidSource', () => {

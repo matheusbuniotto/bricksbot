@@ -17,7 +17,7 @@ const DEMO_PINS: Record<string, Record<string, unknown>> = {
     title: 'Orders per month',
     kind: 'chart',
     body: JSON.stringify({
-      $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+      $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
       data: {
         values: [
           { month: 'Jul', orders: 120, region: 'BR' },

@@ -118,7 +118,7 @@ export const TEATOOLS_MCP_DEFINITIONS: McpToolDefinition[] = [
       properties: {
         data_ref: {
           type: 'string',
-          description: 'CSV/JSON file path, inline CSV text, or JSON array of unit rows',
+          description: 'Inline CSV text or JSON array of unit rows (use volume_read or sql_query to fetch data first)',
         },
         variant_col: { type: 'string', description: 'Column identifying the assigned variant' },
         metrics: {

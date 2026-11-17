@@ -83,6 +83,19 @@ describe('teatools MCP + hypothesis-testing-playbook skill pack', () => {
     expect(String(rep.markdown)).toContain('Ship-worthy');
   });
 
+  it('refuses to read data_ref from the server filesystem', () => {
+    for (const dataRef of ['package.json', '/etc/passwd', '.env']) {
+      expect(() =>
+        analyze({
+          data_ref: dataRef,
+          variant_col: 'variant',
+          control: 'control',
+          metrics: [{ name: 'rev', type: 'mean' }],
+        })
+      ).toThrow(/file paths are not supported/);
+    }
+  });
+
   it('compares repeated agent eval runs (analytic and seeded cluster bootstrap)', () => {
     const a = [
       [0.1, 0.5, 0.9, 0.3],

@@ -1,6 +1,4 @@
 import * as crypto from 'node:crypto';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import {
   type Audience,
   checkAlpha,
@@ -864,7 +862,7 @@ export function agreementKappa(input: AgreementKappaInput): Record<string, unkno
 // --------------------------------------------------------------------------- analyze
 
 export interface AnalyzeInput {
-  /** Either a path to a .csv/.json file, inline CSV text, or an array of row objects. */
+  /** Inline CSV/JSON text or an array of row objects. Never read from the server filesystem. */
   data_ref: string | Array<Record<string, unknown>>;
   variant_col: string;
   metrics: Array<MetricSpec | Record<string, unknown>>;
@@ -903,7 +901,7 @@ function parseCsvText(text: string): Array<Record<string, unknown>> {
 function loadRows(dataRef: string | Array<Record<string, unknown>>): Array<Record<string, unknown>> {
   if (Array.isArray(dataRef)) return dataRef;
   if (typeof dataRef !== 'string' || !dataRef.trim()) {
-    throw new Error('data_ref must be a file path, inline CSV/JSON string, or array of row objects');
+    throw new Error('data_ref must be inline CSV/JSON text or an array of row objects');
   }
   const trimmed = dataRef.trim();
   if (trimmed.startsWith('[')) {
@@ -912,15 +910,7 @@ function loadRows(dataRef: string | Array<Record<string, unknown>>): Array<Recor
   if (trimmed.includes('\n') && trimmed.includes(',')) {
     return parseCsvText(trimmed);
   }
-  const resolved = path.resolve(trimmed);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`data file not found: ${trimmed}`);
-  }
-  const content = fs.readFileSync(resolved, 'utf8');
-  if (resolved.endsWith('.json')) {
-    return JSON.parse(content) as Array<Record<string, unknown>>;
-  }
-  return parseCsvText(content);
+  throw new Error('data_ref must be inline CSV/JSON text or an array of row objects (file paths are not supported)');
 }
 
 function welchCompare(
