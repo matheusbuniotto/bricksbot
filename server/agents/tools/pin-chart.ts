@@ -12,7 +12,7 @@ export const pinChartToolDefinition: ToolDefinition = {
   name: PIN_CHART_TOOL_NAME,
   description:
     'Pin an interactive chart built from the rows of an earlier sql_query in this chat. ' +
-    'Pass the sql_query tool call id and a Vega-Lite v5 spec WITHOUT data (mark + encoding only); ' +
+    'Pass the sql_query tool call id and a Vega-Lite v6 spec WITHOUT data (mark + encoding only); ' +
     'field names must match the query column names. Aggregate in SQL first (GROUP BY / LIMIT). Never pin secrets.',
   parameters: {
     type: 'object',
@@ -25,7 +25,7 @@ export const pinChartToolDefinition: ToolDefinition = {
       },
       spec: {
         type: 'object',
-        description: 'Vega-Lite v5 spec without data: mark and encoding (and optional layer/facet)',
+        description: 'Vega-Lite v6 spec without data: mark and encoding (and optional layer/facet)',
       },
       summary: { type: 'string', description: 'Optional one-line preview' },
     },

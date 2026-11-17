@@ -1,4 +1,8 @@
-export const VEGA_LITE_SCHEMA = 'https://vega.github.io/schema/vega-lite/v5.json';
+export const VEGA_LITE_SCHEMA = 'https://vega.github.io/schema/vega-lite/v6.json';
+const SUPPORTED_SCHEMA_PREFIXES = [
+  'https://vega.github.io/schema/vega-lite/v5',
+  'https://vega.github.io/schema/vega-lite/v6',
+];
 export const MAX_VEGA_SPEC_CHARS = 16_000;
 export const MAX_CHART_ROWS = 1_000;
 
@@ -64,8 +68,9 @@ export function validateVegaLiteSpec(input: unknown, options: { allowData: boole
   if (!options.allowData && 'data' in spec) {
     return { ok: false, error: 'omit data from spec; rows come from the sql_query result' };
   }
-  if (typeof spec.$schema === 'string' && !spec.$schema.startsWith('https://vega.github.io/schema/vega-lite/v5')) {
-    return { ok: false, error: 'only Vega-Lite v5 specs are supported' };
+  const schema = spec.$schema;
+  if (typeof schema === 'string' && !SUPPORTED_SCHEMA_PREFIXES.some((prefix) => schema.startsWith(prefix))) {
+    return { ok: false, error: 'only Vega-Lite v5 or v6 specs are supported' };
   }
   const marks = markNames(spec);
   const bad = marks.find((mark) => !ALLOWED_MARKS.has(mark));

@@ -134,8 +134,8 @@ The user wants a chart, plot, distribution, comparison, trend, ranking, or diagr
 ## Sequence of work
 1. Aggregate data first (in SQL with GROUP BY / LIMIT, or in Python into concise summary rows).
 2. Pick the form: \`table\` for lookup; \`line\` for time; \`bar\` for category comparison or distributions; \`point\` for relationships; \`rect\` for 2D density; \`mermaid\` for flows, lineage, or ER diagrams.
-3. If the data came from \`sql_query\`, call \`pin_chart\` with title, \`source_tool_call_id\`, and a Vega-Lite v5 spec with only \`mark\` and \`encoding\` (no \`data\` or \`url\`).
-4. For any other chart, call \`pin_artifact\` with \`kind: "chart"\` and \`body\` set to a Vega-Lite v5 JSON string with inline \`data: { values: [...] }\`, \`mark\`, and \`encoding\`. Never draw ASCII/text charts or say you cannot attach images.
+3. If the data came from \`sql_query\`, call \`pin_chart\` with title, \`source_tool_call_id\`, and a Vega-Lite v6 spec with only \`mark\` and \`encoding\` (no \`data\` or \`url\`).
+4. For any other chart, call \`pin_artifact\` with \`kind: "chart"\` and \`body\` set to a Vega-Lite v6 JSON string with inline \`data: { values: [...] }\`, \`mark\`, and \`encoding\`. Never draw ASCII/text charts or say you cannot attach images.
 5. For tables or diagrams call \`pin_artifact\` with kind \`table\` ({columns, rows}) or \`mermaid\` (flowchart, sequenceDiagram, stateDiagram, classDiagram, erDiagram only).
 6. State the takeaway in one sentence.
 
