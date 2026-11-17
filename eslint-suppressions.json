@@ -205,7 +205,7 @@
   },
   "server/chat/memory-store.ts": {
     "@typescript-eslint/require-await": {
-      "count": 19
+      "count": 20
     }
   },
   "server/chat/routes.ts": {

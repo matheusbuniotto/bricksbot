@@ -79,7 +79,9 @@ export function createSaveSkillTool(memory: MemorySkillStore): RegisteredTool {
       },
     },
     preflight(_args, ctx) {
-      return ctx.bot ? null : 'save_skill requires an active Bot';
+      if (!ctx.bot) return 'save_skill requires an active Bot';
+      if (ctx.userId && ctx.userId !== ctx.bot.ownerId) return 'Only the bot owner can save skills to a shared bot';
+      return null;
     },
     async execute(args, ctx) {
       const name = typeof args.name === 'string' ? args.name : '';

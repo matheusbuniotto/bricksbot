@@ -4,7 +4,7 @@ import type { ChatStore } from '../../shared/chat/types.js';
 import type { ChatClient } from '../../shared/agents/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
 import { resolveOwnerId } from '../chat/identity.js';
-import { requireBotAccess } from '../chat/route-guards.js';
+import { requireBotUse } from '../chat/route-guards.js';
 import { createErrorResponder } from '../lib/http.js';
 import type { ChatHttpApp } from '../chat/routes.js';
 import { RoutineService } from './service.js';
@@ -69,7 +69,7 @@ export function registerRoutineRoutes(
       return;
     }
     try {
-      const access = await requireBotAccess(options.chats, parsed.data.botId, req, res);
+      const access = await requireBotUse(options.chats, parsed.data.botId, req, res);
       if (!access) return;
       const created = await store.createRoutine({
         ...parsed.data,

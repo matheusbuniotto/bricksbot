@@ -128,6 +128,7 @@ export interface ChatStore {
   getSpace(spaceId: string): Promise<Space | null>;
   listSpaceMembers(spaceId: string): Promise<SpaceMember[]>;
   addSpaceMember(spaceId: string, userId: string, role: SpaceRole): Promise<SpaceMember>;
+  removeSpaceMember(spaceId: string, userId: string): Promise<void>;
   listBots(options?: ListBotsOptions): Promise<Bot[]>;
   createBot(input: CreateBotInput): Promise<Bot>;
   updateBot(botId: string, input: UpdateBotInput): Promise<Bot>;

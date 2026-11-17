@@ -265,6 +265,12 @@ export class LakebaseChatStore implements ChatStore {
     return mapMember(result.rows[0]);
   }
 
+  async removeSpaceMember(spaceId: string, userId: string): Promise<void> {
+    const space = await this.getSpace(spaceId);
+    if (!space) throw new Error('Space not found');
+    await this.query(`DELETE FROM bricksbot.space_members WHERE space_id = $1 AND user_id = $2`, [spaceId, userId]);
+  }
+
   async listBots(options?: ListBotsOptions): Promise<Bot[]> {
     if (options?.ownerId) await this.ensureBootstrap(options.ownerId);
     else await this.ensurePrimaryBot();

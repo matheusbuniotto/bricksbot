@@ -1,5 +1,6 @@
 import type { ChatStore } from '../../shared/chat/types.js';
 import type { Routine, RoutineStore } from '../../shared/routines/types.js';
+import { canUseBot } from '../chat/access-policy.js';
 import type { ChatService, SendMessageResult } from '../chat/service.js';
 import { verifyWebhookSecret } from './webhook-auth.js';
 
@@ -43,6 +44,9 @@ export class RoutineService {
     const bot = await this.chats.getBot(routine.botId);
     if (!bot) {
       throw new Error('Bot not found');
+    }
+    if (!(await canUseBot(this.chats, bot, routine.ownerId))) {
+      throw new Error('Bot access required for this routine');
     }
     const chat = await this.chats.getOrCreateChatForBot(routine.botId, routine.ownerId);
     const systemNote = `[routine:${routine.name}] scheduled run`;

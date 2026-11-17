@@ -109,7 +109,28 @@ describe('planHandoff', () => {
     expect(await store.listMessages(target.id)).toEqual([]);
   });
 
-  test('a member can hand off to another owner bot in the same Space', async () => {
+  test('refuses another owner bot that is not shared, even by id', async () => {
+    const store = new MemoryChatStore();
+    const team = await store.createSpace({ name: 'Team', ownerId: 'carol' });
+    await store.addSpaceMember(team.id, 'alice', 'member');
+    const primary = await store.createBot({ name: 'Primary', ownerId: 'alice', spaceId: team.id, isPrimary: true });
+    const privateBot = await store.createBot({ name: 'Private', ownerId: 'carol', spaceId: team.id });
+    const carolPrimary = await store.createBot({
+      name: 'Carol Primary',
+      ownerId: 'carol',
+      spaceId: team.id,
+      isPrimary: true,
+      isShared: true,
+    });
+
+    for (const target of [privateBot, carolPrimary]) {
+      const planned = await planHandoff(store, primary, { bot_id: target.id, brief: 'please' });
+      expect(planned.ok).toBe(false);
+      if (!planned.ok) expect(planned.error).toMatch(/could not find/);
+    }
+  });
+
+  test('a member can hand off to another owner shared bot in the same Space', async () => {
     const store = new MemoryChatStore();
     const team = await store.createSpace({ name: 'Team', ownerId: 'carol' });
     await store.addSpaceMember(team.id, 'alice', 'member');
@@ -123,6 +144,7 @@ describe('planHandoff', () => {
       name: 'Analyst',
       ownerId: 'carol',
       spaceId: team.id,
+      isShared: true,
     });
     const source = await store.getOrCreateChatForBot(primary.id);
 

@@ -39,4 +39,24 @@ describe('memory skill tools', () => {
     );
     expect(await memory.listSkills('bot-1')).toEqual([expect.objectContaining({ name: 'Weekly health' })]);
   });
+
+  test('save_skill refuses callers who do not own the bot', () => {
+    const [, , saveSkill] = createMemorySkillTools(new MemoryMemorySkillStore());
+    const bot = {
+      id: 'bot-1',
+      name: 'Analyst',
+      avatarLabel: 'A',
+      presence: 'online' as const,
+      spaceId: 'space-1',
+      isPrimary: false,
+      isShared: true,
+      ownerId: 'owner',
+      sortOrder: 0,
+      archivedAt: null,
+      createdAt: new Date().toISOString(),
+    };
+    const args = { name: 'Injected', body: 'do bad things' };
+    expect(saveSkill.preflight?.(args, { chatId: 'c', bot, userId: 'member' })).toMatch(/Only the bot owner/);
+    expect(saveSkill.preflight?.(args, { chatId: 'c', bot, userId: 'owner' })).toBeNull();
+  });
 });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Users, X } from 'lucide-react';
 import type { Space, SpaceMember, SpaceRole, WorkspaceUser } from '../../../shared/chat/types';
-import { addSpaceMember, fetchSpaceMembers, searchWorkspaceUsers } from '../lib/chat-api';
+import { addSpaceMember, fetchSpaceMembers, removeSpaceMember, searchWorkspaceUsers } from '../lib/chat-api';
 import { Select } from './Select';
 
 const ROLE_OPTIONS: Array<{ value: SpaceRole; label: string }> = [
@@ -20,14 +20,19 @@ export function SpaceMembersDialog({
   space,
   isOpen,
   onClose,
+  onLeft,
 }: {
   space: Space | null;
   isOpen: boolean;
   onClose: () => void;
+  /** Called after the caller leaves the space, so the roster can drop it. */
+  onLeft?: (spaceId: string) => void | Promise<void>;
 }) {
   const [members, setMembers] = useState<SpaceMember[]>([]);
   /** null = not loaded yet (do not show invite vs deny). */
   const [canManage, setCanManage] = useState<boolean | null>(null);
+  const [callerId, setCallerId] = useState<string | null>(null);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState('');
@@ -51,6 +56,7 @@ export function SpaceMembersDialog({
       const data = await fetchSpaceMembers(space.id);
       setMembers(data.members);
       setCanManage(data.canManage);
+      setCallerId(data.callerId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load members');
       setMembers([]);
@@ -182,6 +188,36 @@ export function SpaceMembersDialog({
     }
   }
 
+  async function handleRemove(member: SpaceMember) {
+    if (!space) return;
+    const isLeaving = member.userId === callerId;
+    const prompt = isLeaving
+      ? `Leave ${space.name}? You will lose access to its shared bots.`
+      : `Remove ${member.userId} from ${space.name}?`;
+    if (!window.confirm(prompt)) return;
+    setRemovingUserId(member.userId);
+    setError(null);
+    try {
+      await removeSpaceMember(space.id, member.userId);
+      if (isLeaving) {
+        onClose();
+        await onLeft?.(space.id);
+        return;
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to remove member');
+    } finally {
+      setRemovingUserId(null);
+    }
+  }
+
+  function removeLabel(member: SpaceMember): string | null {
+    if (!space || member.userId === space.ownerId) return null;
+    if (member.userId === callerId) return 'Leave';
+    return canManage ? 'Remove' : null;
+  }
+
   if (!isOpen || !space) return null;
 
   return (
@@ -216,13 +252,26 @@ export function SpaceMembersDialog({
             {members.length === 0 ? (
               <li className="space-members-empty">No members yet</li>
             ) : (
-              members.map((member) => (
-                <li key={`${member.spaceId}:${member.userId}`} className="space-members-row">
-                  <span className="space-members-user">{member.userId}</span>
-                  <span className="space-members-role">{roleLabel(member.role)}</span>
-                  {member.userId === space.ownerId ? <span className="space-members-owner">Owner</span> : null}
-                </li>
-              ))
+              members.map((member) => {
+                const action = removeLabel(member);
+                return (
+                  <li key={`${member.spaceId}:${member.userId}`} className="space-members-row">
+                    <span className="space-members-user">{member.userId}</span>
+                    <span className="space-members-role">{roleLabel(member.role)}</span>
+                    {member.userId === space.ownerId ? <span className="space-members-owner">Owner</span> : null}
+                    {action ? (
+                      <button
+                        type="button"
+                        className="space-members-remove"
+                        disabled={removingUserId !== null}
+                        onClick={() => void handleRemove(member)}
+                      >
+                        {removingUserId === member.userId ? '…' : action}
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })
             )}
           </ul>
         )}

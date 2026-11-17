@@ -67,6 +67,7 @@ export function BotRoster({
   onCreateBot,
   onInstallMarketplaceBot,
   onToggleShareBot,
+  onLeaveSpace,
   onCreateSpace,
   onRenameBot,
   onChangeLook,
@@ -99,6 +100,7 @@ export function BotRoster({
   ) => void | Promise<void>;
   onInstallMarketplaceBot?: (botId: string, spaceId: string | null) => void | Promise<void>;
   onToggleShareBot?: (botId: string, isShared: boolean) => void | Promise<void>;
+  onLeaveSpace?: (spaceId: string) => void | Promise<void>;
   onCreateSpace: (name: string) => void | Promise<string | void>;
   onRenameBot: (botId: string, name: string) => void | Promise<void>;
   onChangeLook: (botId: string, avatarLabel: string) => void | Promise<void>;
@@ -1034,6 +1036,7 @@ export function BotRoster({
         space={membersSpace}
         isOpen={membersSpaceId !== null}
         onClose={() => setMembersSpaceId(null)}
+        onLeft={onLeaveSpace}
       />
     </aside>
   );
