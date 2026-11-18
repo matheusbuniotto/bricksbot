@@ -127,6 +127,8 @@ Open [http://localhost:8000](http://localhost:8000) to inspect the roster, trans
 
 You need: **App** + **Lakebase** (durable chat) + **secret for an LLM** (or Serving). A SQL warehouse is optional but required for interactive `sql_query` / `lakehouse_catalog`.
 
+**Fast path:** `npm run bootstrap -- -p <profile>` picks (or creates) Lakebase, picks a warehouse, stores the OpenRouter key, writes `dev.local.yml`, and validates the bundle. Then jump to [Deploy](#4-deploy). Steps 1-3 below are the manual equivalent.
+
 #### 1. Workspace Variables
 
 Copy the example and fill your workspace parameters:
