@@ -1,0 +1,7 @@
+# gitleaks config: default rules, minus the fake credentials that redaction tests need.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake tokens in redaction tests"
+paths = ['''\.test\.ts$''']
