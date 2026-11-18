@@ -66,8 +66,16 @@ export default tseslint.config(
 
   // Disable type-checking for JS config files and standalone config files
   {
-    files: ['**/*.js', '*.config.ts', '**/*.config.ts'],
+    files: ['**/*.{js,mjs}', '*.config.ts', '**/*.config.ts'],
     ...tseslint.configs.disableTypeChecked,
+  },
+
+  // Standalone Node scripts
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly' },
+    },
   },
 
   // Prettier config (must be last to override other formatting rules)
