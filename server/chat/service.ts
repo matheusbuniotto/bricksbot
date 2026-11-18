@@ -27,14 +27,19 @@ import type { RoutineStore } from '../../shared/routines/types.js';
 import { createHandoffTool, HANDOFF_TOOL_NAME, planHandoff, type HandoffTurnContext } from '../agents/handoff.js';
 import { applyCompactionToHistory, runCompaction, shouldCompact } from '../durable/compaction.js';
 import { CREATE_BOT_TOOL_NAME, createCreateBotTool } from '../agents/tools/create-bot.js';
-import { createLakehouseCatalogTool } from '../agents/tools/lakehouse-catalog.js';
+import { createLakehouseCatalogTool, lakehouseCatalogToolDefinition } from '../agents/tools/lakehouse-catalog.js';
 import { createMemorySkillTools } from '../agents/tools/memory-tools.js';
 import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
-import { createSqlQueryTool, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
-import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tools/volume-read.js';
+import { createSqlQueryTool, sqlQueryToolDefinition, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
+import {
+  createVolumeReadTool,
+  volumeReadToolDefinition,
+  type VolumeReadToolOptions,
+} from '../agents/tools/volume-read.js';
 import {
   createVolumeWriteTool,
   isAskFirstVolumeWrite,
+  VOLUME_WRITE_TOOL_NAME,
   type VolumeWriteToolOptions,
 } from '../agents/tools/volume-write.js';
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
@@ -48,7 +53,13 @@ import {
   SANDBOX_DELETE_TOOL_NAME,
 } from '../agents/tools/sandbox-tools.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
-import { createSystemAiMcpTools, GENIE_ASK_TOOL_NAME } from '../agents/tools/system-ai-mcp.js';
+import {
+  createSystemAiMcpTools,
+  GENIE_ASK_TOOL_NAME,
+  GENIE_CANCEL_TOOL_NAME,
+  GENIE_GET_QUERY_RESULT_TOOL_NAME,
+  GENIE_POLL_TOOL_NAME,
+} from '../agents/tools/system-ai-mcp.js';
 import { isConnectedMcpTool } from '../agents/tools/mcp-tools.js';
 import type { SystemAiMcpOptions } from '../../shared/agents/mcp-types.js';
 import { formatBotContext } from '../agents/memory/context.js';
@@ -72,11 +83,21 @@ function latestOfRole(history: Message[], role: Message['role']): Message | unde
   return undefined;
 }
 
+const CREDENTIALED_TOOL_NAMES = new Set([
+  sqlQueryToolDefinition.name,
+  lakehouseCatalogToolDefinition.name,
+  volumeReadToolDefinition.name,
+  VOLUME_WRITE_TOOL_NAME,
+  GENIE_ASK_TOOL_NAME,
+  GENIE_POLL_TOOL_NAME,
+  GENIE_GET_QUERY_RESULT_TOOL_NAME,
+  GENIE_CANCEL_TOOL_NAME,
+]);
+
 /** Tools that reach lakehouse data with a Databricks token; routine turns gate them on the owner. */
 function isCredentialedTool(toolName: string): boolean {
   return (
-    ['sql_query', 'lakehouse_catalog', 'volume_read', 'volume_write'].includes(toolName) ||
-    toolName.startsWith('genie_') ||
+    CREDENTIALED_TOOL_NAMES.has(toolName) ||
     isConnectedMcpTool(toolName) ||
     isAskFirstSandboxTool(toolName) ||
     isAutoSandboxTool(toolName)
