@@ -1,6 +1,7 @@
 import express from 'express';
 import { describe, expect, test } from 'vitest';
 import { StubChatClient } from '../agents/clients/stub-client.js';
+import { MemoryIdempotencyStore } from '../durable/idempotency-store.js';
 import { MemoryChatStore } from './memory-store.js';
 import { registerChatRoutes } from './routes.js';
 import { ChatService } from './service.js';
@@ -10,7 +11,7 @@ async function withChatApp(
   options?: Parameters<typeof registerChatRoutes>[3]
 ) {
   const store = new MemoryChatStore();
-  const service = new ChatService({ store, client: new StubChatClient() });
+  const service = new ChatService({ store, client: new StubChatClient(), idempotency: new MemoryIdempotencyStore() });
   const app = express();
   app.use(express.json());
   registerChatRoutes(app, store, service, options);
@@ -510,5 +511,23 @@ describe('chat HTTP API', () => {
       },
       { mcpDiscovery }
     );
+  });
+
+  test('a retried message with the same requestId runs the turn once', async () => {
+    await withChatApp(async (baseUrl, { store }) => {
+      const bot = await store.ensurePrimaryBot();
+      const chat = await store.getOrCreateChatForBot(bot.id);
+      const send = () =>
+        fetch(`${baseUrl}/api/chats/${chat.id}/messages`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ content: 'hello', requestId: 'req-1' }),
+        });
+
+      expect((await send()).status).toBe(201);
+      expect((await send()).status).toBe(201);
+      const users = (await store.listMessages(chat.id)).filter((m) => m.role === 'user');
+      expect(users).toHaveLength(1);
+    });
   });
 });

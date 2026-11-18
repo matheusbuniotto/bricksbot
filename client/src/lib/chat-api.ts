@@ -202,9 +202,11 @@ export async function deleteBotSandbox(botId: string): Promise<SandboxUiStatus> 
   return data.sandbox;
 }
 
+/** `requestId` makes a replayed POST (proxy or browser retry) return the first result instead of running twice. */
 export async function sendChatMessage(
   chatId: string,
-  content: string
+  content: string,
+  requestId: string = crypto.randomUUID()
 ): Promise<{
   user: Message;
   assistant: Message | null;
@@ -217,7 +219,7 @@ export async function sendChatMessage(
     await fetch(`/api/chats/${chatId}/messages`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, requestId }),
     })
   );
 }
