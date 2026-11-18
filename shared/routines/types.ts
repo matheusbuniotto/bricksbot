@@ -1,5 +1,12 @@
 /** Domain types for scheduled routines (Lakeflow Job → App webhook). */
 
+/**
+ * Whose Databricks identity a routine's data tools use. `owner_approval` (default) gates
+ * them on the owner's approval, which supplies their OBO token. `app` runs as the App
+ * service principal and needs `BRICKSBOT_ROUTINE_APP_IDENTITY=allow`. Agents never set it.
+ */
+export type RoutineRunAs = 'owner_approval' | 'app';
+
 export interface Routine {
   id: string;
   botId: string;
@@ -10,6 +17,7 @@ export interface Routine {
   /** Prompt enqueued into the bot chat on each run. */
   prompt: string;
   enabled: boolean;
+  runAs: RoutineRunAs;
   lastRunAt: string | null;
   createdAt: string;
 }
@@ -21,6 +29,7 @@ export interface CreateRoutineInput {
   cron: string;
   prompt?: string;
   enabled?: boolean;
+  runAs?: RoutineRunAs;
 }
 
 export interface CreateRoutineResult {
@@ -34,6 +43,7 @@ export interface UpdateRoutineInput {
   name?: string;
   cron?: string;
   prompt?: string;
+  runAs?: RoutineRunAs;
 }
 
 export interface RoutineStore {

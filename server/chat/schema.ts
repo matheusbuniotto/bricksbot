@@ -85,6 +85,10 @@ export const CHAT_SCHEMA_STATEMENTS = [
 )`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_routines_owner
   ON bricksbot.routines(owner_id, created_at)`,
+  // Existing routines become owner_approval too: data tools no longer run as the App SP.
+  `ALTER TABLE bricksbot.routines ADD COLUMN IF NOT EXISTS run_as TEXT NOT NULL DEFAULT 'owner_approval'`,
+  `ALTER TABLE bricksbot.routines DROP CONSTRAINT IF EXISTS routines_run_as_check`,
+  `ALTER TABLE bricksbot.routines ADD CONSTRAINT routines_run_as_check CHECK (run_as IN ('owner_approval', 'app'))`,
   `CREATE TABLE IF NOT EXISTS bricksbot.bot_memories (
   id UUID PRIMARY KEY,
   bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,

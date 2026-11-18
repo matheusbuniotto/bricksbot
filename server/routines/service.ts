@@ -1,6 +1,7 @@
 import type { ChatStore } from '../../shared/chat/types.js';
 import type { Routine, RoutineStore } from '../../shared/routines/types.js';
 import { canUseBot } from '../chat/access-policy.js';
+import { routineAppIdentityAllowed, runWithRoutineAuth } from '../chat/databricks-auth.js';
 import type { ChatService, SendMessageResult } from '../chat/service.js';
 import { verifyWebhookSecret } from './webhook-auth.js';
 
@@ -51,7 +52,10 @@ export class RoutineService {
     const chat = await this.chats.getOrCreateChatForBot(routine.botId, routine.ownerId);
     const systemNote = `[routine:${routine.name}] scheduled run`;
     await this.chats.addMessage(chat.id, 'system', systemNote);
-    const result = await this.chatService.sendUserMessage(chat.id, routine.prompt, { routine: true });
+    const runAs = routine.runAs === 'app' && routineAppIdentityAllowed() ? 'app' : 'owner_approval';
+    const result = await runWithRoutineAuth(runAs, () =>
+      this.chatService.sendUserMessage(chat.id, routine.prompt, { routine: true })
+    );
     const updated = await this.routines.markRoutineRun(routine.id);
     return { routine: updated, chat: result };
   }

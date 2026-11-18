@@ -5,7 +5,11 @@ import {
   createM2mTokenProvider,
   getRequestUserAccessToken,
   resolveForwardedAccessToken,
+  RoutineIdentityRequiredError,
+  routineNeedsOwnerApproval,
   runWithDatabricksRequestAuth,
+  runWithRoutineAuth,
+  UserTokenRequiredError,
 } from './databricks-auth.js';
 
 function fakeReq(headers: Record<string, string>): Request {
@@ -72,6 +76,71 @@ describe('createDatabricksTokenProvider', () => {
       await expect(getToken?.()).resolves.toBe('obo');
     });
     expect(m2mGetToken).not.toHaveBeenCalled();
+  });
+});
+
+describe('routine turns', () => {
+  test('owner_approval throws instead of falling back to the PAT or App SP', async () => {
+    const m2mGetToken = vi.fn(() => Promise.resolve('m2m-tok'));
+    const getToken = createDatabricksTokenProvider({ env: { DATABRICKS_TOKEN: 'pat' }, m2mGetToken });
+    await runWithRoutineAuth('owner_approval', async () => {
+      expect(routineNeedsOwnerApproval()).toBe(true);
+      await expect(getToken?.()).rejects.toBeInstanceOf(RoutineIdentityRequiredError);
+    });
+    expect(m2mGetToken).not.toHaveBeenCalled();
+  });
+
+  test('app identity uses the PAT / App SP chain', async () => {
+    const getToken = createDatabricksTokenProvider({ env: { DATABRICKS_TOKEN: 'pat' } });
+    await runWithRoutineAuth('app', async () => {
+      expect(routineNeedsOwnerApproval()).toBe(false);
+      await expect(getToken?.()).resolves.toBe('pat');
+    });
+  });
+
+  test('a routine started inside a request (Test) keeps the caller OBO token', async () => {
+    const getToken = createDatabricksTokenProvider({ env: { DATABRICKS_TOKEN: 'pat' } });
+    await runWithDatabricksRequestAuth(fakeReq({ 'x-forwarded-access-token': 'obo' }), () =>
+      runWithRoutineAuth('owner_approval', async () => {
+        expect(routineNeedsOwnerApproval()).toBe(false);
+        await expect(getToken?.()).resolves.toBe('obo');
+      })
+    );
+  });
+
+  test('app purpose still falls back for non-data calls', async () => {
+    const getToken = createDatabricksTokenProvider({ env: { DATABRICKS_TOKEN: 'pat' }, purpose: 'app' });
+    await runWithRoutineAuth('owner_approval', async () => {
+      await expect(getToken?.()).resolves.toBe('pat');
+    });
+  });
+});
+
+describe('interactive turns in a deployed App', () => {
+  const appEnv = { DATABRICKS_APP_NAME: 'bricksbot', DATABRICKS_TOKEN: 'pat' };
+
+  test('fail closed when the proxy omits the OBO token', async () => {
+    const getToken = createDatabricksTokenProvider({ env: appEnv });
+    await runWithDatabricksRequestAuth(fakeReq({}), async () => {
+      await expect(getToken?.()).rejects.toBeInstanceOf(UserTokenRequiredError);
+    });
+  });
+
+  test('BRICKSBOT_INTERACTIVE_SP_FALLBACK=allow restores the legacy fallback', async () => {
+    const getToken = createDatabricksTokenProvider({
+      env: { ...appEnv, BRICKSBOT_INTERACTIVE_SP_FALLBACK: 'allow' },
+    });
+    await runWithDatabricksRequestAuth(fakeReq({}), async () => {
+      await expect(getToken?.()).resolves.toBe('pat');
+    });
+  });
+
+  test('local development and background work keep the fallback', async () => {
+    const dev = createDatabricksTokenProvider({ env: { ...appEnv, NODE_ENV: 'development' } });
+    await runWithDatabricksRequestAuth(fakeReq({}), async () => {
+      await expect(dev?.()).resolves.toBe('pat');
+    });
+    await expect(createDatabricksTokenProvider({ env: appEnv })?.()).resolves.toBe('pat');
   });
 });
 

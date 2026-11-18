@@ -3,6 +3,7 @@ import { DEFAULT_META_TOOL_NAMES } from '../../shared/agents/meta-tools.js';
 import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../shared/agents/types.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
+import { runWithRoutineAuth } from './databricks-auth.js';
 import { MemoryChatStore } from './memory-store.js';
 import { ChatService, type RegisteredTool } from './service.js';
 
@@ -1178,5 +1179,64 @@ describe('ChatService', () => {
     expect(offered(3)).toContain('mcp_user_b_lookup');
     expect(offered(3)).not.toContain('mcp_user_a_lookup');
     expect(service.listToolNames('user-a')).not.toContain('mcp_user_b_lookup');
+  });
+
+  test('routine turns gate credentialed tools on the owner even when Always allow is on', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const executed: string[] = [];
+    const client = new ScriptedClient([
+      {
+        content: null,
+        toolCalls: [
+          { id: 'call_sql', name: 'sql_query', arguments: { statement: 'SELECT 1' } },
+          { id: 'call_mem', name: 'list_memories', arguments: {} },
+        ],
+      },
+    ]);
+    const service = new ChatService({
+      store,
+      client,
+      sqlQuery: {
+        warehouseId: 'wh-1',
+        executeImpl: () => {
+          executed.push('sql');
+          return Promise.resolve('n\n1');
+        },
+      },
+    });
+    await service.getApprovals().setAutoApproved(chat.id, 'sql_query');
+
+    const result = await runWithRoutineAuth('owner_approval', () =>
+      service.sendUserMessage(chat.id, 'scheduled', { routine: true })
+    );
+
+    expect(result.pendingApprovals.map((a) => a.toolCall.name)).toEqual(['sql_query']);
+    expect(executed).toEqual([]);
+    const toolRows = (await store.listMessages(chat.id)).filter((m) => m.role === 'tool');
+    expect(toolRows.map((m) => m.toolCallId)).toEqual(['call_mem']);
+  });
+
+  test('routine turns that run as the App identity keep normal approval rules', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const service = new ChatService({
+      store,
+      client: new ScriptedClient([
+        { content: null, toolCalls: [{ id: 'call_sql', name: 'sql_query', arguments: { statement: 'SELECT 1' } }] },
+        { content: 'done', toolCalls: [] },
+      ]),
+      sqlQuery: { warehouseId: 'wh-1', executeImpl: () => Promise.resolve('n\n1') },
+    });
+    await service.getApprovals().setAutoApproved(chat.id, 'sql_query');
+
+    const result = await runWithRoutineAuth('app', () =>
+      service.sendUserMessage(chat.id, 'scheduled', { routine: true })
+    );
+
+    expect(result.pendingApprovals).toEqual([]);
+    expect(result.assistant?.content).toBe('done');
   });
 });

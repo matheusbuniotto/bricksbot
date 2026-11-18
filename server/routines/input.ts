@@ -13,6 +13,7 @@ export function normalizeNewRoutine(input: CreateRoutineInput) {
     cron,
     prompt: input.prompt?.trim() || `Scheduled routine: ${name}`,
     enabled: input.enabled ?? true,
+    runAs: input.runAs ?? 'owner_approval',
   };
 }
 

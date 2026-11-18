@@ -16,6 +16,7 @@ import { ApprovalStore } from './chat/approvals.js';
 import { LakebaseChatStore, type LakebaseQuery } from './chat/lakebase-store.js';
 import { MemoryChatStore } from './chat/memory-store.js';
 import { registerChatRoutes } from './chat/routes.js';
+import { interactiveSpFallbackAllowed } from './chat/databricks-auth.js';
 import { ChatService } from './chat/service.js';
 import { LakebaseCompactionStore, MemoryCompactionStore } from './durable/compaction-store.js';
 import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idempotency-store.js';
@@ -126,6 +127,11 @@ createApp({
     } else {
       console.warn(
         '[bricksbot] DATABRICKS_WAREHOUSE_ID not set — sql_query / lakehouse_catalog will ask for a warehouse. Bind sql-warehouse in databricks.yml or set the env var.'
+      );
+    }
+    if (interactiveSpFallbackAllowed()) {
+      console.warn(
+        '[bricksbot] BRICKSBOT_INTERACTIVE_SP_FALLBACK=allow: chats without a user token query data as the App service principal'
       );
     }
     const { config: sandboxConfig, registry: sandboxRegistry } = createSandboxRegistryFromEnv(process.env, {

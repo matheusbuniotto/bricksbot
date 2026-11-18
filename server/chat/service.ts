@@ -59,6 +59,7 @@ import type { SandboxSessionService } from '../sandbox/session-service.js';
 import { MemoryVolumeUsageStore } from '../volumes/usage-store.js';
 import { ApprovalStore } from './approvals.js';
 import { ChoiceStore } from './choices.js';
+import { routineNeedsOwnerApproval } from './databricks-auth.js';
 import { PluginHost } from '../plugins/host/plugin-host.js';
 import type { PluginExecutionContext, PluginPromptContext, PluginTurnContext } from '../../shared/plugins/types.js';
 
@@ -69,6 +70,17 @@ function latestOfRole(history: Message[], role: Message['role']): Message | unde
     if (history[i].role === role) return history[i];
   }
   return undefined;
+}
+
+/** Tools that reach lakehouse data with a Databricks token; routine turns gate them on the owner. */
+function isCredentialedTool(toolName: string): boolean {
+  return (
+    ['sql_query', 'lakehouse_catalog', 'volume_read', 'volume_write'].includes(toolName) ||
+    toolName.startsWith('genie_') ||
+    isConnectedMcpTool(toolName) ||
+    isAskFirstSandboxTool(toolName) ||
+    isAutoSandboxTool(toolName)
+  );
 }
 
 /** Never persist “Always allow” for these tools. */
@@ -688,7 +700,10 @@ export class ChatService {
             !isAskFirstVolumeWrite(toolCall.name) &&
             !isConnectedMcpTool(toolCall.name) &&
             !isPluginAskFirst;
+          // Routine turns have no user token: credentialed tools wait for the owner, whose approval supplies OBO.
+          const ownerMustApprove = routineNeedsOwnerApproval() && isCredentialedTool(toolCall.name);
           if (
+            !ownerMustApprove &&
             !this.requiresAlwaysAsk(toolCall.name) &&
             (isDefaultMetaTool(toolCall.name) ||
               isAutoRoutineTool(toolCall.name) ||

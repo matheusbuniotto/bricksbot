@@ -42,7 +42,7 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 - **Handoff.** Primary `handoff_to_bot` runs the teammate one turn (most tools auto-approved; sandbox Ask-first tools still need approval), relays the reply, and posts a tight "N messages with …" chip on both chats (click → peek).
 - **Approval.** `all_the_time` / `once` / `not_approved`; auto-approve is per chat+tool name.
 - **ChatClient.** `openai-compatible` (primary) → `databricks-serving` → `stub` if no key.
-- **Routine.** Scheduled/webhook prompt into a bot chat.
+- **Routine.** Scheduled/webhook prompt into a bot chat. Data tools run as the owner: `run_as='owner_approval'` (default) makes them Ask-first so the owner's approval supplies OBO; App SP only with `run_as='app'` and `BRICKSBOT_ROUTINE_APP_IDENTITY=allow`. Interactive data calls never fall back to the SP in a deployed App unless `BRICKSBOT_INTERACTIVE_SP_FALLBACK=allow`.
 - **Sandbox.** Optional isolated Linux exec per chat (`SANDBOX_BACKEND`); Lakebase session/events; artifacts sync to UC Volumes.
 
 ## Commands

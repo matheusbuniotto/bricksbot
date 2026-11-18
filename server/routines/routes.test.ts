@@ -52,6 +52,18 @@ describe('routines HTTP API', () => {
     });
   });
 
+  test('refuses App identity routines unless the operator allows them', async () => {
+    await withRoutineApp(async ({ baseUrl, botId }) => {
+      const res = await fetch(`${baseUrl}/api/routines`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ botId, name: 'As SP', cron: '0 * * * *', runAs: 'app' }),
+      });
+      expect(res.status).toBe(403);
+      expect(((await res.json()) as { error: string }).error).toMatch(/BRICKSBOT_ROUTINE_APP_IDENTITY/);
+    });
+  });
+
   test('lists, creates, toggles, runs, and accepts authenticated webhooks', async () => {
     await withRoutineApp(async ({ baseUrl, botId }) => {
       const statusRes = await fetch(`${baseUrl}/api/setup/status`);

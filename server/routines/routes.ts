@@ -4,6 +4,7 @@ import type { ChatStore } from '../../shared/chat/types.js';
 import type { ChatClient } from '../../shared/agents/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
 import { resolveOwnerId } from '../chat/identity.js';
+import { routineAppIdentityAllowed } from '../chat/databricks-auth.js';
 import { requireBotUse } from '../chat/route-guards.js';
 import { createErrorResponder } from '../lib/http.js';
 import type { ChatHttpApp } from '../chat/routes.js';
@@ -17,6 +18,7 @@ const createRoutineSchema = z.object({
   cron: z.string().trim().min(1).max(128),
   prompt: z.string().trim().min(1).max(4000).optional(),
   enabled: z.boolean().optional(),
+  runAs: z.enum(['owner_approval', 'app']).optional(),
 });
 
 const patchRoutineSchema = z.object({
@@ -24,7 +26,11 @@ const patchRoutineSchema = z.object({
   name: z.string().trim().min(1).max(64).optional(),
   cron: z.string().trim().min(1).max(128).optional(),
   prompt: z.string().trim().min(1).max(4000).optional(),
+  runAs: z.enum(['owner_approval', 'app']).optional(),
 });
+
+const APP_IDENTITY_REQUIRED =
+  'Routines can run as the App service principal only when BRICKSBOT_ROUTINE_APP_IDENTITY=allow';
 
 const sendError = createErrorResponder([[400, /required|disabled/i]]);
 const sendWebhookError = createErrorResponder([
@@ -68,6 +74,10 @@ export function registerRoutineRoutes(
       res.status(400).json({ error: 'botId, name, and cron are required' });
       return;
     }
+    if (parsed.data.runAs === 'app' && !routineAppIdentityAllowed(env)) {
+      res.status(403).json({ error: APP_IDENTITY_REQUIRED });
+      return;
+    }
     try {
       const access = await requireBotUse(options.chats, parsed.data.botId, req, res);
       if (!access) return;
@@ -85,6 +95,10 @@ export function registerRoutineRoutes(
     const parsed = patchRoutineSchema.safeParse(req.body);
     if (!parsed.success || Object.keys(parsed.data).length === 0) {
       res.status(400).json({ error: 'At least one field to update is required' });
+      return;
+    }
+    if (parsed.data.runAs === 'app' && !routineAppIdentityAllowed(env)) {
+      res.status(403).json({ error: APP_IDENTITY_REQUIRED });
       return;
     }
     try {

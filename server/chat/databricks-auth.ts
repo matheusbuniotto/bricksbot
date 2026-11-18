@@ -1,19 +1,56 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Request } from 'express';
+import type { RoutineRunAs } from '../../shared/routines/types.js';
 import { presentEnv } from '../lib/env.js';
+import { isDatabricksProxyEnvironment } from './identity.js';
 
 /**
  * Request-scoped Databricks credentials for lakehouse tools.
  *
- * Interactive chat prefers the Apps proxy OBO token (`x-forwarded-access-token`)
- * so Unity Catalog / warehouse permissions match the signed-in user. Falls back
- * to PAT or app service-principal M2M when no user token is present (local,
- * routines, background work).
+ * Lakehouse data (`purpose: 'data'`) runs as the signed-in user via the Apps proxy
+ * OBO token (`x-forwarded-access-token`) so Unity Catalog grants, row filters and
+ * masks match that user. It never silently becomes the App service principal:
+ * - Routine turns have no user token. They throw `RoutineIdentityRequiredError`
+ *   unless the routine runs as `app` (operator opt-in via
+ *   `BRICKSBOT_ROUTINE_APP_IDENTITY=allow`); the owner's approval click supplies OBO.
+ * - Interactive requests in a deployed App throw `UserTokenRequiredError` when the
+ *   proxy omits the token, unless `BRICKSBOT_INTERACTIVE_SP_FALLBACK=allow`.
+ * Outside a request (local dev, background work) and for `purpose: 'app'`, the
+ * chain is OBO → PAT → app SP M2M.
  */
 
 type DatabricksAuthStore = {
   userAccessToken?: string;
+  routine?: { runAs: RoutineRunAs };
 };
+
+export class RoutineIdentityRequiredError extends Error {
+  constructor() {
+    super('This routine runs as its owner and needs their approval to access lakehouse data');
+    this.name = 'RoutineIdentityRequiredError';
+  }
+}
+
+export class UserTokenRequiredError extends Error {
+  constructor() {
+    super('no_user_token: the Databricks Apps proxy did not forward your access token (check user_api_scopes)');
+    this.name = 'UserTokenRequiredError';
+  }
+}
+
+/** Operator opt-in for routines that run as the App service principal. */
+export function routineAppIdentityAllowed(env: Record<string, string | undefined> = process.env): boolean {
+  return env.BRICKSBOT_ROUTINE_APP_IDENTITY?.trim().toLowerCase() === 'allow';
+}
+
+/** Legacy escape hatch: interactive turns fall back to PAT / App SP when OBO is missing. */
+export function interactiveSpFallbackAllowed(env: Record<string, string | undefined> = process.env): boolean {
+  return env.BRICKSBOT_INTERACTIVE_SP_FALLBACK?.trim().toLowerCase() === 'allow';
+}
+
+function requiresUserToken(env: Record<string, string | undefined>): boolean {
+  return isDatabricksProxyEnvironment(env) && env.NODE_ENV !== 'development' && !interactiveSpFallbackAllowed(env);
+}
 
 const authAls = new AsyncLocalStorage<DatabricksAuthStore>();
 
@@ -40,6 +77,17 @@ export function getRequestUserAccessToken(): string | undefined {
 export function runWithDatabricksRequestAuth<T>(req: Request | undefined, fn: () => Promise<T>): Promise<T> {
   const userAccessToken = resolveForwardedAccessToken(req);
   return authAls.run({ userAccessToken }, fn);
+}
+
+/** Run a routine turn. Keeps a surrounding request's OBO token (routine Test runs as the caller). */
+export function runWithRoutineAuth<T>(runAs: RoutineRunAs, fn: () => Promise<T>): Promise<T> {
+  return authAls.run({ ...authAls.getStore(), routine: { runAs } }, fn);
+}
+
+/** True when this routine turn has no user token and may not use the App SP, so data tools need the owner. */
+export function routineNeedsOwnerApproval(): boolean {
+  const store = authAls.getStore();
+  return Boolean(store?.routine && store.routine.runAs !== 'app' && !store.userAccessToken);
 }
 
 export function normalizeHostUrl(rawHost: string): string {
@@ -89,6 +137,8 @@ export function createM2mTokenProvider(
 export type DatabricksTokenProviderOptions = {
   env?: Record<string, string | undefined>;
   fetchImpl?: typeof fetch;
+  /** `data` (default) never falls back to the App SP on routine or deployed interactive turns. */
+  purpose?: 'data' | 'app';
   /** Override static PAT (tests). */
   staticToken?: string;
   /** Override M2M provider (tests). */
@@ -96,13 +146,13 @@ export type DatabricksTokenProviderOptions = {
 };
 
 /**
- * Prefer request OBO → PAT → app SP M2M. Returns undefined when nothing can
- * authenticate (caller should surface a config error).
+ * Prefer request OBO → PAT → app SP M2M, with the `data` guards described at the top.
  */
 export function createDatabricksTokenProvider(
   options: DatabricksTokenProviderOptions = {}
 ): (() => Promise<string>) | undefined {
   const env = options.env ?? process.env;
+  const purpose = options.purpose ?? 'data';
   const staticToken = options.staticToken ?? presentEnv(env.DATABRICKS_TOKEN);
   const host = presentEnv(env.DATABRICKS_HOST) ?? presentEnv(env.DATABRICKS_WORKSPACE_URL);
   const clientId = presentEnv(env.DATABRICKS_CLIENT_ID);
@@ -113,22 +163,19 @@ export function createDatabricksTokenProvider(
       ? createM2mTokenProvider(host, clientId, clientSecret, options.fetchImpl)
       : undefined);
 
-  if (!staticToken && !m2mGetToken) {
-    // Still return a provider that can succeed when an OBO token is on the ALS.
-    return async () => {
-      const user = getRequestUserAccessToken();
-      if (user) return user;
-      throw new Error(
-        'No Databricks credentials: missing x-forwarded-access-token, DATABRICKS_TOKEN, and CLIENT_ID/SECRET'
-      );
-    };
-  }
-
   return async () => {
-    const user = getRequestUserAccessToken();
-    if (user) return user;
+    const store = authAls.getStore();
+    if (store?.userAccessToken) return store.userAccessToken;
+    if (purpose === 'data' && store?.routine && store.routine.runAs !== 'app') {
+      throw new RoutineIdentityRequiredError();
+    }
+    if (purpose === 'data' && store && !store.routine && requiresUserToken(env)) {
+      throw new UserTokenRequiredError();
+    }
     if (staticToken) return staticToken;
     if (m2mGetToken) return m2mGetToken();
-    throw new Error('No Databricks credentials available');
+    throw new Error(
+      'No Databricks credentials: missing x-forwarded-access-token, DATABRICKS_TOKEN, and CLIENT_ID/SECRET'
+    );
   };
 }
