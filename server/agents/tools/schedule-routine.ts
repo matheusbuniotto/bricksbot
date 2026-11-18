@@ -86,13 +86,15 @@ export async function executeScheduleRoutine(
 ): Promise<string> {
   const planned = planScheduleRoutine(args, ctx.bot);
   if (!planned.ok) return planned.error;
+  if (!ctx.userId) return 'schedule_routine requires a signed-in user';
 
   const bot = ctx.bot!;
   const { name, cron, prompt, enabled } = planned.args;
 
   const created = await routines.createRoutine({
     botId: bot.id,
-    ownerId: bot.ownerId,
+    // The caller owns the routine, so a member's routine on a shared bot runs in their own chat.
+    ownerId: ctx.userId,
     name,
     cron,
     prompt,
@@ -129,7 +131,8 @@ export function createScheduleRoutineTool(routines: RoutineStore, store: ChatSto
     definition: scheduleRoutineToolDefinition,
     preflight(args: Record<string, unknown>, ctx: HandoffTurnContext): string | null {
       const planned = planScheduleRoutine(args, ctx.bot);
-      return planned.ok ? null : planned.error;
+      if (!planned.ok) return planned.error;
+      return ctx.userId ? null : 'schedule_routine requires a signed-in user';
     },
     execute(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string> {
       return executeScheduleRoutine(routines, store, ctx, args);

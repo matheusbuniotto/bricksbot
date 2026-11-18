@@ -77,7 +77,7 @@ describe('schedule_routine', () => {
     const raw = await executeScheduleRoutine(
       routines,
       chats,
-      { chatId: chat.id, bot: primary },
+      { chatId: chat.id, bot: primary, userId: 'owner-1' },
       {
         name: 'Weekly health',
         cron: '0 9 * * 1',
@@ -112,13 +112,13 @@ describe('schedule_routine', () => {
     const tool = createScheduleRoutineTool(routines, chats);
 
     expect(tool.definition.name).toBe('schedule_routine');
-    expect(tool.preflight({ name: '', cron: '0 9 * * *', prompt: 'p' }, { chatId: chat.id, bot: primary })).toMatch(
-      /name/i
-    );
+    expect(
+      tool.preflight({ name: '', cron: '0 9 * * *', prompt: 'p' }, { chatId: chat.id, bot: primary, userId: 'owner-1' })
+    ).toMatch(/name/i);
 
     const out = await tool.execute(
       { name: 'Probe', cron: '0 9 * * *', prompt: 'hi', enabled: false },
-      { chatId: chat.id, bot: primary }
+      { chatId: chat.id, bot: primary, userId: 'owner-1' }
     );
     const parsed = JSON.parse(out) as { ok: boolean; routine: { enabled: boolean } };
     expect(parsed.ok).toBe(true);
