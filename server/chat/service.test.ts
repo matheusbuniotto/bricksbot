@@ -2,8 +2,10 @@ import { describe, expect, test } from 'vitest';
 import { DEFAULT_META_TOOL_NAMES } from '../../shared/agents/meta-tools.js';
 import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../shared/agents/types.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
+import { McpDiscoveryService } from '../agents/tools/mcp-discovery.js';
+import { buildConnectedMcpTools } from '../agents/tools/mcp-tools.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
-import { runWithRoutineAuth } from './databricks-auth.js';
+import { createDatabricksTokenProvider, runWithRoutineAuth } from './databricks-auth.js';
 import { MemoryChatStore } from './memory-store.js';
 import { ChatService, type RegisteredTool } from './service.js';
 
@@ -1238,5 +1240,38 @@ describe('ChatService', () => {
 
     expect(result.pendingApprovals).toEqual([]);
     expect(result.assistant?.content).toBe('done');
+  });
+
+  test('a routine turn without a user token does not cache an empty MCP connector list', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const chat = await store.getOrCreateChatForBot(bot.id);
+    const listTools = ((_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const { id } = JSON.parse(init?.body as string) as { id: number };
+      const result = { tools: [{ name: 'lookup', description: 'Look things up' }] };
+      return Promise.resolve(new Response(JSON.stringify({ jsonrpc: '2.0', id, result }), { status: 200 }));
+    }) as typeof fetch;
+    const discovery = new McpDiscoveryService({
+      host: 'https://workspace.cloud.databricks.com',
+      getToken: createDatabricksTokenProvider({ env: {}, staticToken: 'pat' }),
+      fetchImpl: listTools,
+    });
+    discovery.markDefaultConnected('main.tools.crm');
+    const client = new ScriptedClient([
+      { content: 'routine done', toolCalls: [] },
+      { content: 'hi', toolCalls: [] },
+    ]);
+    const service = new ChatService({
+      store,
+      client,
+      resolveMcpTools: (userId) => buildConnectedMcpTools(discovery, userId, discovery.getClientConfig()),
+    });
+    const offered = (index: number) => client.requests[index]?.tools?.map((tool) => tool.name) ?? [];
+
+    await runWithRoutineAuth('owner_approval', () => service.sendUserMessage(chat.id, 'scheduled', { routine: true }));
+    expect(offered(0)).not.toContain('mcp_main_tools_crm_lookup');
+
+    await service.sendUserMessage(chat.id, 'hello');
+    expect(offered(1)).toContain('mcp_main_tools_crm_lookup');
   });
 });

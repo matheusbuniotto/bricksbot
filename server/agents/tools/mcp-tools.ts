@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import type { McpClientConfig, McpToolDefinition } from '../../../shared/agents/mcp-types.js';
+import { RoutineIdentityRequiredError, UserTokenRequiredError } from '../../chat/databricks-auth.js';
 import type { HandoffTurnContext } from '../handoff.js';
 import { UnityGatewayMcpClient } from './mcp-client.js';
 import { createSystemAiMcpTools, DEFAULT_GENIE_SERVICE_NAME, type RegisteredTool } from './system-ai-mcp.js';
@@ -127,7 +128,9 @@ export async function buildConnectedMcpTools(
         continue;
       }
       out.push(...createGenericMcpTools(client, service, defs));
-    } catch {
+    } catch (err) {
+      // No user identity fails every service: throw so the caller does not cache an empty list.
+      if (err instanceof RoutineIdentityRequiredError || err instanceof UserTokenRequiredError) throw err;
       // Skip unreachable services so one bad connector does not blank the rest.
     }
   }
