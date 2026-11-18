@@ -7,6 +7,9 @@ include:
   - '*.local.yml'
 
 variables:
+  app_name:
+    description: Databricks App name. For a second install in one workspace, set it in a separate target so deploy state stays apart
+    default: bricksbot
   lakebase_branch:
     description: Lakebase branch resource name (projects/<project>/branches/<branch>)
   lakebase_database:
@@ -47,7 +50,7 @@ variables:
 resources:
   apps:
     app:
-      name: 'bricksbot'
+      name: ${var.app_name}
       description: 'BricksBot — Grok-shaped multi-bot chat on the lakehouse'
       source_code_path: ./
 

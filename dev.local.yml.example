@@ -21,3 +21,13 @@ targets:
       # routine_webhook_app_base_url: https://bricksbot-….databricksapps.com
       # routine_webhook_routine_id: "<routine-uuid>"
       # routine_webhook_pause_status: UNPAUSED
+
+  # Optional: a second install in the same workspace (own app name and deploy state).
+  # Deploy with `databricks bundle deploy -t smoke -p <profile>`.
+  # smoke:
+  #   mode: development
+  #   variables:
+  #     app_name: bricksbot-smoke
+  #     lakebase_branch: projects/<other-project>/branches/production
+  #     lakebase_database: projects/<other-project>/branches/production/databases/databricks-postgres
+  #     sql_warehouse_id: "<your-warehouse-id>"
