@@ -1,6 +1,6 @@
 # BricksBot: Open-source community release map
 
-**Updated:** 2026-11-02  
+**Updated:** 2026-11-18  
 **Goal:** Share a **workspace-installable Databricks App** on GitHub that a community admin can clone, bind resources, and run, without PartnerOps or a closed Marketplace container.
 
 This is the **distribution track** for "Databricks community thing." Product locks still live in [project-context.md](project-context.md). Full product research: [databricks-grokbot-marketplace-plan.md](databricks-grokbot-marketplace-plan.md).
@@ -41,6 +41,9 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 - [x] `CONTRIBUTING.md` (dev loop, tests, no-secret rule, DAB profile notes)
 - [x] Scrub personal/clawhouse-only assumptions from **default** docs path (`databricks.yml` uses BYO vars; `dev.local.yml` gitignored; stub + README)
 - [x] Public-safe `.env.example` (placeholders, no personal endpoint)
+- [x] Git history decision: **accepted as is**. Early commits contain the maintainer's workspace host, a Lakebase project name and a warehouse id. These are identifiers, not credentials (all access needs workspace auth), so history is not rewritten. HEAD is guarded by `scripts/check-no-workspace-ids.sh`.
+- [x] Secret scan in CI (gitleaks over full history and tree; `.gitleaks.toml`)
+- [x] `SECURITY.md`, issue and PR templates, `package.json` metadata (`0.1.0`)
 
 ### 2. Self-contained install story
 
@@ -48,6 +51,9 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 - [x] Lakebase BYO stub: `resources/lakebase.postgres.yml.stub` (Job: `resources/jobs/routine-webhook.job.yml`)
 - [x] Install checklist: egress domains, `CAN_USE`, UC grants (README)
 - [x] First-run: stub provider → clear "put secret / bind Serving" path (wizard + README)
+- [x] Safe-by-default bundle: example Job deploys paused (UTC), `web_fetch` / `volume_write` opt-in, no hardcoded CLI profile
+- [x] `npm run bootstrap -- -p <profile>`: Lakebase, warehouse, LLM secret, `dev.local.yml`, `bundle validate`
+- [x] Operator trust model: [security.md](security.md)
 
 ### 3. README as the product homepage
 
