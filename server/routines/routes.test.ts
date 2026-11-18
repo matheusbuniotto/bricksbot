@@ -1,5 +1,6 @@
 import express from 'express';
 import { describe, expect, test } from 'vitest';
+import { getRequestUserAccessToken } from '../chat/databricks-auth.js';
 import { MemoryChatStore } from '../chat/memory-store.js';
 import { ChatService } from '../chat/service.js';
 import { StubChatClient } from '../agents/clients/stub-client.js';
@@ -136,5 +137,36 @@ describe('routines HTTP API', () => {
       });
       expect(del.status).toBe(204);
     });
+  });
+
+  test('Test runs with the caller OBO token', async () => {
+    let seenToken: string | undefined;
+    const service = {
+      runNow: () => {
+        seenToken = getRequestUserAccessToken();
+        return Promise.resolve({});
+      },
+    } as unknown as RoutineService;
+    const app = express();
+    app.use(express.json());
+    registerRoutineRoutes(app, new MemoryRoutineStore(), service, {
+      provider: 'stub',
+      chats: new MemoryChatStore(),
+      env: {},
+    });
+    const server = await new Promise<import('node:http').Server>((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
+    try {
+      const { port } = server.address() as import('node:net').AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/api/routines/r1/run`, {
+        method: 'POST',
+        headers: { 'x-forwarded-access-token': 'caller-obo' },
+      });
+      expect(res.status).toBe(201);
+      expect(seenToken).toBe('caller-obo');
+    } finally {
+      server.close();
+    }
   });
 });

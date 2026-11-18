@@ -4,7 +4,7 @@ import type { ChatStore } from '../../shared/chat/types.js';
 import type { ChatClient } from '../../shared/agents/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
 import { resolveOwnerId } from '../chat/identity.js';
-import { routineAppIdentityAllowed } from '../chat/databricks-auth.js';
+import { routineAppIdentityAllowed, runWithDatabricksRequestAuth } from '../chat/databricks-auth.js';
 import { requireBotUse } from '../chat/route-guards.js';
 import { createErrorResponder } from '../lib/http.js';
 import type { ChatHttpApp } from '../chat/routes.js';
@@ -117,7 +117,10 @@ export function registerRoutineRoutes(
 
   app.post('/api/routines/:id/run', async (req: Request, res: Response) => {
     try {
-      const result = await service.runNow(String(req.params.id), resolveOwnerId(req));
+      // Test runs as the caller: their OBO token reaches the routine's data tools.
+      const result = await runWithDatabricksRequestAuth(req, () =>
+        service.runNow(String(req.params.id), resolveOwnerId(req))
+      );
       res.status(201).json(result);
     } catch (err) {
       sendError(res, err);
