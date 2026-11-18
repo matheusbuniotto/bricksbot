@@ -35,8 +35,7 @@ Never commit secrets, tokens, workspace hostnames, or personal Lakebase endpoint
 ## Deploying to a workspace (optional)
 
 ```bash
-cp dev.local.yml.example dev.local.yml   # set lakebase_* + sql_warehouse_id
-databricks bundle validate -p <profile>
+npm run bootstrap -- -p <profile>        # or: cp dev.local.yml.example dev.local.yml and edit
 databricks bundle deploy -p <profile> && databricks bundle run app -p <profile>
 ```
 

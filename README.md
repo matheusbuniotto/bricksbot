@@ -174,7 +174,7 @@ databricks secrets put-secret bricksbot web-fetch-allowlist --string-value 'docs
 | `volume_write` | Off by default. Create a Volume, then uncomment `BRICKSBOT_VOLUME_ROOT` in `app.yaml` with its `/Volumes/...` path. Signed-in user needs write permissions. Paths are isolated under `users/{user}/bots/{bot}/`. |
 | Sandbox | `SANDBOX_BACKEND=databricks` in `app.yaml` (falls back to `python_exec` if Sandboxes preview is off). Set `off` to disable. |
 
-To use **Databricks Model Serving** instead of OpenRouter: bind a `serving-endpoint` resource and set `LLM_PROVIDER=databricks` (see comments in `app.yaml`).
+The default model is `openai/gpt-6-luna`; change `LLM_MODEL` in `app.yaml` to any OpenRouter model id. To use **Databricks Model Serving** instead of OpenRouter: bind a `serving-endpoint` resource and set `LLM_PROVIDER=databricks` (see comments in `app.yaml`).
 
 #### 4. Deploy
 
