@@ -159,7 +159,8 @@ Default LLM secret scope/key: **`bricksbot` / `openrouter-api-key`**.
 ```bash
 databricks secrets create-scope bricksbot -p <profile>   # if missing
 databricks secrets put-secret bricksbot openrouter-api-key --string-value 'YOUR_KEY' -p <profile>
-# optional web_fetch hosts (comma-separated); tool stays off if unset
+# optional web_fetch hosts (comma-separated); then uncomment the
+# web-fetch-allowlist resource in databricks.yml and WEB_FETCH_ALLOWLIST in app.yaml
 databricks secrets put-secret bricksbot web-fetch-allowlist --string-value 'docs.databricks.com' -p <profile>
 ```
 
@@ -168,7 +169,7 @@ databricks secrets put-secret bricksbot web-fetch-allowlist --string-value 'docs
 | LLM Egress | OpenRouter (`openrouter.ai`) or your custom endpoint; or bind Serving (see `app.yaml`) |
 | SQL Tools | Warehouse `CAN_USE` for the App SP; user needs UC grants (OBO via `sql:restricted-query`) |
 | `volume_read` | User needs Volume read; App declares `files.files` |
-| `volume_write` | Set `BRICKSBOT_VOLUME_ROOT` to a `/Volumes/...` path. Signed-in user needs write permissions. Paths are isolated under `users/{user}/bots/{bot}/`. |
+| `volume_write` | Off by default. Create a Volume, then uncomment `BRICKSBOT_VOLUME_ROOT` in `app.yaml` with its `/Volumes/...` path. Signed-in user needs write permissions. Paths are isolated under `users/{user}/bots/{bot}/`. |
 | Sandbox | `SANDBOX_BACKEND=databricks` in `app.yaml` (falls back to `python_exec` if Sandboxes preview is off). Set `off` to disable. |
 
 To use **Databricks Model Serving** instead of OpenRouter: bind a `serving-endpoint` resource and set `LLM_PROVIDER=databricks` (see comments in `app.yaml`).

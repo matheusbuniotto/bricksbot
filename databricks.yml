@@ -39,7 +39,10 @@ variables:
     default: '0 0 9 * * ?'
   routine_webhook_timezone_id:
     description: Timezone for the example Job schedule
-    default: America/Sao_Paulo
+    default: UTC
+  routine_webhook_pause_status:
+    description: Example Job schedule state; set UNPAUSED once the webhook vars are filled
+    default: PAUSED
 
 resources:
   apps:
@@ -73,18 +76,18 @@ resources:
             scope: ${var.provider_secret_scope}
             key: ${var.provider_secret_key}
             permission: READ
-        - name: web-fetch-allowlist
-          secret:
-            scope: ${var.app_secret_scope}
-            key: web-fetch-allowlist
-            permission: READ
+        # Optional web_fetch allowlist. Create the secret, then uncomment this and
+        # WEB_FETCH_ALLOWLIST in app.yaml. web_fetch stays off while unset.
+        # - name: web-fetch-allowlist
+        #   secret:
+        #     scope: ${var.app_secret_scope}
+        #     key: web-fetch-allowlist
+        #     permission: READ
 
 targets:
   # Workspace-specific host, Lakebase paths, and warehouse id live in a
   # gitignored `*.local.yml` (see dev.local.yml.example) or `--var` / BUNDLE_VAR_*.
-  # Profile alone is enough for auth; host comes from ~/.databrickscfg when unset.
+  # Pick the workspace with `-p <profile>`; host comes from ~/.databrickscfg.
   dev:
     default: true
     mode: development
-    workspace:
-      profile: dev

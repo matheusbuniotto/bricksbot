@@ -2,9 +2,10 @@
 # Operator checklist: README.md § Wiring a scheduled Job (#wiring-a-scheduled-job)
 #
 # 1. Create routine in App → copy one-time webhookSecret + routine id
-# 2. databricks secrets put-secret <scope> <key> --string-value '<secret>' -p dev
-# 3. Set bundle vars routine_webhook_app_base_url + routine_webhook_routine_id (gitignored target override)
-# 4. databricks bundle deploy -p dev
+# 2. databricks secrets put-secret <scope> <key> --string-value '<secret>' -p <profile>
+# 3. Set bundle vars routine_webhook_app_base_url + routine_webhook_routine_id, and
+#    routine_webhook_pause_status: UNPAUSED (gitignored target override)
+# 4. databricks bundle deploy -p <profile>
 # 5. Enable routine (On) — Test still works when Off; webhook requires enabled
 #
 # Workspace note: classic job clusters are rejected when the workspace is serverless-only.
@@ -20,6 +21,7 @@ resources:
       schedule:
         quartz_cron_expression: ${var.routine_webhook_quartz_cron}
         timezone_id: ${var.routine_webhook_timezone_id}
+        pause_status: ${var.routine_webhook_pause_status}
       tasks:
         - task_key: ping_routine
           spark_python_task:
