@@ -100,7 +100,7 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 
 - [x] LICENSE present and `package.json` `license` matches
 - [x] Cold clone → `npm ci` → `npm test` → `npm run build` without private deps (documented; re-run before announce)
-- [x] README deploy section works on a **fresh** workspace (no clawhouse names required)
+- [ ] README deploy section works on a **fresh** workspace (pending the operator smoke in §4)
 - [x] Admin can bind LLM secret or Serving and chat with Primary (documented)
 - [x] Docs say Genie/computer are opt-in/deferred; cheap lakehouse tools are the default
 - [x] [roadmap-next.md](roadmap-next.md) lists only post-announce product work (not re-listing shipped UI)

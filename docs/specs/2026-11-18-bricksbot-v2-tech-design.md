@@ -3,7 +3,7 @@
 - **Status:** Proposed
 - **Date:** 2026-11-18
 - **Author:** Engineering team
-- **Inputs:** ranked feature research [`.sol/feature-research-grokbot-rakazo/out.md`](../../.sol/feature-research-grokbot-rakazo/out.md) and eight lane deep dives [`.sol/lane-1`](../../.sol/lane-1/out.md) … [`.sol/lane-8`](../../.sol/lane-8/out.md)
+- **Inputs:** ranked feature research and eight lane deep dives (internal working notes, not in the repo)
 - **Affects:** `server/chat/` (auth, service, schema, approvals), `server/routines/`, `server/agents/clients/`, `server/agents/tools/`, new `server/{runs,usage,observability,attachments,pages}/`, `shared/`, `client/`, `databricks.yml`, `app.yaml`
 
 This doc merges the eight lanes into one plan. It extracts the pieces they share (identity, schema, runs, approvals, tagging), resolves where they disagree, and orders the work. Lane files keep the full detail. Each lane section here links to its file instead of copying it.
@@ -283,7 +283,7 @@ Lanes 2 and 6 also merge their reconciliation pieces into **one admin reconcilia
 
 Each subsection is a summary. Follow the link for schemas, test plans, alternatives and evidence.
 
-### 7.1 Lane 1: Routine engine v2 → [lane-1/out.md](../../.sol/lane-1/out.md)
+### 7.1 Lane 1: Routine engine v2
 
 **Summary.** An in-App scheduler fires routines from Lakebase. `routine_runs` gives history, Stop and guards. Identity fails closed by default (S1), with opt-in app identity for unattended runs.
 
@@ -307,7 +307,7 @@ Each subsection is a summary. Follow the link for schemas, test plans, alternati
 
 **PRs.** P0 identity + ownership (S1–S3, M) · L1-a runs + executor + history (M) · L1-b scheduler (M) · L1-c controls and guards (S-M) · L1-d app identity opt-in (M) · L1-e docs (S) · later `owner_delegated` (L, Q1).
 
-### 7.2 Lane 2: Usage metering, budgets, model choice → [lane-2/out.md](../../.sol/lane-2/out.md)
+### 7.2 Lane 2: Usage metering, budgets, model choice
 
 **Summary.** A Lakebase usage ledger fed by the `usage` that both providers already return (and BricksBot currently drops). Budgets are checked before every LLM call. A per-bot and per-routine model comes from an operator catalog. Databricks system tables are a reconciliation source via tags, not the mechanism.
 
@@ -332,7 +332,7 @@ Each subsection is a summary. Follow the link for schemas, test plans, alternati
 
 **PRs.** L2-a client usage capture: folded into F2 + F1 (S) · L2-b ledger + decorator (M) · L2-c tags + Genie counters: folded into F4 / §5.6 (S) · L2-d usage API + UI (M) · L2-e model catalog (M) · L2-f budgets + Genie kill switch (M) · L2-g docs (S) · later Gateway mode + reconciliation pack (M-L).
 
-### 7.3 Lane 3: Detached runs and live streaming (SSE) → [lane-3/out.md](../../.sol/lane-3/out.md)
+### 7.3 Lane 3: Detached runs and live streaming (SSE)
 
 **Summary.** `POST /messages {async:true}` returns 202 `{runId}`, and the turn runs detached. A per-chat SSE feed carries durable step events (replayable from `run_events`) and ephemeral token deltas. It closes itself at about 90 s, and the client reconnects with `Last-Event-ID`. This answers the open "websocket / scaling" item in `project-context.md`.
 
@@ -356,7 +356,7 @@ Each subsection is a summary. Follow the link for schemas, test plans, alternati
 
 **PRs.** F3 run entity + lock + sweeper (M) · L3-a detached runs + step events + async webhook (M) · L3-b SSE feed + tool activity + deploy smoke + docs drift fix (`docs/architecture.md:54,69` claims SSE today) (M) · L3-c Stop (S) · L3-d token streaming (M) · L3-e per-chat presence + roster feed + live peek (S-M) · L3-f multi-instance poll + caps + retention (S, Q13).
 
-### 7.4 Lane 4: Auto Review → [lane-4/out.md](../../.sol/lane-4/out.md)
+### 7.4 Lane 4: Auto Review
 
 **Summary.** An opt-in, per-chat reviewer sits between deterministic policy and the approval card. It can only turn "ask" into "pass", and it fails closed. It sees only the owner's words and redacted args, never tool outputs.
 
@@ -378,7 +378,7 @@ Each subsection is a summary. Follow the link for schemas, test plans, alternati
 
 **PRs.** Prereq S6 + F1 · L4-a policy core (S) · L4-b reviewer (M) · L4-c storage + `ChatService` integration (M, after F4 and L2-b) · L4-d routes + UI (M) · L4-e bundle (optional resource in `dev.local.yml.example`), spec, AGENTS.md lock line (S) · later Jev adapter, evals, Space policy.
 
-### 7.5 Lane 5: Lakehouse event triggers and quiet runs → [lane-5/out.md](../../.sol/lane-5/out.md)
+### 7.5 Lane 5: Lakehouse event triggers and quiet runs
 
 **Summary.** Databricks Jobs detect the event and the App dispatches the run. Quiet runs post only when something is notable.
 
@@ -404,7 +404,7 @@ Each subsection is a summary. Follow the link for schemas, test plans, alternati
 
 **PRs.** L5-0 spike (S) · L5-a types + schema (S) · L5-b quiet runs, which also work for schedules (M) · L5-c probe gate (S-M) · L5-d job spec + provisioner (M) · L5-e poller + `dispatchEvent` (M) · L5-f UI (M) · L5-g outside-text hardening (S) · L5-h Beta kinds behind flags (M) · L5-i tool surface + seed skill (S).
 
-### 7.6 Lane 6: Observability and audit export → [lane-6/out.md](../../.sol/lane-6/out.md)
+### 7.6 Lane 6: Observability and audit export
 
 **Summary.** Two products share one correlation id. **Audit:** Lakebase `bricksbot_audit.audit_events`, metadata-only and append-only, exported to UC Delta by Lakebase CDF. **Tracing:** a `Tracer` port with an OTel adapter (default, via AppKit's provider and Databricks App telemetry into UC `*_otel_*` tables) and an opt-in MLflow adapter (`@mlflow/core@0.4.0`, the version AppKit pins). Trace content is off by default.
 
@@ -427,7 +427,7 @@ Each subsection is a summary. Follow the link for schemas, test plans, alternati
 
 **PRs.** S4 trail fix (S, P0) · F4 audit core + `query_tags` + approval dual-write + backfill (M) · L6-a coverage: routes, routines, attachments, pages (S-M) · L6-b OTel tracer (M) · L6-c UC export runbook + views + reconciliation pack (S-M) · L6-d Activity UI + export + retention (M) · L6-e MLflow tracer (M) · later feedback and evals.
 
-### 7.7 Lane 7: Chat attachments → UC Volume → [lane-7/out.md](../../.sol/lane-7/out.md)
+### 7.7 Lane 7: Chat attachments → UC Volume
 
 **Summary.** The composer streams raw bytes to `POST /api/chats/:chatId/attachments`. The server streams them to the Files API with the **user's OBO token** (`viewer` purpose, no SP fallback) into `{root}/users/{user}/bots/{bot}/uploads/{chat8}/{att8}-{name}`, counted against `volume_usage`.
 
@@ -451,7 +451,7 @@ Each subsection is a summary. Follow the link for schemas, test plans, alternati
 
 **PRs.** L7-a types + store (S) · L7-b streaming helpers + validate + preview (M) · L7-c routes + service (M) · L7-d composer + transcript UI (M) · L7-e `read_attachment` + catalog line + seed skill (S) · L7-f Library uploads + delete (S) · later XLSX / PDF enrichment (M), hygiene / sweeps / reserve (M), materialize / strict mode / images (L).
 
-### 7.8 Lane 8: Data Pages + optional AI/BI publish → [lane-8/out.md](../../.sol/lane-8/out.md)
+### 7.8 Lane 8: Data Pages + optional AI/BI publish
 
 **Summary.** **Phase A:** in-App Pages, a versioned list of markdown / Mermaid / snapshot tiles plus **live SQL tiles** (table / metric / Vega chart) that re-run with the **viewer's** OBO token on view. **Phase B (later, opt-in):** publish a Page as a Lakeview dashboard, created by the App SP (Apps have no `dashboards` OBO scope) with `embed_credentials=false`.
 
