@@ -20,3 +20,4 @@ targets:
       # Optional: scheduled Job → routine webhook (after you create a routine)
       # routine_webhook_app_base_url: https://bricksbot-….databricksapps.com
       # routine_webhook_routine_id: "<routine-uuid>"
+      # routine_webhook_pause_status: UNPAUSED
