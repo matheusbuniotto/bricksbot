@@ -211,7 +211,7 @@ Routines fire from a Lakeflow Job that POSTs to the App webhook (`resources/jobs
 **No, unless you choose external LLMs.** When configured with `LLM_PROVIDER=databricks`, all model inference runs through Databricks Model Serving within your cloud account. Serverless SQL queries run directly on your Databricks SQL Warehouse, and all state is stored in your PostgreSQL Lakebase.
 
 ### Can a bot execute destructive SQL or drop tables?
-**Not through `sql_query`.** Every statement passes a read-only preflight (one statement; `SELECT`, `WITH`, `SHOW`, `DESCRIBE`, `EXPLAIN`; mutating keywords inside `WITH` blocked; see `server/agents/tools/sql-query.ts`). It runs On-Behalf-Of the signed-in user with the `sql:restricted-query` scope, so Unity Catalog grants still apply. Write-capable tools (`volume_write`, sandbox) are Ask-first.
+**Not through `sql_query`.** Every statement passes a read-only preflight (one statement; `SELECT`, `WITH`, `SHOW`, `DESCRIBE`, `EXPLAIN`; mutating keywords inside `WITH` blocked; see `server/agents/tools/sql-query.ts`). It runs On-Behalf-Of the signed-in user with the `sql:restricted-query` scope, so Unity Catalog grants still apply. Like every data tool, it is Ask-first until the user picks **Always allow** for that chat.
 
 ### Where is conversation history and memory stored?
 All chat transcripts, bot profiles, memories, and approval audit logs are persisted in your workspace's **PostgreSQL Lakebase** database under the `bricksbot` schema.
@@ -226,6 +226,7 @@ BricksBot uses Databricks Workspace SSO headers (`x-forwarded-user`). Tool execu
 - [**System Architecture (`docs/architecture.md`)**](docs/architecture.md) — Comprehensive technical architecture reference.
 - [**Documentation Index (`docs/README.md`)**](docs/README.md) — Complete catalog of all specs, ADRs, and plans.
 - [**Durable Harness (`docs/durable-harness.md`)**](docs/durable-harness.md) — Deep dive into the Pi-compatible durable agent loop.
+- [**Security & Trust Model (`docs/security.md`)**](docs/security.md) — Identities, scopes, opt-in flags, and what operators must grant.
 - [**OSS Release Map (`docs/oss-community-release.md`)**](docs/oss-community-release.md) — Checklist for open-source community distribution.
 - [**Roadmap & Next Steps (`docs/roadmap-next.md`)**](docs/roadmap-next.md) — Post-release roadmap and feature backlog.
 
