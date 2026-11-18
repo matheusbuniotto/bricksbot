@@ -343,6 +343,7 @@ export class ChatService {
     if (requestId && this.options.idempotency) {
       const existing = await this.options.idempotency.get(requestId);
       if (existing) {
+        if (existing.chatId !== chatId) throw new Error('requestId already used for another chat');
         return JSON.parse(existing.resultJson) as SendMessageResult;
       }
     }

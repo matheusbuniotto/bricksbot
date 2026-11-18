@@ -513,21 +513,28 @@ describe('chat HTTP API', () => {
     );
   });
 
-  test('a retried message with the same requestId runs the turn once', async () => {
+  test('a retried message with the same requestId runs the turn once, and only in its own chat', async () => {
     await withChatApp(async (baseUrl, { store }) => {
       const bot = await store.ensurePrimaryBot();
       const chat = await store.getOrCreateChatForBot(bot.id);
-      const send = () =>
-        fetch(`${baseUrl}/api/chats/${chat.id}/messages`, {
+      const other = await store.getOrCreateChatForBot(
+        (await store.createBot({ name: 'Analyst', ownerId: bot.ownerId, spaceId: bot.spaceId })).id
+      );
+      const send = (chatId: string) =>
+        fetch(`${baseUrl}/api/chats/${chatId}/messages`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ content: 'hello', requestId: 'req-1' }),
         });
 
-      expect((await send()).status).toBe(201);
-      expect((await send()).status).toBe(201);
+      expect((await send(chat.id)).status).toBe(201);
+      expect((await send(chat.id)).status).toBe(201);
       const users = (await store.listMessages(chat.id)).filter((m) => m.role === 'user');
       expect(users).toHaveLength(1);
+
+      const reused = await send(other.id);
+      expect(reused.status).toBe(409);
+      expect(await store.listMessages(other.id)).toEqual([]);
     });
   });
 });

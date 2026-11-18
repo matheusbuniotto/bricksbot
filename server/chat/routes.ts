@@ -90,6 +90,7 @@ export type ChatHttpApp = {
 };
 
 const sendError = createErrorResponder([
+  [409, /requestId already used/i],
   [
     400,
     /required|already decided|Cannot (archive|delete|move|share)|Unarchive|index must|At least one field|Invalid option|selectedOption/i,
