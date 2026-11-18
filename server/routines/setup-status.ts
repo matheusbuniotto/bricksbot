@@ -42,13 +42,13 @@ export function buildSetupStatus(
       'To use Databricks Model Serving later, bind a serving-endpoint resource and set LLM_PROVIDER=databricks (see app.yaml comments).',
     putSecretExamples: [
       `# Scope \`${scope}\`, secret \`${secretKey}\``,
-      `databricks secrets put-secret ${scope} ${secretKey} --string-value 'YOUR_KEY' -p dev`,
+      `databricks secrets put-secret ${scope} ${secretKey} --string-value 'YOUR_KEY' -p <profile>`,
       `# Optional local override: LLM_BASE_URL + LLM_MODEL in .env (defaults to OpenRouter)`,
     ],
     appPublicUrl,
     routineWebhookSecretPutExample: [
       `# After creating a routine in the App, store its one-time webhook secret`,
-      `databricks secrets put-secret ${routineWebhookScope} ${routineWebhookKey} --string-value 'YOUR_WEBHOOK_SECRET' -p dev`,
+      `databricks secrets put-secret ${routineWebhookScope} ${routineWebhookKey} --string-value 'YOUR_WEBHOOK_SECRET' -p <profile>`,
       `# Set bundle variables routine_webhook_app_base_url + routine_webhook_routine_id, then bundle deploy`,
     ],
   };
