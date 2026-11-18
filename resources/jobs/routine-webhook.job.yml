@@ -1,5 +1,5 @@
 # Parameterized Lakeflow Job → BricksBot routine webhook (serverless).
-# Operator checklist: README.md § Wiring a scheduled Job (#wiring-a-scheduled-job)
+# Operator checklist: README.md#wiring-a-scheduled-job
 #
 # 1. Create routine in App → copy one-time webhookSecret + routine id
 # 2. databricks secrets put-secret <scope> <key> --string-value '<secret>' -p <profile>

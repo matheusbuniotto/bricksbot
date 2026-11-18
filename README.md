@@ -1,6 +1,6 @@
 # 🧱 BricksBot
 
-**Native Multi-Agent Lakehouse Assistant for Databricks Workspaces** — Spaces, bot roster, durable chat, lakehouse tools, 3-way approvals, and automated routines. Install directly as a Databricks App via Databricks Asset Bundles (DAB + source). Not a closed Marketplace container; not a Rakazo fork.
+**Native Multi-Agent Lakehouse Assistant for Databricks Workspaces** — Spaces, bot roster, durable chat, lakehouse tools, 3-way approvals, and automated routines. Install directly as a Databricks App via Databricks Asset Bundles (DAB + source). Open source, not a closed Marketplace container.
 
 <p align="center">
   <a href="https://github.com/matheusbuniotto/bricksbot/actions/workflows/ci.yml"><img src="https://github.com/matheusbuniotto/bricksbot/actions/workflows/ci.yml/badge.svg" alt="CI Status" /></a>
@@ -33,7 +33,7 @@ BricksBot is built differently:
 2. **Strict 3-Way Human Approvals**: Sensitive tools (`sql_query`, `volume_write`, sandbox operations) pause turn execution with an interactive card (`[Always allow] [Approve Once] [Deny]`). All decisions append to an immutable audit trail (`bricksbot.approval_events`).
 3. **Grok-Style Multi-Agent Roster & Handoff**: A front-desk **Primary router** delegates specialized work to teammate bots (e.g., SQL Analyst, Experimentation Engine, Routine Runner) with bidirectional transcript links.
 4. **Unity Catalog Native Tools**: Read-only Serverless SQL preflight with row limits and byte budgets. `volume_write` enforces user- and bot-namespaced folders (`/Volumes/.../users/{user}/bots/{bot}/`) with Lakebase quotas.
-5. **Zero-Egress Serving Option**: Connect to external OpenAI-compatible models (OpenRouter) or keep all model traffic inside your VPC with Databricks Model Serving (DBRX, Llama 3 70B).
+5. **Zero-Egress Serving Option**: Connect to external OpenAI-compatible models (OpenRouter) or keep all model traffic inside your VPC with Databricks Model Serving (any chat endpoint you serve).
 6. **Automated Lakeflow Routines**: Trigger recurring agent prompts on cron schedules via Databricks Jobs and authenticated webhooks.
 7. **Thin Pi-Compatible Durable Harness**: Pure TypeScript agent loop without heavy framework dependencies. Sliding-window compaction caps prompt token budgets while raw transcript history is never deleted.
 
@@ -43,7 +43,7 @@ BricksBot is built differently:
 
 ```mermaid
 flowchart TD
-  subgraph UI ["USER INTERFACE (React 18 + AppKit)"]
+  subgraph UI ["USER INTERFACE (React 19 + AppKit)"]
     direction LR
     U1["Bot Roster & Spaces"]
     U2["Durable Chat & Stream"]
@@ -193,6 +193,16 @@ databricks apps logs bricksbot -p <profile>
 
 Open the generated App URL → start chatting with **Primary**.
 
+#### Wiring a scheduled Job
+
+Routines fire from a Lakeflow Job that POSTs to the App webhook (`resources/jobs/routine-webhook.job.yml`, `scripts/ping_routine_webhook.py`). The Job deploys **paused** until you wire it:
+
+1. In the App, create a routine and copy its one-time webhook secret and routine id.
+2. Store the secret: `databricks secrets put-secret bricksbot routine-webhook-key -p <profile>`.
+3. In `dev.local.yml`, set `routine_webhook_app_base_url` (from `databricks apps get bricksbot`), `routine_webhook_routine_id`, and `routine_webhook_pause_status: UNPAUSED`. Optionally set `routine_webhook_quartz_cron` and `routine_webhook_timezone_id` (default `0 0 9 * * ?`, UTC).
+4. Grant the Job's run-as identity `CAN_USE` on the App (Apps ingress needs OAuth), then `databricks bundle deploy -p <profile>`.
+5. Turn the routine **On**. Test works while Off; the webhook requires it enabled.
+
 ---
 
 ## Community FAQ (Databricks Admins & Engineers)
@@ -201,7 +211,7 @@ Open the generated App URL → start chatting with **Primary**.
 **No, unless you choose external LLMs.** When configured with `LLM_PROVIDER=databricks`, all model inference runs through Databricks Model Serving within your cloud account. Serverless SQL queries run directly on your Databricks SQL Warehouse, and all state is stored in your PostgreSQL Lakebase.
 
 ### Can a bot execute destructive SQL or drop tables?
-**No.** All SQL queries run with read-only statement preflight checks (`SELECT`, `WITH`, `SHOW`, `DESCRIBE`, `EXPLAIN`). Furthermore, sensitive tools require explicit **Human-in-the-Loop 3-Way Approval** before execution.
+**Not through `sql_query`.** Every statement passes a read-only preflight (one statement; `SELECT`, `WITH`, `SHOW`, `DESCRIBE`, `EXPLAIN`; mutating keywords inside `WITH` blocked; see `server/agents/tools/sql-query.ts`). It runs On-Behalf-Of the signed-in user with the `sql:restricted-query` scope, so Unity Catalog grants still apply. Write-capable tools (`volume_write`, sandbox) are Ask-first.
 
 ### Where is conversation history and memory stored?
 All chat transcripts, bot profiles, memories, and approval audit logs are persisted in your workspace's **PostgreSQL Lakebase** database under the `bricksbot` schema.
