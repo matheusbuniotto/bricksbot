@@ -9,6 +9,7 @@ This directory contains architectural specifications, decision records, product 
 - [**System Architecture (`architecture.md`)**](architecture.md) — System overview, layer-by-layer architectural breakdown, and core execution pillars.
 - [**Interactive Architecture Reference (`system-architecture.html`)**](system-architecture.html) — Interactive HTML reference covering multi-user tenancy, the Pi harness loop, tool catalogs, approvals, routines, and sandbox execution.
 - [**Durable Harness Design (`durable-harness.md`)**](durable-harness.md) — Specifications for the thin, Pi-compatible durable agent harness (compaction, idempotency, OpenAI message replay).
+- [**Security & Trust Model (`security.md`)**](security.md) — Identities, OBO scopes, approvals, opt-in switches, and egress for operators.
 - [**Project Context & Product Locks (`project-context.md`)**](project-context.md) — Canonical product constraints, domain vocabulary, and architectural locks.
 
 ---

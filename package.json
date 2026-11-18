@@ -1,6 +1,6 @@
 {
   "name": "bricksbot",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
@@ -26,8 +26,15 @@
     "setup": "appkit setup --write",
     "bootstrap": "node scripts/bootstrap.mjs"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "databricks",
+    "databricks-apps",
+    "lakehouse",
+    "ai-agents",
+    "multi-agent",
+    "chatbot"
+  ],
+  "author": "Matheus Buniotto",
   "license": "Apache-2.0",
   "description": "Grok-shaped multi-bot chat and lakehouse tools for Databricks workspaces",
   "dependencies": {
@@ -94,5 +101,13 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "homepage": "https://github.com/matheusbuniotto/bricksbot#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matheusbuniotto/bricksbot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/matheusbuniotto/bricksbot/issues"
   }
 }
