@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   ApprovalDecision,
   ApprovalEvent,
@@ -9,6 +9,7 @@ import type {
 } from '../../shared/agents/types.js';
 import type { LakebaseQuery } from './lakebase-store.js';
 import { asJsonObject, asString } from '../lib/coerce.js';
+import { redactSecrets } from '../sandbox/redact.js';
 
 function parseToolCall(raw: unknown): ToolCall {
   const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
@@ -16,6 +17,28 @@ function parseToolCall(raw: unknown): ToolCall {
   const row = parsed as { id?: string; name?: string; arguments?: Record<string, unknown> };
   if (!row.id || !row.name) throw new Error('Invalid tool call');
   return { id: row.id, name: row.name, arguments: row.arguments ?? {} };
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+/**
+ * The trail never stores raw tool args (SQL text, volume_write content): a digest lets
+ * investigators match a known payload, and the keys show its shape.
+ */
+export function describeToolArgs(args: Record<string, unknown>): { argsDigest: string; argKeys: string[] } {
+  return {
+    argsDigest: createHash('sha256').update(canonicalJson(args)).digest('hex'),
+    argKeys: Object.keys(args)
+      .sort()
+      .map((key) => redactSecrets(key)),
+  };
 }
 
 /** Optional context attached to create / decide for the approval trail. */
@@ -136,7 +159,7 @@ export class ApprovalStore {
       toolName: toolCall.name,
       payload: {
         toolCallId: toolCall.id,
-        arguments: toolCall.arguments ?? {},
+        ...describeToolArgs(toolCall.arguments ?? {}),
       },
     });
     return request;

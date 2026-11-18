@@ -35,6 +35,10 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       return { rows: [] };
     }
 
+    if (normalized.startsWith('UPDATE bricksbot.approval_events SET payload')) {
+      return { rows: [] };
+    }
+
     if (normalized.includes('FROM bricksbot.spaces') && normalized.includes('name =')) {
       const [ownerId, name] = params.map(String);
       const row = [...spaces.values()].find((s) => s.owner_id === ownerId && s.name === name);

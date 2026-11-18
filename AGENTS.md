@@ -8,7 +8,7 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 
 - Ship a workspace-installable App that chats against OpenAI-compatible LLMs (OpenRouter) or Databricks Serving.
 - Tools are lakehouse-native (`sql_query`, `lakehouse_catalog`, `volume_read`, `volume_write` when `BRICKSBOT_VOLUME_ROOT` is set, `web_fetch`, `handoff_to_bot`, `create_bot`) plus routines CRUD (`list_routines`, `schedule_routine`, `update_routine`, `delete_routine`) with **3-way approvals**, and Pi skill/memory meta tools (`activate_skill`, `read_skill_resource`, `list_memories`, `remember`, `forget`, `save_skill`).
-- Durable state lives in **Lakebase** schema `bricksbot` (memory store for local/tests).
+- Durable state lives in **Lakebase** schema `bricksbot` (memory store for local/tests); audit and usage go in schema `bricksbot_audit` once it lands (v2 design F4), so CDF exports only those.
 - Capability discovery is Pi-shaped: `buildCapabilityCatalog` / `formatCapabilityPrompt` in `shared/agents/capability-catalog.ts` (register new tools in the `ChatService` constructor, not ad-hoc prompt `if`s).
 - Built-in seed skills live in `shared/agents/seed-skills.ts` and merge via `mergeEffectiveSkills` (bot `save_skill` overrides same name). Agent improvement plan: `docs/agent-improvement-plan.md`.
 - **Genie / Ontology / `system.ai` MCP:** go slow, cheap lakehouse tools stay default; Genie is opt-in (cost). Plan: `docs/databricks-platform-integration-plan.md`. Do not register Genie as always-on or "prefer Genie for most questions."

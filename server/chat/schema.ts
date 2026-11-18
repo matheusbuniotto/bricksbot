@@ -139,7 +139,7 @@ export const CHAT_SCHEMA_STATEMENTS = [
 )`,
   `CREATE TABLE IF NOT EXISTS bricksbot.approval_events (
   id UUID PRIMARY KEY,
-  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  chat_id UUID NOT NULL,
   approval_id UUID,
   bot_id UUID,
   user_id TEXT,
@@ -150,6 +150,9 @@ export const CHAT_SCHEMA_STATEMENTS = [
 )`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_approval_events_chat
   ON bricksbot.approval_events(chat_id, created_at DESC)`,
+  // The trail outlives chat/bot deletes and never keeps raw tool args (now argsDigest + argKeys).
+  `ALTER TABLE bricksbot.approval_events DROP CONSTRAINT IF EXISTS approval_events_chat_id_fkey`,
+  `UPDATE bricksbot.approval_events SET payload = payload - 'arguments' WHERE payload->'arguments' IS NOT NULL`,
   `CREATE TABLE IF NOT EXISTS bricksbot.message_requests (
   request_id TEXT PRIMARY KEY,
   chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
