@@ -133,8 +133,15 @@ export class ApprovalStore {
     return event;
   }
 
-  async create(chatId: string, toolCall: ToolCall, meta?: ApprovalTrailMeta): Promise<ApprovalRequest> {
+  /** `displayArgs` show on the card only; the trail digests the model's original arguments. */
+  async create(
+    chatId: string,
+    modelCall: ToolCall,
+    meta?: ApprovalTrailMeta,
+    displayArgs?: Record<string, unknown>
+  ): Promise<ApprovalRequest> {
     await this.hydrateChat(chatId);
+    const toolCall = displayArgs ? { ...modelCall, arguments: { ...modelCall.arguments, ...displayArgs } } : modelCall;
     const request: ApprovalRequest = {
       id: randomUUID(),
       chatId,
@@ -159,7 +166,7 @@ export class ApprovalStore {
       toolName: toolCall.name,
       payload: {
         toolCallId: toolCall.id,
-        ...describeToolArgs(toolCall.arguments ?? {}),
+        ...describeToolArgs(modelCall.arguments ?? {}),
       },
     });
     return request;

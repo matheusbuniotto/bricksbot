@@ -207,6 +207,19 @@ describe('ApprovalStore', () => {
     expect(JSON.stringify(event.payload)).not.toContain('secret report');
   });
 
+  test('display args show on the card but the digest matches the model tool call', async () => {
+    const store = new ApprovalStore();
+    const args = { path: 'notes/x.txt', content: 'hi' };
+    const request = await store.create('chat-1', { id: 'call_w', name: 'volume_write', arguments: args }, undefined, {
+      resolved_path: '/Volumes/a/b/c/notes/x.txt',
+      byte_size: 2,
+    });
+
+    expect(request.toolCall.arguments).toMatchObject({ resolved_path: '/Volumes/a/b/c/notes/x.txt', byte_size: 2 });
+    const [event] = await store.listEvents('chat-1');
+    expect(event.payload).toMatchObject(describeToolArgs(args));
+  });
+
   test('args digest ignores key order', () => {
     const a = describeToolArgs({ statement: 'SELECT 1', options: { x: 1, y: [2, 3] } });
     const b = describeToolArgs({ options: { y: [2, 3], x: 1 }, statement: 'SELECT 1' });

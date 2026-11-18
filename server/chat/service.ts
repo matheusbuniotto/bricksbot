@@ -752,8 +752,7 @@ export class ChatService {
                 toolCall.arguments,
                 turnCtx
               );
-              const call = extra ? { ...toolCall, arguments: { ...toolCall.arguments, ...extra } } : toolCall;
-              return this.approvals.create(chatId, call, trailMeta);
+              return this.approvals.create(chatId, toolCall, trailMeta, extra);
             })
           );
           return {
