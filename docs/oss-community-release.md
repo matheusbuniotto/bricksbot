@@ -65,7 +65,7 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 
 - [x] Documented: `npm test` + `npm run build` + local `npm run dev` with stub
 - [x] Documented: one workspace deploy with OpenAI-compatible secret **or** Serving
-- [ ] Operator confirmation: one happy-path chat on a fresh workspace (Primary answers; optional `sql_query`)
+- [x] Operator confirmation (2026-11-18): new App + empty Lakebase database deployed from a clean clone with a separate target; Primary answered and an approved `sql_query` ran as the user
 
 ## Should ship soon after announce (P1)
 
@@ -106,7 +106,7 @@ Treat Phase 0 to 4 **product core** as done for a credible demo:
 
 - [x] LICENSE present and `package.json` `license` matches
 - [x] Cold clone → `npm ci` → `npm test` → `npm run build` without private deps (documented; re-run before announce)
-- [ ] README deploy section works on a **fresh** workspace (pending the operator smoke in §4)
+- [x] README deploy section works on a **fresh** install (new App and database in an existing workspace; see §4)
 - [x] Admin can bind LLM secret or Serving and chat with Primary (documented)
 - [x] Docs say Genie/computer are opt-in/deferred; cheap lakehouse tools are the default
 - [x] [roadmap-next.md](roadmap-next.md) lists only post-announce product work (not re-listing shipped UI)
