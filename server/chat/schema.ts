@@ -85,6 +85,10 @@ export const CHAT_SCHEMA_STATEMENTS = [
 )`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_routines_owner
   ON bricksbot.routines(owner_id, created_at)`,
+  // Existing routines become owner_approval too: data tools no longer run as the App SP.
+  `ALTER TABLE bricksbot.routines ADD COLUMN IF NOT EXISTS run_as TEXT NOT NULL DEFAULT 'owner_approval'`,
+  `ALTER TABLE bricksbot.routines DROP CONSTRAINT IF EXISTS routines_run_as_check`,
+  `ALTER TABLE bricksbot.routines ADD CONSTRAINT routines_run_as_check CHECK (run_as IN ('owner_approval', 'app'))`,
   `CREATE TABLE IF NOT EXISTS bricksbot.bot_memories (
   id UUID PRIMARY KEY,
   bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,
@@ -135,7 +139,7 @@ export const CHAT_SCHEMA_STATEMENTS = [
 )`,
   `CREATE TABLE IF NOT EXISTS bricksbot.approval_events (
   id UUID PRIMARY KEY,
-  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  chat_id UUID NOT NULL,
   approval_id UUID,
   bot_id UUID,
   user_id TEXT,
@@ -146,6 +150,9 @@ export const CHAT_SCHEMA_STATEMENTS = [
 )`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_approval_events_chat
   ON bricksbot.approval_events(chat_id, created_at DESC)`,
+  // The trail outlives chat/bot deletes and never keeps raw tool args (now argsDigest + argKeys).
+  `ALTER TABLE bricksbot.approval_events DROP CONSTRAINT IF EXISTS approval_events_chat_id_fkey`,
+  `UPDATE bricksbot.approval_events SET payload = payload - 'arguments' WHERE payload->'arguments' IS NOT NULL`,
   `CREATE TABLE IF NOT EXISTS bricksbot.message_requests (
   request_id TEXT PRIMARY KEY,
   chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { ApprovalStore } from './approvals.js';
+import { ApprovalStore, describeToolArgs } from './approvals.js';
+import { CHAT_SCHEMA_STATEMENTS } from './schema.js';
 
 describe('ApprovalStore', () => {
   const toolCall = { id: 'call_1', name: 'sql_query', arguments: { statement: 'SELECT 1' } };
@@ -189,5 +190,49 @@ describe('ApprovalStore', () => {
     expect(events).toHaveLength(2);
     expect(events[0]?.type).toBe('decided');
     expect(events[1]?.type).toBe('requested');
+  });
+
+  test('the trail stores an args digest and keys, never raw arguments', async () => {
+    const store = new ApprovalStore();
+    await store.create('chat-1', {
+      id: 'call_w',
+      name: 'volume_write',
+      arguments: { path: '/Volumes/a/b/c/x.txt', content: 'secret report' },
+    });
+
+    const [event] = await store.listEvents('chat-1');
+    expect(Object.keys(event.payload).sort()).toEqual(['argKeys', 'argsDigest', 'toolCallId']);
+    expect(event.payload.argsDigest).toMatch(/^[0-9a-f]{64}$/);
+    expect(event.payload.argKeys).toEqual(['content', 'path']);
+    expect(JSON.stringify(event.payload)).not.toContain('secret report');
+  });
+
+  test('display args show on the card but the digest matches the model tool call', async () => {
+    const store = new ApprovalStore();
+    const args = { path: 'notes/x.txt', content: 'hi' };
+    const request = await store.create('chat-1', { id: 'call_w', name: 'volume_write', arguments: args }, undefined, {
+      resolved_path: '/Volumes/a/b/c/notes/x.txt',
+      byte_size: 2,
+    });
+
+    expect(request.toolCall.arguments).toMatchObject({ resolved_path: '/Volumes/a/b/c/notes/x.txt', byte_size: 2 });
+    const [event] = await store.listEvents('chat-1');
+    expect(event.payload).toMatchObject(describeToolArgs(args));
+  });
+
+  test('args digest ignores key order', () => {
+    const a = describeToolArgs({ statement: 'SELECT 1', options: { x: 1, y: [2, 3] } });
+    const b = describeToolArgs({ options: { y: [2, 3], x: 1 }, statement: 'SELECT 1' });
+    expect(a).toEqual(b);
+    expect(describeToolArgs({ statement: 'SELECT 2' }).argsDigest).not.toBe(a.argsDigest);
+  });
+
+  test('approval_events survives chat deletes and existing raw args are scrubbed', () => {
+    const ddl = CHAT_SCHEMA_STATEMENTS.find((s) => s.includes('CREATE TABLE IF NOT EXISTS bricksbot.approval_events'));
+    expect(ddl).not.toMatch(/REFERENCES|CASCADE/);
+    expect(CHAT_SCHEMA_STATEMENTS).toContain(
+      'ALTER TABLE bricksbot.approval_events DROP CONSTRAINT IF EXISTS approval_events_chat_id_fkey'
+    );
+    expect(CHAT_SCHEMA_STATEMENTS.some((s) => s.includes(`SET payload = payload - 'arguments'`))).toBe(true);
   });
 });

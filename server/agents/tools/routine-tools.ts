@@ -36,9 +36,11 @@ function summarize(routine: Routine) {
   };
 }
 
+/** Routine tools act on the caller's own routines, never the bot owner's (shared bots). */
 async function resolveRoutineForBot(
   routines: RoutineStore,
   bot: Bot,
+  ownerId: string,
   args: Record<string, unknown>
 ): Promise<{ ok: true; routine: Routine } | { ok: false; error: string }> {
   const id = readText(args.routine_id) || readText(args.id);
@@ -46,7 +48,7 @@ async function resolveRoutineForBot(
 
   if (id) {
     const routine = await routines.getRoutine(id);
-    if (!routine || routine.ownerId !== bot.ownerId) {
+    if (!routine || routine.ownerId !== ownerId) {
       return { ok: false, error: 'Routine not found' };
     }
     if (routine.botId !== bot.id) {
@@ -59,7 +61,7 @@ async function resolveRoutineForBot(
     return { ok: false, error: 'routine_id or name is required' };
   }
 
-  const listed = await routines.listRoutines(bot.ownerId);
+  const listed = await routines.listRoutines(ownerId);
   const matches = listed.filter((r) => r.botId === bot.id && r.name.toLowerCase() === name.toLowerCase());
   if (matches.length === 0) {
     return { ok: false, error: `No routine named ${name} on this bot` };
@@ -133,11 +135,12 @@ export function createListRoutinesTool(routines: RoutineStore) {
   return {
     definition: listRoutinesToolDefinition,
     preflight(_args: Record<string, unknown>, ctx: HandoffTurnContext): string | null {
+      if (!ctx.userId) return 'list_routines requires a signed-in user';
       return ctx.bot ? null : 'list_routines requires an active Bot';
     },
     async execute(_args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string> {
       const bot = ctx.bot!;
-      const all = await routines.listRoutines(bot.ownerId);
+      const all = await routines.listRoutines(ctx.userId!);
       const mine = all.filter((r) => r.botId === bot.id).map(summarize);
       return JSON.stringify({ ok: true, count: mine.length, routines: mine });
     },
@@ -149,7 +152,8 @@ export function createUpdateRoutineTool(routines: RoutineStore, store: ChatStore
     definition: updateRoutineToolDefinition,
     async preflight(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string | null> {
       if (!ctx.bot) return 'update_routine requires an active Bot';
-      const resolved = await resolveRoutineForBot(routines, ctx.bot, args);
+      if (!ctx.userId) return 'update_routine requires a signed-in user';
+      const resolved = await resolveRoutineForBot(routines, ctx.bot, ctx.userId, args);
       if (!resolved.ok) return resolved.error;
 
       const patch: UpdateRoutineInput = {};
@@ -175,8 +179,7 @@ export function createUpdateRoutineTool(routines: RoutineStore, store: ChatStore
       return null;
     },
     async execute(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string> {
-      const bot = ctx.bot!;
-      const resolved = await resolveRoutineForBot(routines, bot, args);
+      const resolved = await resolveRoutineForBot(routines, ctx.bot!, ctx.userId!, args);
       if (!resolved.ok) return resolved.error;
 
       const patch: UpdateRoutineInput = {};
@@ -188,7 +191,7 @@ export function createUpdateRoutineTool(routines: RoutineStore, store: ChatStore
       if (args.enabled !== undefined) patch.enabled = Boolean(args.enabled);
 
       try {
-        const updated = await routines.updateRoutine(resolved.routine.id, bot.ownerId, patch);
+        const updated = await routines.updateRoutine(resolved.routine.id, ctx.userId!, patch);
         const summary = summarize(updated);
         await store.addMessage(
           ctx.chatId,
@@ -208,17 +211,17 @@ export function createDeleteRoutineTool(routines: RoutineStore, store: ChatStore
     definition: deleteRoutineToolDefinition,
     async preflight(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string | null> {
       if (!ctx.bot) return 'delete_routine requires an active Bot';
-      const resolved = await resolveRoutineForBot(routines, ctx.bot, args);
+      if (!ctx.userId) return 'delete_routine requires a signed-in user';
+      const resolved = await resolveRoutineForBot(routines, ctx.bot, ctx.userId, args);
       return resolved.ok ? null : resolved.error;
     },
     async execute(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string> {
-      const bot = ctx.bot!;
-      const resolved = await resolveRoutineForBot(routines, bot, args);
+      const resolved = await resolveRoutineForBot(routines, ctx.bot!, ctx.userId!, args);
       if (!resolved.ok) return resolved.error;
 
       const { routine } = resolved;
       try {
-        await routines.deleteRoutine(routine.id, bot.ownerId);
+        await routines.deleteRoutine(routine.id, ctx.userId!);
         await store.addMessage(ctx.chatId, 'system', `[routine:${routine.name}] deleted`);
         return JSON.stringify({
           ok: true,

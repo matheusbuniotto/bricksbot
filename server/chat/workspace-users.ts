@@ -45,7 +45,7 @@ export class DatabricksWorkspaceUserDirectory implements WorkspaceUserDirectory 
   constructor(options: DatabricksWorkspaceUserDirectoryOptions = {}) {
     const rawHost = presentEnv(options.host ?? process.env.DATABRICKS_HOST ?? process.env.DATABRICKS_WORKSPACE_URL);
     this.host = rawHost ? normalizeHostUrl(rawHost) : undefined;
-    this.getToken = options.getToken ?? createDatabricksTokenProvider();
+    this.getToken = options.getToken ?? createDatabricksTokenProvider({ purpose: 'app' });
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
   }
 

@@ -1,20 +1,10 @@
 import { useEffect } from 'react';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
-import { approvalTitle } from '../lib/user-facing';
+import { approvalTitle, isOnceOnlyApproval } from '../lib/user-facing';
 import { isTypingTarget } from '../lib/keyboard';
 
 function readStr(val: unknown): string {
   return typeof val === 'string' ? val : '';
-}
-
-/** Tools that only offer Once / Not approve (no Always allow). */
-function isOnceOnlyApproval(toolName: string): boolean {
-  return (
-    toolName === 'create_bot' ||
-    toolName === 'ask_choice' ||
-    toolName === 'delete_routine' ||
-    toolName === 'sandbox_delete'
-  );
 }
 
 function baseName(rawPath: string): string {

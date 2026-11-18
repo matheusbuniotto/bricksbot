@@ -202,9 +202,17 @@ export async function deleteBotSandbox(botId: string): Promise<SandboxUiStatus> 
   return data.sandbox;
 }
 
+/** `crypto.randomUUID` exists only in secure contexts; plain http on a LAN IP falls back to getRandomValues. */
+export function newRequestId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** `requestId` makes a replayed POST (proxy or browser retry) return the first result instead of running twice. */
 export async function sendChatMessage(
   chatId: string,
-  content: string
+  content: string,
+  requestId: string = newRequestId()
 ): Promise<{
   user: Message;
   assistant: Message | null;
@@ -217,7 +225,7 @@ export async function sendChatMessage(
     await fetch(`/api/chats/${chatId}/messages`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, requestId }),
     })
   );
 }

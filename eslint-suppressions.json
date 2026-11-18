@@ -180,11 +180,6 @@
       "count": 3
     }
   },
-  "server/chat/databricks-auth.ts": {
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
   "server/chat/lakebase-store.test.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 4

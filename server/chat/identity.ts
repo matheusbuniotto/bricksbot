@@ -1,10 +1,8 @@
 import type { Request } from 'express';
 
-export function isDatabricksProxyEnvironment(): boolean {
+export function isDatabricksProxyEnvironment(env: Record<string, string | undefined> = process.env): boolean {
   return Boolean(
-    process.env.DATABRICKS_APP_NAME ||
-      process.env.DATABRICKS_APP_ID ||
-      (process.env.DATABRICKS_HOST && process.env.NODE_ENV === 'production')
+    env.DATABRICKS_APP_NAME || env.DATABRICKS_APP_ID || (env.DATABRICKS_HOST && env.NODE_ENV === 'production')
   );
 }
 

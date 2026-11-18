@@ -27,14 +27,19 @@ import type { RoutineStore } from '../../shared/routines/types.js';
 import { createHandoffTool, HANDOFF_TOOL_NAME, planHandoff, type HandoffTurnContext } from '../agents/handoff.js';
 import { applyCompactionToHistory, runCompaction, shouldCompact } from '../durable/compaction.js';
 import { CREATE_BOT_TOOL_NAME, createCreateBotTool } from '../agents/tools/create-bot.js';
-import { createLakehouseCatalogTool } from '../agents/tools/lakehouse-catalog.js';
+import { createLakehouseCatalogTool, lakehouseCatalogToolDefinition } from '../agents/tools/lakehouse-catalog.js';
 import { createMemorySkillTools } from '../agents/tools/memory-tools.js';
 import { createPiSkillTools } from '../agents/tools/pi-skills-tools.js';
-import { createSqlQueryTool, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
-import { createVolumeReadTool, type VolumeReadToolOptions } from '../agents/tools/volume-read.js';
+import { createSqlQueryTool, sqlQueryToolDefinition, type SqlQueryToolOptions } from '../agents/tools/sql-query.js';
+import {
+  createVolumeReadTool,
+  volumeReadToolDefinition,
+  type VolumeReadToolOptions,
+} from '../agents/tools/volume-read.js';
 import {
   createVolumeWriteTool,
   isAskFirstVolumeWrite,
+  VOLUME_WRITE_TOOL_NAME,
   type VolumeWriteToolOptions,
 } from '../agents/tools/volume-write.js';
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
@@ -48,7 +53,13 @@ import {
   SANDBOX_DELETE_TOOL_NAME,
 } from '../agents/tools/sandbox-tools.js';
 import { createWebFetchTool } from '../agents/tools/web-fetch.js';
-import { createSystemAiMcpTools, GENIE_ASK_TOOL_NAME } from '../agents/tools/system-ai-mcp.js';
+import {
+  createSystemAiMcpTools,
+  GENIE_ASK_TOOL_NAME,
+  GENIE_CANCEL_TOOL_NAME,
+  GENIE_GET_QUERY_RESULT_TOOL_NAME,
+  GENIE_POLL_TOOL_NAME,
+} from '../agents/tools/system-ai-mcp.js';
 import { isConnectedMcpTool } from '../agents/tools/mcp-tools.js';
 import type { SystemAiMcpOptions } from '../../shared/agents/mcp-types.js';
 import { formatBotContext } from '../agents/memory/context.js';
@@ -59,6 +70,7 @@ import type { SandboxSessionService } from '../sandbox/session-service.js';
 import { MemoryVolumeUsageStore } from '../volumes/usage-store.js';
 import { ApprovalStore } from './approvals.js';
 import { ChoiceStore } from './choices.js';
+import { routineNeedsOwnerApproval } from './databricks-auth.js';
 import { PluginHost } from '../plugins/host/plugin-host.js';
 import type { PluginExecutionContext, PluginPromptContext, PluginTurnContext } from '../../shared/plugins/types.js';
 
@@ -69,6 +81,27 @@ function latestOfRole(history: Message[], role: Message['role']): Message | unde
     if (history[i].role === role) return history[i];
   }
   return undefined;
+}
+
+const CREDENTIALED_TOOL_NAMES = new Set([
+  sqlQueryToolDefinition.name,
+  lakehouseCatalogToolDefinition.name,
+  volumeReadToolDefinition.name,
+  VOLUME_WRITE_TOOL_NAME,
+  GENIE_ASK_TOOL_NAME,
+  GENIE_POLL_TOOL_NAME,
+  GENIE_GET_QUERY_RESULT_TOOL_NAME,
+  GENIE_CANCEL_TOOL_NAME,
+]);
+
+/** Tools that reach lakehouse data with a Databricks token; routine turns gate them on the owner. */
+function isCredentialedTool(toolName: string): boolean {
+  return (
+    CREDENTIALED_TOOL_NAMES.has(toolName) ||
+    isConnectedMcpTool(toolName) ||
+    isAskFirstSandboxTool(toolName) ||
+    isAutoSandboxTool(toolName)
+  );
 }
 
 /** Never persist “Always allow” for these tools. */
@@ -331,6 +364,7 @@ export class ChatService {
     if (requestId && this.options.idempotency) {
       const existing = await this.options.idempotency.get(requestId);
       if (existing) {
+        if (existing.chatId !== chatId) throw new Error('requestId already used for another chat');
         return JSON.parse(existing.resultJson) as SendMessageResult;
       }
     }
@@ -688,7 +722,10 @@ export class ChatService {
             !isAskFirstVolumeWrite(toolCall.name) &&
             !isConnectedMcpTool(toolCall.name) &&
             !isPluginAskFirst;
+          // Routine turns have no user token: credentialed tools wait for the owner, whose approval supplies OBO.
+          const ownerMustApprove = routineNeedsOwnerApproval() && isCredentialedTool(toolCall.name);
           if (
+            !ownerMustApprove &&
             !this.requiresAlwaysAsk(toolCall.name) &&
             (isDefaultMetaTool(toolCall.name) ||
               isAutoRoutineTool(toolCall.name) ||
@@ -736,8 +773,7 @@ export class ChatService {
                 toolCall.arguments,
                 turnCtx
               );
-              const call = extra ? { ...toolCall, arguments: { ...toolCall.arguments, ...extra } } : toolCall;
-              return this.approvals.create(chatId, call, trailMeta);
+              return this.approvals.create(chatId, toolCall, trailMeta, extra);
             })
           );
           return {

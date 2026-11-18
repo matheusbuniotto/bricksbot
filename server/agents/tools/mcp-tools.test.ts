@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RoutineIdentityRequiredError } from '../../chat/databricks-auth.js';
 import { McpDiscoveryService } from './mcp-discovery.js';
 import { buildConnectedMcpTools, createGenericMcpTools, isConnectedMcpTool, mcpToolName } from './mcp-tools.js';
 import { UnityGatewayMcpClient } from './mcp-client.js';
@@ -111,5 +112,18 @@ describe('mcp-tools', () => {
     const names = tools.map((t) => t.definition.name);
     expect(names).toContain('genie_ask');
     expect(names).toContain('mcp_system_ai_web_search_web_search');
+  });
+
+  it('buildConnectedMcpTools throws without a user identity so an empty list is never cached', async () => {
+    const discovery = new McpDiscoveryService({
+      host: 'https://workspace.cloud.databricks.com',
+      getToken: () => Promise.reject(new RoutineIdentityRequiredError()),
+      fetchImpl: (() => Promise.reject(new Error('unreachable'))) as typeof fetch,
+    });
+    discovery.markDefaultConnected('system.ai.web_search');
+
+    await expect(buildConnectedMcpTools(discovery, 'alice', discovery.getClientConfig())).rejects.toBeInstanceOf(
+      RoutineIdentityRequiredError
+    );
   });
 });

@@ -11,7 +11,7 @@ Persist an **append-only** trail of Ask-first approval **requests** and **decisi
 
 ## Behavior
 
-1. On Ask-first `create` → append event `type = 'requested'` with `chat_id`, `approval_id`, `bot_id`, `user_id` (chat owner), `tool_name`, payload (`toolCallId`, args snapshot).
+1. On Ask-first `create` → append event `type = 'requested'` with `chat_id`, `approval_id`, `bot_id`, `user_id` (chat owner), `tool_name`, payload (`toolCallId`, `argsDigest` = sha256 of key-sorted JSON args, `argKeys`). Raw args are never stored (2026-11-18, v2 design S4).
 2. On `decide` → append event `type = 'decided'` with same keys plus `decision` / `status` and `decided_by` (HTTP caller when known).
 3. Without Lakebase (local/tests) → keep the same events in an in-memory ring on `ApprovalStore` so tests can assert.
 4. Auto-run tools (meta, auto-approved, handoff auto) do **not** emit events in v1.
@@ -22,7 +22,7 @@ Persist an **append-only** trail of Ask-first approval **requests** and **decisi
 ```sql
 CREATE TABLE IF NOT EXISTS bricksbot.approval_events (
   id UUID PRIMARY KEY,
-  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  chat_id UUID NOT NULL, -- no FK: the trail outlives chat and bot deletes (2026-11-18)
   approval_id UUID,
   bot_id UUID,
   user_id TEXT,

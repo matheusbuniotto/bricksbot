@@ -29,7 +29,7 @@ describe('routine tools CRUD', () => {
     const routines = new MemoryRoutineStore();
     const { primary } = await chats.ensureBootstrap('owner-1');
     const chat = await chats.getOrCreateChatForBot(primary.id);
-    const ctx = { chatId: chat.id, bot: primary };
+    const ctx = { chatId: chat.id, bot: primary, userId: 'owner-1' };
     const [listTool, scheduleTool, updateTool, deleteTool] = createRoutineTools(routines, chats);
 
     await scheduleTool.execute({ name: 'Dawn', cron: '0 6 * * *', prompt: 'Morning brief' }, ctx);
@@ -57,5 +57,36 @@ describe('routine tools CRUD', () => {
     expect(messages.some((m) => m.content.includes('[routine:Dawn] created'))).toBe(true);
     expect(messages.some((m) => m.content.includes('[routine:Dawn v2] updated'))).toBe(true);
     expect(messages.some((m) => m.content.includes('[routine:Dawn v2] deleted'))).toBe(true);
+  });
+
+  test('a Space member acts on their own routines, never the bot owner', async () => {
+    const chats = new MemoryChatStore();
+    const routines = new MemoryRoutineStore();
+    const team = await chats.createSpace({ name: 'Team', ownerId: 'carol' });
+    await chats.addSpaceMember(team.id, 'bob', 'member');
+    const bot = await chats.createBot({ name: 'Analyst', ownerId: 'carol', spaceId: team.id, isShared: true });
+    const carolsRoutine = await routines.createRoutine({
+      botId: bot.id,
+      ownerId: 'carol',
+      name: 'Daily',
+      cron: '0 8 * * *',
+    });
+    const bobChat = await chats.getOrCreateChatForBot(bot.id, 'bob');
+    const ctx = { chatId: bobChat.id, bot, userId: 'bob' };
+    const [listTool, scheduleTool, updateTool, deleteTool] = createRoutineTools(routines, chats);
+
+    await scheduleTool.execute({ name: 'Mine', cron: '0 9 * * *', prompt: 'Brief me' }, ctx);
+    expect((await routines.listRoutines('bob')).map((r) => r.name)).toEqual(['Mine']);
+    expect((await routines.listRoutines('carol')).map((r) => r.name)).toEqual(['Daily']);
+
+    const listed = JSON.parse(await listTool.execute({}, ctx)) as { routines: Array<{ name: string }> };
+    expect(listed.routines.map((r) => r.name)).toEqual(['Mine']);
+
+    const byId = { routine_id: carolsRoutine.routine.id };
+    expect(await updateTool.preflight({ ...byId, enabled: false }, ctx)).toBe('Routine not found');
+    expect(await updateTool.execute({ ...byId, enabled: false }, ctx)).toBe('Routine not found');
+    expect(await deleteTool.execute(byId, ctx)).toBe('Routine not found');
+    expect(await deleteTool.execute({ name: 'Daily' }, ctx)).toMatch(/No routine named Daily/);
+    expect((await routines.getRoutine(carolsRoutine.routine.id))?.enabled).toBe(true);
   });
 });

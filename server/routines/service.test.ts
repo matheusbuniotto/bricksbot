@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import type { ChatCompletionRequest, ChatCompletionResult, ChatClient } from '../../shared/agents/types.js';
 import { MemoryChatStore } from '../chat/memory-store.js';
 import { ChatService } from '../chat/service.js';
 import { StubChatClient } from '../agents/clients/stub-client.js';
@@ -97,5 +98,58 @@ describe('RoutineService', () => {
     await expect(service.runNow(routine.id, 'bob')).resolves.toBeTruthy();
     await chats.removeSpaceMember(team.id, 'bob');
     await expect(service.runNow(routine.id, 'bob')).rejects.toThrow(/Bot access required/);
+  });
+
+  test('webhook runs gate sql_query on the owner unless the App identity is allowed', async () => {
+    const sqlCall: ChatCompletionResult = {
+      content: null,
+      toolCalls: [{ id: 'call_sql', name: 'sql_query', arguments: { statement: 'SELECT 1' } }],
+    };
+    const client: ChatClient = {
+      provider: 'stub',
+      complete: (request: ChatCompletionRequest) =>
+        Promise.resolve(request.messages.some((m) => m.role === 'tool') ? { content: 'done', toolCalls: [] } : sqlCall),
+    };
+    const chats = new MemoryChatStore();
+    const { primary } = await chats.ensureBootstrap('owner');
+    const routines = new MemoryRoutineStore();
+    const chatService = new ChatService({
+      store: chats,
+      client,
+      sqlQuery: { warehouseId: 'wh-1', executeImpl: () => Promise.resolve('n\n1') },
+    });
+    const env: Record<string, string | undefined> = {};
+    const service = new RoutineService(routines, chats, chatService, env);
+    const chat = await chats.getOrCreateChatForBot(primary.id, 'owner');
+    await chatService.getApprovals().setAutoApproved(chat.id, 'sql_query');
+    const created = await routines.createRoutine({
+      botId: primary.id,
+      ownerId: 'owner',
+      name: 'Hook',
+      cron: '0 * * * *',
+      prompt: 'count',
+      runAs: 'app',
+    });
+
+    const gated = await service.runFromWebhook(created.routine.id, created.webhookSecret);
+    expect(gated.chat.pendingApprovals.map((a) => a.toolCall.name)).toEqual(['sql_query']);
+    await chatService.decideApproval(gated.chat.pendingApprovals[0].id, 'denied');
+
+    env.BRICKSBOT_ROUTINE_APP_IDENTITY = 'allow';
+    const ran = await service.runFromWebhook(created.routine.id, created.webhookSecret);
+    expect(ran.chat.pendingApprovals).toEqual([]);
+    expect(ran.chat.assistant?.content).toBe('done');
+  });
+
+  test('new routines default to owner_approval', async () => {
+    const chats = new MemoryChatStore();
+    const { primary } = await chats.ensureBootstrap('owner');
+    const { routine } = await new MemoryRoutineStore().createRoutine({
+      botId: primary.id,
+      ownerId: 'owner',
+      name: 'Daily',
+      cron: '0 8 * * *',
+    });
+    expect(routine.runAs).toBe('owner_approval');
   });
 });
