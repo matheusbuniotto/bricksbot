@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import type { ChatCompletionRequest, ChatCompletionResult, ChatClient } from '../../shared/agents/types.js';
 import { MemoryChatStore } from '../chat/memory-store.js';
 import { ChatService } from '../chat/service.js';
@@ -118,7 +118,8 @@ describe('RoutineService', () => {
       client,
       sqlQuery: { warehouseId: 'wh-1', executeImpl: () => Promise.resolve('n\n1') },
     });
-    const service = new RoutineService(routines, chats, chatService);
+    const env: Record<string, string | undefined> = {};
+    const service = new RoutineService(routines, chats, chatService, env);
     const chat = await chats.getOrCreateChatForBot(primary.id, 'owner');
     await chatService.getApprovals().setAutoApproved(chat.id, 'sql_query');
     const created = await routines.createRoutine({
@@ -134,14 +135,10 @@ describe('RoutineService', () => {
     expect(gated.chat.pendingApprovals.map((a) => a.toolCall.name)).toEqual(['sql_query']);
     await chatService.decideApproval(gated.chat.pendingApprovals[0].id, 'denied');
 
-    vi.stubEnv('BRICKSBOT_ROUTINE_APP_IDENTITY', 'allow');
-    try {
-      const ran = await service.runFromWebhook(created.routine.id, created.webhookSecret);
-      expect(ran.chat.pendingApprovals).toEqual([]);
-      expect(ran.chat.assistant?.content).toBe('done');
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    env.BRICKSBOT_ROUTINE_APP_IDENTITY = 'allow';
+    const ran = await service.runFromWebhook(created.routine.id, created.webhookSecret);
+    expect(ran.chat.pendingApprovals).toEqual([]);
+    expect(ran.chat.assistant?.content).toBe('done');
   });
 
   test('new routines default to owner_approval', async () => {

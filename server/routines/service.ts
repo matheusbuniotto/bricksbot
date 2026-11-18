@@ -14,7 +14,8 @@ export class RoutineService {
   constructor(
     private readonly routines: RoutineStore,
     private readonly chats: ChatStore,
-    private readonly chatService: ChatService
+    private readonly chatService: ChatService,
+    private readonly env: Record<string, string | undefined> = process.env
   ) {}
 
   /** Manual trigger — allowed even when the routine is disabled. */
@@ -52,7 +53,7 @@ export class RoutineService {
     const chat = await this.chats.getOrCreateChatForBot(routine.botId, routine.ownerId);
     const systemNote = `[routine:${routine.name}] scheduled run`;
     await this.chats.addMessage(chat.id, 'system', systemNote);
-    const runAs = routine.runAs === 'app' && routineAppIdentityAllowed() ? 'app' : 'owner_approval';
+    const runAs = routine.runAs === 'app' && routineAppIdentityAllowed(this.env) ? 'app' : 'owner_approval';
     const result = await runWithRoutineAuth(runAs, () =>
       this.chatService.sendUserMessage(chat.id, routine.prompt, { routine: true })
     );
