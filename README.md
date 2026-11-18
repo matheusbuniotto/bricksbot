@@ -1,237 +1,128 @@
-# 🧱 BricksBot
+# BricksBot
 
-**Native Multi-Agent Lakehouse Assistant for Databricks Workspaces** — Spaces, bot roster, durable chat, lakehouse tools, 3-way approvals, and automated routines. Install directly as a Databricks App via Databricks Asset Bundles (DAB + source). Open source, not a closed Marketplace container.
+A multi-bot chat assistant that runs inside your Databricks workspace as a Databricks App. Bots query your lakehouse as the signed-in user, ask before they act, and keep their chats, memories and approvals in your own Lakebase.
 
-<p align="center">
-  <a href="https://github.com/matheusbuniotto/bricksbot/actions/workflows/ci.yml"><img src="https://github.com/matheusbuniotto/bricksbot/actions/workflows/ci.yml/badge.svg" alt="CI Status" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
-  <a href="https://docs.databricks.com/dev-tools/bundles/index.html"><img src="https://img.shields.io/badge/Databricks-Asset%20Bundles-FF3621.svg?logo=databricks&logoColor=white" alt="Databricks Asset Bundles" /></a>
-  <a href="https://react.dev"><img src="https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black" alt="React 19" /></a>
-  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white" alt="TypeScript 5.9" /></a>
-</p>
+[![CI](https://github.com/matheusbuniotto/bricksbot/actions/workflows/ci.yml/badge.svg)](https://github.com/matheusbuniotto/bricksbot/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 <p align="center">
-  <img src="docs/assets/bricksbot-demo.gif" alt="BricksBot Demo: Grok-Style Multi-Bot Lakehouse Chat with 3-Way Approvals" width="880" />
+  <img src="docs/assets/bricksbot-demo.gif" alt="BricksBot: bot roster, chat, and an approval card" width="880" />
 </p>
 
-| | |
-| --- | --- |
-| **Is** | Workspace-installable AppKit app; OpenAI-compatible or Serving LLMs; SQL / UC catalog / Volume read & write / web fetch; Primary → teammate handoff; Ask-first approvals; scheduled routines via Job → webhook; optional sandbox exec |
-| **Is not** | Desktop/browser “computer” UI; always-on Genie; PartnerOps listing required |
+## What it does
 
-System architecture: [docs/architecture.md](docs/architecture.md) • Documentation index: [docs/README.md](docs/README.md) • Product locks: [docs/project-context.md](docs/project-context.md) • Community roadmap: [docs/roadmap-next.md](docs/roadmap-next.md)
+- **Bots in Spaces.** A Primary bot answers first and hands work to teammate bots (`handoff_to_bot`). Spaces let you share bots with viewers, members and admins.
+- **Lakehouse tools.** `sql_query` (read-only), `lakehouse_catalog` and `volume_read` run On-Behalf-Of the signed-in user, so Unity Catalog grants, row filters and masks apply. `volume_write` and `web_fetch` are opt-in.
+- **Approvals.** Data tools stop for **Always allow / Approve once / Deny** before they run. Decisions are recorded in Lakebase.
+- **Durable state.** Chats, memories, skills and approvals live in Lakebase (schema `bricksbot`). Long chats are compacted for the model; the transcript is never deleted.
+- **Routines.** A Lakeflow Job can send a prompt to a bot on a schedule.
+- **Sandbox.** Optional Linux exec per chat, with artifacts saved to a Unity Catalog Volume.
+- **Models.** Any OpenAI-compatible API (OpenRouter by default) or a Databricks Model Serving endpoint.
 
----
+Not included: a desktop or browser-control UI, and always-on Genie (Genie is opt-in because it costs more).
 
-## Why BricksBot? (Engineered for Databricks)
-
-Most AI assistant projects on Databricks either wrap third-party SaaS chatbots (violating enterprise data boundaries) or run brittle Python LangChain scripts that lack durability, corrupt message order, and try to run unvalidated SQL.
-
-BricksBot is built differently:
-
-1. **Runs Natively Inside Databricks**: Deployed via Databricks Asset Bundles (DAB) directly into your workspace as an AppKit application. Durable chat state, approval events, and memories live in your own PostgreSQL Lakebase instance.
-2. **Strict 3-Way Human Approvals**: Sensitive tools (`sql_query`, `volume_write`, sandbox operations) pause turn execution with an interactive card (`[Always allow] [Approve Once] [Deny]`). All decisions append to an immutable audit trail (`bricksbot.approval_events`).
-3. **Grok-Style Multi-Agent Roster & Handoff**: A front-desk **Primary router** delegates specialized work to teammate bots (e.g., SQL Analyst, Experimentation Engine, Routine Runner) with bidirectional transcript links.
-4. **Unity Catalog Native Tools**: Read-only Serverless SQL preflight with row limits and byte budgets. `volume_write` enforces user- and bot-namespaced folders (`/Volumes/.../users/{user}/bots/{bot}/`) with Lakebase quotas.
-5. **Zero-Egress Serving Option**: Connect to external OpenAI-compatible models (OpenRouter) or keep all model traffic inside your VPC with Databricks Model Serving (any chat endpoint you serve).
-6. **Automated Lakeflow Routines**: Trigger recurring agent prompts on cron schedules via Databricks Jobs and authenticated webhooks.
-7. **Thin Pi-Compatible Durable Harness**: Pure TypeScript agent loop without heavy framework dependencies. Sliding-window compaction caps prompt token budgets while raw transcript history is never deleted.
-
----
-
-## Architecture at a Glance
+## How it fits together
 
 ```mermaid
-flowchart TD
-  subgraph UI ["USER INTERFACE (React 19 + AppKit)"]
-    direction LR
-    U1["Bot Roster & Spaces"]
-    U2["Durable Chat & Stream"]
-    U3["3-Way Approvals"]
-    U4["Artifact Pins & Charts"]
-  end
-
-  subgraph Gateway ["DURABLE AGENT HARNESS (Express + Thin Pi Loop)"]
-    direction LR
-    G1["Workspace Auth"]
-    G2["Primary Router"]
-    G3["Idempotency Keys"]
-    G4["Sliding Compaction"]
-  end
-
-  subgraph Execution ["EXECUTION PILLARS"]
-    subgraph M ["Inference"]
-      M1["Databricks Model Serving"]
-      M2["OpenAI-Compatible (OpenRouter)"]
-    end
-    subgraph T ["Lakehouse Tools & MCP"]
-      T1["Serverless SQL & UC Catalog"]
-      T2["Namespaced Volume I/O"]
-      T3["teatools Experimentation MCP"]
-    end
-    subgraph S ["Execution Sandbox"]
-      S1["Databricks Linux Sandbox"]
-      S2["Artifact Sync Service"]
-    end
-  end
-
-  subgraph Storage ["PERSISTENCE & GOVERNANCE"]
-    D1["PostgreSQL Lakebase (Chats, Approvals, Memory)"]
-    D2["Unity Catalog & Lakehouse Governance"]
-  end
-
-  UI -->|"User Turns & SSE"| Gateway
-  Gateway --> M
-  Gateway --> T
-  Gateway --> S
-  M --> Storage
-  T --> Storage
-  S --> Storage
+flowchart LR
+  UI["React UI"] --> API["Express API + agent loop"]
+  API --> LLM["LLM: OpenRouter or Model Serving"]
+  API --> Tools["Tools: SQL warehouse, UC catalog, Volumes, sandbox, MCP"]
+  API --> DB[("Lakebase: chats, approvals, memories")]
+  Job["Lakeflow Job"] -->|webhook| API
 ```
 
-*Deep dive: see [docs/architecture.md](docs/architecture.md) for layer-by-layer specifications and [docs/system-architecture.html](docs/system-architecture.html) for the interactive reference.*
+Details: [docs/architecture.md](docs/architecture.md).
 
----
+## Try it locally
 
-## Example Walkthrough: Multi-Agent Lakehouse Analysis
-
-1. **User asks**: *"Analyze our top 5 enterprise accounts by churn probability and graph revenue at risk."*
-2. **Primary evaluates & delegates**: Primary plans the approach and executes `handoff_to_bot("SQL Analyst", ...)`. A clean handoff badge appears in both bot chats.
-3. **Preflight human approval**: The SQL Analyst evaluates the generated SQL query against Serverless SQL warehouse boundaries and pauses the turn with a 3-way approval card.
-4. **One-click signoff**: The operator reviews the SQL statement and approves (`Once` or shortcut `B`). The query executes in 28ms with Unity Catalog governance and row limits.
-5. **Chart auto-pinning**: An interactive Vega-Lite chart pins directly to the transcript showing MRR exposure per account.
-6. **Automated routine**: The analyst schedules a weekly Lakeflow Job webhook routine to track future churn alerts automatically.
-
----
-
-## Quickstart
-
-### Option A: Local Development (No Databricks Required)
-
-You can clone and run BricksBot locally in 30 seconds. Without Databricks credentials, it boots with an in-memory store and a stub LLM client:
+No Databricks account needed. Without credentials it uses an in-memory store and a stub model.
 
 ```bash
 git clone https://github.com/matheusbuniotto/bricksbot.git
 cd bricksbot
 npm ci
-npm test
-npm run build
 npm run dev
 ```
 
-Open [http://localhost:8000](http://localhost:8000) to inspect the roster, transcript, and approval UI. Copy `.env.example` → `.env` only if you want to provide real LLM keys or local Lakebase credentials.
+Open http://localhost:8000. To use a real model or Lakebase locally, copy `.env.example` to `.env` and fill it in.
 
----
+## Deploy to a workspace
 
-### Option B: Deploy to Databricks Workspace
+You need the Databricks CLI, a Lakebase project, an LLM API key (or a Serving endpoint) and, for SQL tools, a SQL warehouse.
 
-You need: **App** + **Lakebase** (durable chat) + **secret for an LLM** (or Serving). A SQL warehouse is optional but required for interactive `sql_query` / `lakehouse_catalog`.
-
-**Fast path:** `npm run bootstrap -- -p <profile>` picks (or creates) Lakebase, picks a warehouse, stores the OpenRouter key, writes `dev.local.yml`, and validates the bundle. Then jump to [Deploy](#4-deploy). Steps 1-3 below are the manual equivalent.
-
-#### 1. Workspace Variables
-
-Copy the example and fill your workspace parameters:
+### Quick setup
 
 ```bash
-cp dev.local.yml.example dev.local.yml
-# edit lakebase_branch, lakebase_database, sql_warehouse_id
+npm ci
+npm run bootstrap -- -p <profile>
 ```
 
-`dev.local.yml` is gitignored and automatically loaded via `include: '*.local.yml'` in `databricks.yml`.
+This picks (or creates) a Lakebase project and a SQL warehouse, stores your OpenRouter key in secret scope `bricksbot`, writes `dev.local.yml` and validates the bundle. Then [deploy](#deploy).
 
-#### 2. Lakebase (BYO)
+### Manual setup
 
-Create or reuse a Lakebase Autoscaling project/branch:
+1. Copy `dev.local.yml.example` to `dev.local.yml` (gitignored) and set `lakebase_branch`, `lakebase_database` and `sql_warehouse_id`. List Lakebase projects with `databricks postgres list-projects -p <profile>`.
+2. Store the LLM key:
 
-```bash
-databricks postgres list-projects -p <profile>
-```
+   ```bash
+   databricks secrets create-scope bricksbot -p <profile>
+   databricks secrets put-secret bricksbot openrouter-api-key -p <profile>
+   ```
 
-Set in `dev.local.yml`:
-- `lakebase_branch`: `projects/<project>/branches/<branch>`
-- `lakebase_database`: `…/databases/databricks-postgres`
+### Options
 
-Schema `bricksbot` is owned by the App service principal after the first deploy.
-
-#### 3. LLM Secrets and Egress
-
-Default LLM secret scope/key: **`bricksbot` / `openrouter-api-key`**.
-
-```bash
-databricks secrets create-scope bricksbot -p <profile>   # if missing
-databricks secrets put-secret bricksbot openrouter-api-key --string-value 'YOUR_KEY' -p <profile>
-# optional web_fetch hosts (comma-separated); then uncomment the
-# web-fetch-allowlist resource in databricks.yml and WEB_FETCH_ALLOWLIST in app.yaml
-databricks secrets put-secret bricksbot web-fetch-allowlist --string-value 'docs.databricks.com' -p <profile>
-```
-
-| Capability | Notes |
+| Option | How |
 | --- | --- |
-| LLM Egress | OpenRouter (`openrouter.ai`) or your custom endpoint; or bind Serving (see `app.yaml`) |
-| SQL Tools | Warehouse `CAN_USE` for the App SP; user needs UC grants (OBO via `sql:restricted-query`) |
-| `volume_read` | User needs Volume read; App declares `files.files` |
-| `volume_write` | Off by default. Create a Volume, then uncomment `BRICKSBOT_VOLUME_ROOT` in `app.yaml` with its `/Volumes/...` path. Signed-in user needs write permissions. Paths are isolated under `users/{user}/bots/{bot}/`. |
-| Sandbox | `SANDBOX_BACKEND=databricks` in `app.yaml` (falls back to `python_exec` if Sandboxes preview is off). Set `off` to disable. |
+| Model | Default `openai/gpt-6-luna`. Change `LLM_MODEL` in `app.yaml`. |
+| Model Serving instead of OpenRouter | Bind a `serving-endpoint` resource and set `LLM_PROVIDER=databricks` (see `app.yaml`). |
+| `web_fetch` | Store comma-separated hosts in secret `bricksbot/web-fetch-allowlist`, then uncomment it in `databricks.yml` and `app.yaml`. |
+| `volume_write` | Create a Volume and set `BRICKSBOT_VOLUME_ROOT` in `app.yaml`. Files go under `users/{user}/bots/{bot}/`. |
+| Sandbox | On by default (`SANDBOX_BACKEND=databricks`). Set it to `off` to disable. |
+| Second install | Set `app_name` in a separate target (see `dev.local.yml.example`). |
 
-The default model is `openai/gpt-6-luna`; change `LLM_MODEL` in `app.yaml` to any OpenRouter model id. To use **Databricks Model Serving** instead of OpenRouter: bind a `serving-endpoint` resource and set `LLM_PROVIDER=databricks` (see comments in `app.yaml`).
-
-#### 4. Deploy
+### Deploy
 
 ```bash
-databricks bundle validate -p <profile>
 databricks bundle deploy -p <profile>
 databricks bundle run app -p <profile>
+databricks apps get bricksbot -p <profile>    # URL and status
 ```
 
-Check application status:
+Open the App URL and say hi to Primary. Logs: `databricks apps logs bricksbot -p <profile>`.
 
-```bash
-databricks apps get bricksbot -p <profile>
-databricks apps logs bricksbot -p <profile>
-```
+### Wiring a scheduled Job
 
-Open the generated App URL → start chatting with **Primary**.
+The example Job (`resources/jobs/routine-webhook.job.yml`) deploys paused. To use it:
 
-#### Wiring a scheduled Job
+1. In the App, create a routine. Copy its routine id and the one-time webhook secret.
+2. `databricks secrets put-secret bricksbot routine-webhook-key -p <profile>` and paste the secret.
+3. In `dev.local.yml` set `routine_webhook_app_base_url` (the App URL), `routine_webhook_routine_id` and `routine_webhook_pause_status: UNPAUSED`. The schedule defaults to `0 0 9 * * ?` UTC (`routine_webhook_quartz_cron`, `routine_webhook_timezone_id`).
+4. Give the Job's run-as identity `CAN_USE` on the App, then deploy again.
+5. Turn the routine on. "Test" works while it is off; the webhook does not.
 
-Routines fire from a Lakeflow Job that POSTs to the App webhook (`resources/jobs/routine-webhook.job.yml`, `scripts/ping_routine_webhook.py`). The Job deploys **paused** until you wire it:
+## FAQ
 
-1. In the App, create a routine and copy its one-time webhook secret and routine id.
-2. Store the secret: `databricks secrets put-secret bricksbot routine-webhook-key -p <profile>`.
-3. In `dev.local.yml`, set `routine_webhook_app_base_url` (from `databricks apps get bricksbot`), `routine_webhook_routine_id`, and `routine_webhook_pause_status: UNPAUSED`. Optionally set `routine_webhook_quartz_cron` and `routine_webhook_timezone_id` (default `0 0 9 * * ?`, UTC).
-4. Grant the Job's run-as identity `CAN_USE` on the App (Apps ingress needs OAuth), then `databricks bundle deploy -p <profile>`.
-5. Turn the routine **On**. Test works while Off; the webhook requires it enabled.
+**Does my data leave Databricks?**
+Only prompts and tool results sent to the model provider. With `LLM_PROVIDER=databricks`, model calls stay on Databricks Model Serving. SQL runs on your warehouse and state stays in your Lakebase.
 
----
+**Can a bot drop tables?**
+Not through `sql_query`. It accepts one read-only statement (`SELECT`, `WITH`, `SHOW`, `DESCRIBE`, `EXPLAIN`) and runs as the user with the `sql:restricted-query` scope. It also asks for approval unless the user chose Always allow for that chat.
 
-## Community FAQ (Databricks Admins & Engineers)
+**Who can see my bots?**
+You, plus anyone you share a Space with. Access is checked on every turn, so removing someone cuts them off right away.
 
-### Does my data leave Databricks?
-**No, unless you choose external LLMs.** When configured with `LLM_PROVIDER=databricks`, all model inference runs through Databricks Model Serving within your cloud account. Serverless SQL queries run directly on your Databricks SQL Warehouse, and all state is stored in your PostgreSQL Lakebase.
+More: [docs/security.md](docs/security.md) covers identities, scopes and the settings that widen access.
 
-### Can a bot execute destructive SQL or drop tables?
-**Not through `sql_query`.** Every statement passes a read-only preflight (one statement; `SELECT`, `WITH`, `SHOW`, `DESCRIBE`, `EXPLAIN`; mutating keywords inside `WITH` blocked; see `server/agents/tools/sql-query.ts`). It runs On-Behalf-Of the signed-in user with the `sql:restricted-query` scope, so Unity Catalog grants still apply. Like every data tool, it is Ask-first until the user picks **Always allow** for that chat.
+## Docs
 
-### Where is conversation history and memory stored?
-All chat transcripts, bot profiles, memories, and approval audit logs are persisted in your workspace's **PostgreSQL Lakebase** database under the `bricksbot` schema.
-
-### How are permissions and access governed?
-BricksBot uses Databricks Workspace SSO headers (`x-forwarded-user`). Tool execution operates On-Behalf-Of (OBO) the active user, inheriting all Unity Catalog table grants, column masks, and row-level filters.
-
----
-
-## Project Documentation
-
-- [**System Architecture (`docs/architecture.md`)**](docs/architecture.md) — Comprehensive technical architecture reference.
-- [**Documentation Index (`docs/README.md`)**](docs/README.md) — Complete catalog of all specs, ADRs, and plans.
-- [**Durable Harness (`docs/durable-harness.md`)**](docs/durable-harness.md) — Deep dive into the Pi-compatible durable agent loop.
-- [**Security & Trust Model (`docs/security.md`)**](docs/security.md) — Identities, scopes, opt-in flags, and what operators must grant.
-- [**OSS Release Map (`docs/oss-community-release.md`)**](docs/oss-community-release.md) — Checklist for open-source community distribution.
-- [**Roadmap & Next Steps (`docs/roadmap-next.md`)**](docs/roadmap-next.md) — Post-release roadmap and feature backlog.
-
----
+- [Architecture](docs/architecture.md)
+- [Security and trust model](docs/security.md)
+- [Durable agent loop](docs/durable-harness.md)
+- [Roadmap](docs/roadmap-next.md)
+- [All docs](docs/README.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## License
 
-BricksBot is open source software licensed under [Apache-2.0](LICENSE).
+[Apache-2.0](LICENSE)

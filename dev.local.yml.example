@@ -7,7 +7,7 @@ targets:
     # workspace:
     #   host: https://dbc-xxxxxxxx-xxxx.cloud.databricks.com
     variables:
-      # Required for App postgres + sql tools. See README → Install (Lakebase).
+      # Required for App postgres + sql tools. See README → Deploy to a workspace.
       lakebase_branch: projects/<your-project>/branches/<your-branch>
       lakebase_database: projects/<your-project>/branches/<your-branch>/databases/databricks-postgres
       sql_warehouse_id: "<your-warehouse-id>"
