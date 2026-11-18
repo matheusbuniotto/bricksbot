@@ -123,7 +123,7 @@ describe('McpDiscoveryService', () => {
       fetchImpl: mockFetch,
     });
 
-    const custom = await discovery.registerCustomMcp('main.analytics.custom_mcp', {
+    const custom = await discovery.registerCustomMcp('alice', 'main.analytics.custom_mcp', {
       name: 'Custom Analytics MCP',
       description: 'Internal analytics tools',
     });
@@ -132,13 +132,13 @@ describe('McpDiscoveryService', () => {
     expect(custom.source).toBe('custom');
     expect(custom.tools).toEqual(['query_custom_data']);
 
-    const mcps = await discovery.listViableMcps({ refresh: true });
+    const mcps = await discovery.listViableMcps({ refresh: true, userId: 'alice' });
     expect(mcps.some((m) => m.service === 'main.analytics.custom_mcp')).toBe(true);
 
-    const removed = discovery.removeCustomMcp('main.analytics.custom_mcp');
+    const removed = await discovery.removeCustomMcp('alice', 'main.analytics.custom_mcp');
     expect(removed).toBe(true);
 
-    const afterDelete = await discovery.listViableMcps({ refresh: true });
+    const afterDelete = await discovery.listViableMcps({ refresh: true, userId: 'alice' });
     expect(afterDelete.some((m) => m.service === 'main.analytics.custom_mcp')).toBe(false);
   });
 
@@ -167,13 +167,29 @@ describe('McpDiscoveryService', () => {
       fetchImpl: mockFetch,
     });
 
-    expect(discovery.isConnected('system.ai.web_search')).toBe(false);
-    const connected = await discovery.connect('system.ai.web_search');
+    expect(await discovery.isConnected('alice', 'system.ai.web_search')).toBe(false);
+    const connected = await discovery.connect('alice', 'system.ai.web_search');
     expect(connected.connected).toBe(true);
     expect(connected.tools).toEqual(['web_search']);
-    expect(discovery.listConnectedServices()).toEqual(['system.ai.web_search']);
+    expect(await discovery.listConnectedServices('alice')).toEqual(['system.ai.web_search']);
 
-    expect(discovery.disconnect('system.ai.web_search')).toBe(true);
-    expect(discovery.isConnected('system.ai.web_search')).toBe(false);
+    expect(await discovery.disconnect('alice', 'system.ai.web_search')).toBe(true);
+    expect(await discovery.isConnected('alice', 'system.ai.web_search')).toBe(false);
+  });
+
+  it('env default connectors are per user: one user disconnecting does not affect others', async () => {
+    const discovery = new McpDiscoveryService({});
+    discovery.markDefaultConnected('system.ai.genie_one_mcp');
+
+    expect(await discovery.isConnected('alice', 'system.ai.genie_one_mcp')).toBe(true);
+    expect(await discovery.disconnect('alice', 'system.ai.genie_one_mcp')).toBe(true);
+    expect(await discovery.removeCustomMcp('alice', 'system.ai.genie_one_mcp')).toBe(false);
+
+    expect(await discovery.listConnectedServices('alice')).toEqual([]);
+    expect(await discovery.listConnectedServices('bob')).toEqual(['system.ai.genie_one_mcp']);
+    const bobList = await discovery.listViableMcps({ userId: 'bob' });
+    expect(bobList.find((m) => m.service === 'system.ai.genie_one_mcp')?.connected).toBe(true);
+    const aliceList = await discovery.listViableMcps({ userId: 'alice' });
+    expect(aliceList.find((m) => m.service === 'system.ai.genie_one_mcp')?.connected).toBe(false);
   });
 });

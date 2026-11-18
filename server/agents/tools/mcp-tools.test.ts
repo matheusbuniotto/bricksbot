@@ -104,10 +104,10 @@ describe('mcp-tools', () => {
       getToken: () => Promise.resolve('tok'),
       fetchImpl: mockFetch,
     });
-    discovery.markConnected('system.ai.genie_one_mcp');
-    discovery.markConnected('system.ai.web_search');
+    discovery.markDefaultConnected('system.ai.genie_one_mcp');
+    discovery.markDefaultConnected('system.ai.web_search');
 
-    const tools = await buildConnectedMcpTools(discovery, discovery.getClientConfig());
+    const tools = await buildConnectedMcpTools(discovery, 'alice', discovery.getClientConfig());
     const names = tools.map((t) => t.definition.name);
     expect(names).toContain('genie_ask');
     expect(names).toContain('mcp_system_ai_web_search_web_search');

@@ -4,7 +4,7 @@ import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '..
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
 import { MemoryChatStore } from './memory-store.js';
-import { ChatService } from './service.js';
+import { ChatService, type RegisteredTool } from './service.js';
 
 class ScriptedClient implements ChatClient {
   readonly provider = 'stub' as const;
@@ -1113,5 +1113,70 @@ describe('ChatService', () => {
     const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'all_the_time');
     expect(continued.assistant?.content).toBe('Genie reports churn is 2%.');
     expect(await service.getApprovals().isAutoApproved(chat.id, 'genie_ask')).toBe(false);
+  });
+
+  test('offers each turn only the MCP connectors of the turn user (chat, routine, handoff)', async () => {
+    const store = new MemoryChatStore();
+    const { space, primary } = await store.ensureBootstrap('user-a');
+    await store.ensureBootstrap('user-b');
+    await store.addSpaceMember(space.id, 'user-b', 'member');
+    const teammate = await store.createBot({
+      name: 'DataWizard',
+      spaceId: space.id,
+      ownerId: 'user-a',
+      isShared: true,
+    });
+
+    const mcpToolFor = (userId: string): RegisteredTool => ({
+      definition: {
+        name: `mcp_${userId.replace('-', '_')}_lookup`,
+        description: `Connector owned by ${userId}`,
+        parameters: { type: 'object', properties: {} },
+      },
+      execute: () => Promise.resolve('ok'),
+    });
+    const client = new ScriptedClient([
+      { content: 'teammate for bob', toolCalls: [] },
+      { content: 'routine for alice', toolCalls: [] },
+      {
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_handoff',
+            name: 'handoff_to_bot',
+            arguments: { bot_name: 'DataWizard', brief: 'check metrics' },
+          },
+        ],
+      },
+      { content: 'Metrics are green.', toolCalls: [] },
+      { content: 'DataWizard says metrics are green.', toolCalls: [] },
+    ]);
+    const service = new ChatService({
+      store,
+      client,
+      resolveMcpTools: (userId) => Promise.resolve([mcpToolFor(userId)]),
+    });
+    const offered = (index: number) => client.requests[index]?.tools?.map((tool) => tool.name) ?? [];
+
+    // Bob chatting with Alice's shared bot gets Bob's connectors, never Alice's.
+    const bobTeammateChat = await store.getOrCreateChatForBot(teammate.id, 'user-b');
+    await service.sendUserMessage(bobTeammateChat.id, 'hi');
+    expect(offered(0)).toContain('mcp_user_b_lookup');
+    expect(offered(0)).not.toContain('mcp_user_a_lookup');
+
+    // Routine turns run in the routine owner's chat, so they use the routine owner's connectors.
+    const aliceTeammateChat = await store.getOrCreateChatForBot(teammate.id, 'user-a');
+    await service.sendUserMessage(aliceTeammateChat.id, 'scheduled', { routine: true });
+    expect(offered(1)).toContain('mcp_user_a_lookup');
+    expect(offered(1)).not.toContain('mcp_user_b_lookup');
+
+    // Handoff: the teammate's nested turn keeps the calling user's connectors.
+    const bobPrimaryChat = await store.getOrCreateChatForBot(primary.id, 'user-b');
+    const pending = await service.sendUserMessage(bobPrimaryChat.id, 'ask DataWizard');
+    expect(offered(2)).toContain('mcp_user_b_lookup');
+    await service.decideApproval(pending.pendingApprovals[0].id, 'once');
+    expect(offered(3)).toContain('mcp_user_b_lookup');
+    expect(offered(3)).not.toContain('mcp_user_a_lookup');
+    expect(service.listToolNames('user-a')).not.toContain('mcp_user_b_lookup');
   });
 });

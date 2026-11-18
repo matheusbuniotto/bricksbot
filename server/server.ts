@@ -6,6 +6,7 @@ import type { RoutineStore } from '../shared/routines/types.js';
 import type { VolumeUsageStore } from '../shared/agents/volume-namespace.js';
 import type { SandboxStore } from '../shared/sandbox/types.js';
 import type { PluginRegistryStore } from '../shared/plugins/types.js';
+import type { McpConnectorStore } from '../shared/agents/mcp-types.js';
 import { PluginHost } from './plugins/host/plugin-host.js';
 import { VolumePluginLoader } from './plugins/loaders/volume-loader.js';
 import { LakebasePluginRegistryStore } from './plugins/registry/lakebase-store.js';
@@ -22,6 +23,8 @@ import { createChatClientFromEnv } from './agents/clients/create-chat-client.js'
 import { parseVolumeQuotaLimits, resolveVolumeRoot } from './agents/tools/volume-namespace.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
 import { DEFAULT_GENIE_SERVICE_NAME, systemAiMcpConfigFromEnv } from './agents/tools/system-ai-mcp.js';
+import { LakebaseMcpConnectorStore } from './agents/tools/mcp-connector-lakebase-store.js';
+import { MemoryMcpConnectorStore } from './agents/tools/mcp-connector-memory-store.js';
 import { McpDiscoveryService } from './agents/tools/mcp-discovery.js';
 import { buildConnectedMcpTools } from './agents/tools/mcp-tools.js';
 import { parseAllowlist } from './agents/tools/web-fetch.js';
@@ -53,6 +56,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   sandbox: SandboxStore;
   volumeUsage: VolumeUsageStore;
   plugins: PluginRegistryStore;
+  mcpConnectors: McpConnectorStore;
 }> {
   const ownerId = process.env.BRICKSBOT_USER_ID?.trim() || 'workspace-user';
   if (lakebaseConfigured() && query) {
@@ -69,6 +73,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       sandbox: new LakebaseSandboxStore(query),
       volumeUsage: new LakebaseVolumeUsageStore(query),
       plugins: new LakebasePluginRegistryStore(query),
+      mcpConnectors: new LakebaseMcpConnectorStore(query),
     };
   }
 
@@ -85,6 +90,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     sandbox: new MemorySandboxStore(),
     volumeUsage: new MemoryVolumeUsageStore(),
     plugins: new MemoryPluginRegistryStore(),
+    mcpConnectors: new MemoryMcpConnectorStore(),
   };
 }
 
@@ -107,6 +113,7 @@ createApp({
       sandbox,
       volumeUsage,
       plugins: pluginRegistry,
+      mcpConnectors,
     } = await createStores(query);
     const volumeRoot = resolveVolumeRoot(process.env);
     const client = createChatClientFromEnv(process.env);
@@ -151,11 +158,12 @@ createApp({
       userSchemas: process.env.DATABRICKS_MCP_SCHEMAS
         ? process.env.DATABRICKS_MCP_SCHEMAS.split(',').map((s) => s.trim())
         : undefined,
+      store: mcpConnectors,
     });
-    // Env opt-in Genie: mark connected so tools register without a UI click.
-    // Connectors dialog is the path for additional system.ai / custom MCPs.
+    // Env opt-in Genie: connected by default for every user (each user may disconnect it
+    // for themselves). Connectors dialog is the path for additional system.ai / custom MCPs.
     if (systemAiMcp) {
-      mcpDiscovery.markConnected(systemAiMcp.serviceName ?? DEFAULT_GENIE_SERVICE_NAME);
+      mcpDiscovery.markDefaultConnected(systemAiMcp.serviceName ?? DEFAULT_GENIE_SERVICE_NAME);
     }
     const pluginHost = new PluginHost({
       host: sqlQuery.host,
@@ -189,6 +197,12 @@ createApp({
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
       sqlQuery,
       sandbox: sandboxService,
+      resolveMcpTools: (userId) =>
+        buildConnectedMcpTools(mcpDiscovery, userId, {
+          ...mcpDiscovery.getClientConfig(),
+          maxPollSeconds: systemAiMcp?.maxPollSeconds,
+          pollIntervalMs: systemAiMcp?.pollIntervalMs,
+        }),
       volumeWrite: volumeRoot
         ? {
             root: volumeRoot,
@@ -199,19 +213,6 @@ createApp({
           }
         : undefined,
     });
-    try {
-      const mcpTools = await buildConnectedMcpTools(mcpDiscovery, {
-        ...mcpDiscovery.getClientConfig(),
-        maxPollSeconds: systemAiMcp?.maxPollSeconds,
-        pollIntervalMs: systemAiMcp?.pollIntervalMs,
-      });
-      chatService.replaceMcpTools(mcpTools);
-      if (mcpTools.length > 0) {
-        console.info(`[bricksbot] Connected MCP tools: ${mcpTools.map((t) => t.definition.name).join(', ')}`);
-      }
-    } catch (err) {
-      console.warn(`[bricksbot] Failed to register connected MCP tools: ${err instanceof Error ? err.message : err}`);
-    }
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {
       registerChatRoutes(app, chats, chatService, { mcpDiscovery });
