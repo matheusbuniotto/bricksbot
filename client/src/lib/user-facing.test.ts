@@ -3,6 +3,7 @@ import type { Message } from '../../../shared/chat/types';
 import { serializeArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { serializeHandoffNotice } from '../../../shared/chat/handoff-notice';
 import {
+  isOnceOnlyApproval,
   lastUserFacingPreview,
   presenceTooltip,
   rosterPreviewForPresence,
@@ -107,5 +108,14 @@ describe('user-facing', () => {
     );
     expect(activate.summary).toBe('Activate skill: MetaSmoke');
     expect(activate.technical).toBe(true);
+  });
+});
+
+describe('isOnceOnlyApproval', () => {
+  test('matches the server tools that never get Always allow', () => {
+    for (const name of ['create_bot', 'ask_choice', 'delete_routine', 'sandbox_delete', 'genie_ask']) {
+      expect(isOnceOnlyApproval(name)).toBe(true);
+    }
+    expect(isOnceOnlyApproval('sql_query')).toBe(false);
   });
 });

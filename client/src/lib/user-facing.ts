@@ -5,6 +5,17 @@ import { looksLikeJsonBlob } from '../../../shared/chat/preview';
 export { approvalTitle, toolLabel } from '../../../shared/agents/tool-labels';
 export { lastUserFacingPreview, messagePreviewLine } from '../../../shared/chat/preview';
 
+/** Tools that only offer Once / Not approve (no Always allow). */
+export function isOnceOnlyApproval(toolName: string): boolean {
+  return (
+    toolName === 'create_bot' ||
+    toolName === 'ask_choice' ||
+    toolName === 'delete_routine' ||
+    toolName === 'sandbox_delete' ||
+    toolName === 'genie_ask'
+  );
+}
+
 export function presenceTooltip(presence: Presence): string {
   switch (presence) {
     case 'waiting':
