@@ -424,10 +424,18 @@ export function registerChatRoutes(
     return bot;
   }
 
-  /** The caller's chat with an accessible bot, or null after responding 404/403. */
+  /** The caller's chat with an accessible bot (`?chatId=` picks one, else their latest), or null after responding. */
   async function accessibleBotChat(req: Request, res: Response): Promise<Chat | null> {
     const access = await requireBotAccess(store, String(req.params.botId), req, res);
-    return access ? store.getDefaultChat(access.bot.id, access.callerId) : null;
+    if (!access) return null;
+    const chatId = typeof req.query?.chatId === 'string' ? req.query.chatId : '';
+    if (!chatId) return store.getDefaultChat(access.bot.id, access.callerId);
+    const chat = await store.getChat(chatId);
+    if (!chat || chat.botId !== access.bot.id || chat.userId !== access.callerId) {
+      res.status(404).json({ error: 'Chat not found' });
+      return null;
+    }
+    return chat;
   }
 
   app.put('/api/bots/:botId', async (req: Request, res: Response) => {

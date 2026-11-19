@@ -324,7 +324,7 @@ export class LakebaseChatStore implements ChatStore {
       if (hasUncachedShared) {
         const chatsResult = await this.query(
           `SELECT bot_id, last_message_preview FROM bricksbot.chats
-           WHERE user_id = $1 AND last_message_preview IS NOT NULL ORDER BY updated_at ASC`,
+           WHERE user_id = $1 AND archived_at IS NULL AND last_message_preview IS NOT NULL ORDER BY updated_at ASC`,
           [ownerId]
         );
         for (const row of chatsResult.rows) {
@@ -643,11 +643,14 @@ export class LakebaseChatStore implements ChatStore {
     ]);
   }
 
-  archiveChat(chatId: string): Promise<Chat> {
-    return this.updateChat(
+  async archiveChat(chatId: string): Promise<Chat> {
+    const chat = await this.updateChat(
       `UPDATE bricksbot.chats SET archived_at = COALESCE(archived_at, NOW()) WHERE id = $1 RETURNING ${CHAT_COLUMNS}`,
       [chatId]
     );
+    // The roster preview may have come from this chat; the next roster read works it out again.
+    this.userPreviewsByBotUser.delete(`${chat.botId}:${chat.userId}`);
+    return chat;
   }
 
   async getRoutineChat(routine: { id: string; botId: string; ownerId: string; name: string }): Promise<Chat> {
@@ -657,6 +660,15 @@ export class LakebaseChatStore implements ChatStore {
       (await this.insertChat(routine.botId, routine.ownerId, `Routine: ${routine.name}`, 'routine', routine.id)) ??
       (await this.findChat(where, [routine.id]))!
     );
+  }
+
+  async archiveRoutineChat(routineId: string): Promise<void> {
+    const result = await this.query(
+      `UPDATE bricksbot.chats SET archived_at = COALESCE(archived_at, NOW())
+       WHERE routine_id = $1 AND kind = 'routine' RETURNING ${CHAT_COLUMNS}`,
+      [routineId]
+    );
+    for (const row of result.rows) this.remember(mapChat(row));
   }
 
   async getHandoffChat(botId: string, userId: string): Promise<Chat> {

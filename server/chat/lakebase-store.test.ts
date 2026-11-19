@@ -290,7 +290,12 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
     }
 
     if (normalized.includes('FROM bricksbot.chats WHERE user_id =')) {
-      const rows = [...chats.values()].filter((c) => c.user_id === params[0] && c.last_message_preview != null);
+      const rows = [...chats.values()].filter(
+        (c) =>
+          c.user_id === params[0] &&
+          c.last_message_preview != null &&
+          (!normalized.includes('archived_at IS NULL') || c.archived_at == null)
+      );
       return { rows };
     }
 
@@ -324,6 +329,12 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       const chat = chats.get(String(params[0]));
       if (chat) chat.title = String(params[1]);
       return { rows: chat ? [chat] : [] };
+    }
+
+    if (normalized.startsWith('UPDATE bricksbot.chats SET archived_at') && normalized.includes('WHERE routine_id =')) {
+      const rows = [...chats.values()].filter((c) => c.routine_id === params[0] && c.kind === 'routine');
+      for (const chat of rows) chat.archived_at ??= new Date().toISOString();
+      return { rows };
     }
 
     if (normalized.startsWith('UPDATE bricksbot.chats SET archived_at')) {
@@ -517,6 +528,25 @@ describe('LakebaseChatStore', () => {
     expect(botsForBAfter.find((b) => b.id === bot.id)?.lastPreview).toBe('Secret from user-b');
   });
 
+  test('an archived chat stops driving the roster preview, cached or not', async () => {
+    await store.ensureBootstrap('user-a');
+    await store.ensureBootstrap('user-b');
+    const sharedSpace = await store.createSpace({ name: 'Team', ownerId: 'user-a' });
+    await store.addSpaceMember(sharedSpace.id, 'user-b', 'member');
+    const bot = await store.createBot({ name: 'Analyst', spaceId: sharedSpace.id, ownerId: 'user-a', isShared: true });
+    const chatB = await store.getDefaultChat(bot.id, 'user-b');
+    await store.addMessage(chatB.id, 'user', 'Secret from user-b');
+
+    const roster = new LakebaseChatStore(fake.query);
+    const previewForB = async (s: LakebaseChatStore) =>
+      (await s.listBots({ ownerId: 'user-b' })).find((b) => b.id === bot.id)?.lastPreview;
+    expect(await previewForB(roster)).toBe('Secret from user-b');
+
+    await roster.archiveChat(chatB.id);
+    expect(await previewForB(roster)).toBe('');
+    expect(await previewForB(new LakebaseChatStore(fake.query))).toBe('');
+  });
+
   test('persists marketplace sharing and description', async () => {
     const bot = await store.createBot({
       name: 'SQL Helper',
@@ -594,6 +624,21 @@ describe('LakebaseChatStore', () => {
     expect((await store.listChats(bot.id, 'user-a')).map((c) => c.id)).toEqual([first.id]);
     expect((await store.getDefaultChat(bot.id, 'user-a')).id).toBe(first.id);
     await expect(store.archiveChat('missing')).rejects.toThrow('Chat not found');
+  });
+
+  test('archiving a deleted routine chat takes it off the list, in this process and the next', async () => {
+    const bot = await store.createBot({ name: 'Analyst', ownerId: 'user-a' });
+    const routine = { id: randomUUID(), botId: bot.id, ownerId: 'user-a', name: 'Daily' };
+    const routineChat = await store.getRoutineChat(routine);
+    const userChat = await store.getDefaultChat(bot.id, 'user-a');
+
+    await store.archiveRoutineChat(routine.id);
+
+    expect((await store.getChat(routineChat.id))?.archivedAt).toBeTruthy();
+    expect((await store.listChats(bot.id, 'user-a')).map((c) => c.id)).toEqual([userChat.id]);
+    expect((await new LakebaseChatStore(fake.query).listChats(bot.id, 'user-a')).map((c) => c.id)).toEqual([
+      userChat.id,
+    ]);
   });
 
   test('the roster preview follows the latest chat that has a message', async () => {

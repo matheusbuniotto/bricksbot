@@ -160,6 +160,8 @@ export interface ChatStore {
   archiveChat(chatId: string): Promise<Chat>;
   /** The one chat a routine runs in, created on first use. */
   getRoutineChat(routine: { id: string; botId: string; ownerId: string; name: string }): Promise<Chat>;
+  /** Takes a deleted routine's chat off the lists; its history stays. */
+  archiveRoutineChat(routineId: string): Promise<void>;
   /** The one chat where `userId`'s handoffs to the bot land, created on first use. */
   getHandoffChat(botId: string, userId: string): Promise<Chat>;
   getChat(chatId: string): Promise<Chat | null>;

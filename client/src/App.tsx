@@ -569,11 +569,11 @@ export default function App() {
   }
 
   async function handleStopSandbox() {
-    if (!selectedBotId) return;
+    if (!selectedBotId || !chat) return;
     setSandboxBusy(true);
     setError(null);
     try {
-      const next = await stopBotSandbox(selectedBotId);
+      const next = await stopBotSandbox(selectedBotId, chat.id);
       setSandboxStatus(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to stop sandbox');
@@ -583,11 +583,11 @@ export default function App() {
   }
 
   async function handleDeleteSandbox() {
-    if (!selectedBotId) return;
+    if (!selectedBotId || !chat) return;
     setSandboxBusy(true);
     setError(null);
     try {
-      const next = await deleteBotSandbox(selectedBotId);
+      const next = await deleteBotSandbox(selectedBotId, chat.id);
       setSandboxStatus(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to delete sandbox');

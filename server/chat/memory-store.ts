@@ -383,6 +383,12 @@ export class MemoryChatStore implements ChatStore {
     return chat;
   }
 
+  async archiveRoutineChat(routineId: string): Promise<void> {
+    for (const chat of this.chatById.values()) {
+      if (chat.routineId === routineId && chat.kind === 'routine') chat.archivedAt ??= nowIso();
+    }
+  }
+
   async getRoutineChat(routine: { id: string; botId: string; ownerId: string; name: string }): Promise<Chat> {
     const existing = [...this.chatById.values()].find((chat) => chat.routineId === routine.id);
     return (

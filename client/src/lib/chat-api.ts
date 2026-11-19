@@ -197,16 +197,16 @@ async function fetchChatPayload(url: string): Promise<{
   };
 }
 
-export async function stopBotSandbox(botId: string): Promise<SandboxUiStatus> {
+export async function stopBotSandbox(botId: string, chatId: string): Promise<SandboxUiStatus> {
   const data = await readJson<{ sandbox: SandboxUiStatus }>(
-    await fetch(`/api/bots/${botId}/sandbox/stop`, { method: 'POST' })
+    await fetch(`/api/bots/${botId}/sandbox/stop?chatId=${chatId}`, { method: 'POST' })
   );
   return data.sandbox;
 }
 
-export async function deleteBotSandbox(botId: string): Promise<SandboxUiStatus> {
+export async function deleteBotSandbox(botId: string, chatId: string): Promise<SandboxUiStatus> {
   const data = await readJson<{ sandbox: SandboxUiStatus }>(
-    await fetch(`/api/bots/${botId}/sandbox`, { method: 'DELETE' })
+    await fetch(`/api/bots/${botId}/sandbox?chatId=${chatId}`, { method: 'DELETE' })
   );
   return data.sandbox;
 }

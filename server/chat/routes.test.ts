@@ -4,6 +4,7 @@ import { StubChatClient } from '../agents/clients/stub-client.js';
 import { MemoryIdempotencyStore } from '../durable/idempotency-store.js';
 import { MemoryChatStore } from './memory-store.js';
 import { registerChatRoutes } from './routes.js';
+import type { SandboxSessionService } from '../sandbox/session-service.js';
 import { ChatService } from './service.js';
 
 async function withChatApp(
@@ -34,6 +35,50 @@ async function withChatApp(
     });
   }
 }
+
+describe('sandbox routes', () => {
+  test('stop and delete act on the chat they name, not the latest one', async () => {
+    const store = new MemoryChatStore();
+    const stopped: string[] = [];
+    const deleted: string[] = [];
+    const sandbox = {
+      isEnabled: () => true,
+      getUiStatusForChat: () =>
+        Promise.resolve({ enabled: true, backend: 'python_exec', session: null, recentEvents: [] }),
+      stopSession: (chatId: string) => Promise.resolve(void stopped.push(chatId)),
+      deleteSession: (chatId: string) => Promise.resolve(void deleted.push(chatId)),
+    } as unknown as SandboxSessionService;
+    const service = new ChatService({ store, client: new StubChatClient(), sandbox });
+    const app = express();
+    app.use(express.json());
+    registerChatRoutes(app, store, service);
+    const server = await new Promise<import('node:http').Server>((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
+    try {
+      const address = server.address() as { port: number };
+      const base = `http://127.0.0.1:${address.port}/api/bots`;
+      const { primary } = await store.ensureBootstrap('workspace-user');
+      const older = await store.getDefaultChat(primary.id, 'workspace-user');
+      const latest = await store.createChat(primary.id, 'workspace-user');
+
+      await fetch(`${base}/${primary.id}/sandbox/stop?chatId=${older.id}`, { method: 'POST' });
+      await fetch(`${base}/${primary.id}/sandbox?chatId=${older.id}`, { method: 'DELETE' });
+      await fetch(`${base}/${primary.id}/sandbox/stop`, { method: 'POST' });
+      expect(stopped).toEqual([older.id, latest.id]);
+      expect(deleted).toEqual([older.id]);
+
+      const other = await store.createChat(primary.id, 'someone-else');
+      const refused = await fetch(`${base}/${primary.id}/sandbox/stop?chatId=${other.id}`, { method: 'POST' });
+      expect(refused.status).toBe(404);
+      expect(stopped).toHaveLength(2);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+    }
+  });
+});
 
 describe('chat HTTP API', () => {
   test('bootstraps spaces, creates a bot, and chats', async () => {

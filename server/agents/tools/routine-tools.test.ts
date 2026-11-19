@@ -49,8 +49,10 @@ describe('routine tools CRUD', () => {
     expect(updated.routine.cron).toBe('0 7 * * *');
     expect(updated.routine.enabled).toBe(false);
 
+    await chats.getRoutineChat({ id, botId: primary.id, ownerId: 'owner-1', name: 'Dawn v2' });
     const deleted = JSON.parse(await deleteTool.execute({ name: 'Dawn v2' }, ctx)) as { ok: boolean };
     expect(deleted.ok).toBe(true);
+    expect((await chats.listChats(primary.id, 'owner-1')).map((c) => c.kind)).not.toContain('routine');
     expect((await routines.listRoutines('owner-1')).length).toBe(0);
 
     const messages = await chats.listMessages(chat.id);
