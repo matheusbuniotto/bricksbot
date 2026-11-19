@@ -20,7 +20,8 @@ const openStreams = new Map<string, number>();
 /**
  * Server-sent events for one run: persisted events replay from `Last-Event-ID` (the per-chat seq),
  * then follow live. `llm.delta` chunks come from this process and carry no id, so a reconnect never
- * replays them; the committed message is what survives. Ends after `run.finished` or `maxAgeMs`.
+ * replays them; the committed message is what survives. Ends after `run.finished` or `maxAgeMs`, or at
+ * the first heartbeat where `stillAllowed` says the caller lost access to the chat's bot.
  */
 export function streamRunEvents(
   req: Request,
@@ -28,6 +29,7 @@ export function streamRunEvents(
   runs: RunService,
   run: Run,
   userId: string,
+  stillAllowed: () => Promise<boolean>,
   timing: SseTiming = SSE_TIMING
 ): void {
   const open = openStreams.get(userId) ?? 0;
@@ -92,7 +94,12 @@ export function streamRunEvents(
   }
 
   timers.push(setInterval(() => void pump(), timing.pollMs));
-  timers.push(setInterval(() => res.write(': ping\n\n'), timing.heartbeatMs));
+  timers.push(
+    setInterval(() => {
+      res.write(': ping\n\n');
+      void stillAllowed().then((allowed) => allowed || close(), close);
+    }, timing.heartbeatMs)
+  );
   timers.push(setTimeout(close, timing.maxAgeMs));
   req.on('close', close);
   void pump();

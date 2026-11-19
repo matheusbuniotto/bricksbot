@@ -516,6 +516,30 @@ describe('run routes', () => {
     );
   });
 
+  test('a user who lost access to the bot cannot open a stream, and an open one ends', async () => {
+    await withApp(
+      async (api, ctx) => {
+        const { space } = await ctx.store.ensureBootstrap('alice');
+        await ctx.store.ensureBootstrap('bob');
+        await ctx.store.addSpaceMember(space.id, 'bob', 'member');
+        const bot = await ctx.store.createBot({ name: 'Shared', spaceId: space.id, ownerId: 'alice', isShared: true });
+        const chat = await ctx.store.getOrCreateChatForBot(bot.id, 'bob');
+        const run = await ctx.service.getRuns().open({ chatId: chat.id, kind: 'send', routine: false });
+        const asBob = { 'x-forwarded-email': 'bob' };
+        const url = `/api/chats/${chat.id}/runs/${run.runId}/events`;
+
+        const open = await api(url, undefined, asBob);
+        expect(open.status).toBe(200);
+        await ctx.store.updateBot(bot.id, { isShared: false });
+
+        expect((await api(url, undefined, asBob)).status).toBe(403);
+        await open.text(); // resolves only because the server ended the stream
+        await ctx.service.getRuns().settle(run, 'completed');
+      },
+      { maxAgeMs: 5000, heartbeatMs: 50, pollMs: 10 }
+    );
+  });
+
   test('streams are scoped to the chat', async () => {
     await withApp(async (api, ctx) => {
       expect((await api(`/api/chats/${ctx.chat.id}/runs/nope/events`)).status).toBe(404);

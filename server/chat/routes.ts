@@ -8,7 +8,7 @@ import { buildConnectedMcpTools } from '../agents/tools/mcp-tools.js';
 import { ActiveRunError, TooManyRunsError } from '../../shared/runs/types.js';
 import { streamRunEvents, type SseTiming } from '../runs/sse.js';
 import { createErrorResponder } from '../lib/http.js';
-import { canManageSpaceMembers, canViewerAccessSpace } from './access-policy.js';
+import { canManageSpaceMembers, canViewBot, canViewerAccessSpace } from './access-policy.js';
 import { runWithDatabricksRequestAuth } from './databricks-auth.js';
 import { resolveOwnerId } from './identity.js';
 import { requireBotAccess, requireBotUse, requireSpaceAccess } from './route-guards.js';
@@ -759,12 +759,19 @@ export function registerChatRoutes(
       const chatId = String(req.params.chatId);
       const chat = await assertChatOwnership(chatId, req, res);
       if (!chat) return;
+      const access = await requireBotAccess(store, chat.botId, req, res);
+      if (!access) return;
       const run = await service.getRuns().store.get(String(req.params.runId));
       if (!run || run.chatId !== chatId) {
         res.status(404).json({ error: 'Run not found' });
         return;
       }
-      streamRunEvents(req, res, service.getRuns(), run, chat.userId ?? chatId, options?.sseTiming);
+      // Unsharing cuts off a stream that is already open, not just new ones.
+      const stillAllowed = async () => {
+        const bot = await store.getBot(chat.botId);
+        return bot ? canViewBot(store, bot, access.callerId) : false;
+      };
+      streamRunEvents(req, res, service.getRuns(), run, chat.userId ?? chatId, stillAllowed, options?.sseTiming);
     } catch (err) {
       sendError(res, err);
     }
