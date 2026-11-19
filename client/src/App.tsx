@@ -26,6 +26,7 @@ import {
   moveBot,
   revokeAutoApproval,
   sendChatMessage,
+  stopActiveRun,
   stopBotSandbox,
   submitChoice,
   unarchiveBot,
@@ -392,6 +393,15 @@ export default function App() {
     }
   }
 
+  async function handleStop() {
+    if (!chat) return;
+    try {
+      await stopActiveRun(chat.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to stop the run');
+    }
+  }
+
   async function handleDecide(id: string, decision: ApprovalDecision) {
     const approval = pendingApprovals.find((item) => item.id === id) ?? null;
     const accepted = decision === 'once' || decision === 'all_the_time';
@@ -646,7 +656,9 @@ export default function App() {
                       : 'Message'
                 }
                 accent={accent}
+                running={Boolean(runningTool)}
                 onSend={handleSend}
+                onStop={handleStop}
               />
             </div>
           </>

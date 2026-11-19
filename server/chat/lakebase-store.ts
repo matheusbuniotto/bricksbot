@@ -94,6 +94,7 @@ function mapMessage(row: Record<string, unknown>): Message {
     createdAt: asString(row.created_at),
     toolCallId: row.tool_call_id ? asString(row.tool_call_id) : undefined,
     toolCalls: parseToolCalls(row.tool_calls),
+    runId: row.run_id ? asString(row.run_id) : undefined,
   };
 }
 
@@ -627,7 +628,7 @@ export class LakebaseChatStore implements ChatStore {
       if (!chat.rows[0]) throw new Error('Chat not found');
     }
     const result = await this.query(
-      `SELECT id, chat_id, role, content, created_at, tool_call_id, tool_calls
+      `SELECT id, chat_id, role, content, created_at, tool_call_id, tool_calls, run_id
        FROM bricksbot.messages
        WHERE chat_id = $1
        ORDER BY created_at ASC`,
@@ -640,7 +641,7 @@ export class LakebaseChatStore implements ChatStore {
     chatId: string,
     role: MessageRole,
     content: string,
-    options?: { toolCallId?: string; toolCalls?: ToolCall[] }
+    options?: { toolCallId?: string; toolCalls?: ToolCall[]; runId?: string }
   ): Promise<Message> {
     const trimmed = content.trim();
     if (!trimmed && role !== 'assistant') {
@@ -654,10 +655,10 @@ export class LakebaseChatStore implements ChatStore {
     const id = randomUUID();
     const toolCallsJson = options?.toolCalls?.length ? JSON.stringify(options.toolCalls) : null;
     const result = await this.query(
-      `INSERT INTO bricksbot.messages (id, chat_id, role, content, tool_call_id, tool_calls)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, chat_id, role, content, created_at, tool_call_id, tool_calls`,
-      [id, chatId, role, trimmed, options?.toolCallId ?? null, toolCallsJson]
+      `INSERT INTO bricksbot.messages (id, chat_id, role, content, tool_call_id, tool_calls, run_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, chat_id, role, content, created_at, tool_call_id, tool_calls, run_id`,
+      [id, chatId, role, trimmed, options?.toolCallId ?? null, toolCallsJson, options?.runId ?? null]
     );
     const preview = messagePreviewLine({ role, content: trimmed });
     if (preview !== null) {

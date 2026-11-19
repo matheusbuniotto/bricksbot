@@ -95,6 +95,8 @@ describe('volume_write', () => {
       isShared: true,
       spaceId: primary.spaceId,
     });
+    await store.addSpaceMember(primary.spaceId!, 'Alice@Co.com', 'member');
+    await store.addSpaceMember(primary.spaceId!, 'bob@co.com', 'member');
     const primaryChat = await store.getOrCreateChatForBot(primary.id, 'user-1');
     const teammateChat = await store.getOrCreateChatForBot(teammate.id, 'user-1');
     const aliceChat = await store.getOrCreateChatForBot(shared.id, 'Alice@Co.com');

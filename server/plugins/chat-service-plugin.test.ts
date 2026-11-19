@@ -46,7 +46,7 @@ describe('ChatService + PluginHost integration', () => {
 
     const service = new ChatService({ store, client, pluginHost });
     const space = await store.createSpace({ name: 'CRM Space' });
-    const bot = await store.createBot({ name: 'CRM Bot', spaceId: space.id });
+    const bot = await store.createBot({ name: 'CRM Bot', spaceId: space.id, ownerId: 'workspace-user' });
     const chat = await store.getOrCreateChatForBot(bot.id);
 
     client.enqueue({ content: 'Hello there', toolCalls: [] });
@@ -80,7 +80,7 @@ describe('ChatService + PluginHost integration', () => {
 
     const service = new ChatService({ store, client, pluginHost });
     const space = await store.createSpace({ name: 'ERP Space' });
-    const bot = await store.createBot({ name: 'ERP Bot', spaceId: space.id });
+    const bot = await store.createBot({ name: 'ERP Bot', spaceId: space.id, ownerId: 'workspace-user' });
     const chat = await store.getOrCreateChatForBot(bot.id);
 
     client.enqueue({
@@ -123,7 +123,7 @@ describe('ChatService + PluginHost integration', () => {
 
     const service = new ChatService({ store, client, pluginHost });
     const space = await store.createSpace({ name: 'Stock Space' });
-    const bot = await store.createBot({ name: 'Stock Bot', spaceId: space.id });
+    const bot = await store.createBot({ name: 'Stock Bot', spaceId: space.id, ownerId: 'workspace-user' });
     const chat = await store.getOrCreateChatForBot(bot.id);
 
     client.enqueue({
@@ -158,7 +158,7 @@ describe('ChatService + PluginHost integration', () => {
 
     const service = new ChatService({ store, client, pluginHost });
     const space = await store.createSpace({ name: 'DB Space' });
-    const bot = await store.createBot({ name: 'DB Bot', spaceId: space.id });
+    const bot = await store.createBot({ name: 'DB Bot', spaceId: space.id, ownerId: 'workspace-user' });
     const chat = await store.getOrCreateChatForBot(bot.id);
 
     client.enqueue({
@@ -208,7 +208,7 @@ describe('ChatService + PluginHost integration', () => {
 
     const service = new ChatService({ store, client, pluginHost });
     const space = await store.createSpace({ name: 'Sec Space' });
-    const bot = await store.createBot({ name: 'Sec Bot', spaceId: space.id });
+    const bot = await store.createBot({ name: 'Sec Bot', spaceId: space.id, ownerId: 'workspace-user' });
     const chat = await store.getOrCreateChatForBot(bot.id);
 
     client.enqueue({
@@ -259,7 +259,7 @@ describe('ChatService + PluginHost integration', () => {
 
     const service = new ChatService({ store, client, pluginHost });
     const space = await store.createSpace({ name: 'Audit Space' });
-    const bot = await store.createBot({ name: 'Audit Bot', spaceId: space.id });
+    const bot = await store.createBot({ name: 'Audit Bot', spaceId: space.id, ownerId: 'workspace-user' });
     const chat = await store.getOrCreateChatForBot(bot.id);
 
     client.enqueue({
@@ -303,7 +303,7 @@ describe('ChatService + PluginHost integration', () => {
 
     const service = new ChatService({ store, client, pluginHost });
     const space = await store.createSpace({ name: 'Track Space' });
-    const bot = await store.createBot({ name: 'Track Bot', spaceId: space.id });
+    const bot = await store.createBot({ name: 'Track Bot', spaceId: space.id, ownerId: 'workspace-user' });
     const chat = await store.getOrCreateChatForBot(bot.id);
 
     client.enqueue({ content: 'Turn reply', toolCalls: [] });

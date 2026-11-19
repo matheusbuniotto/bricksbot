@@ -110,6 +110,27 @@ describe('createSqlQueryTool', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  test('hands the run signal to the warehouse request so Stop ends it', async () => {
+    const controller = new AbortController();
+    const fetchImpl = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+      expect(init?.signal).toBe(controller.signal);
+      const body = { status: { state: 'SUCCEEDED' }, manifest: { schema: { columns: [] } } };
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    });
+    const tool = createSqlQueryTool({
+      host: 'https://dbc.example.cloud.databricks.com',
+      warehouseId: 'wh',
+      getToken: () => Promise.resolve('tok'),
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await tool.execute(
+      { statement: 'SELECT 1' },
+      { chatId: 'c1', bot: null, run: { signal: controller.signal } as never }
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   test('passes the statement and warehouse to the stub executor', async () => {
     const executeImpl = vi.fn(async (input: { statement: string; warehouseId: string }) => {
       return `${input.warehouseId}:${input.statement}`;

@@ -245,6 +245,11 @@
       "count": 7
     }
   },
+  "server/runs/memory-store.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 9
+    }
+  },
   "server/sandbox/artifact-sync.test.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 1

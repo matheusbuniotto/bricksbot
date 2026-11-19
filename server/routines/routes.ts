@@ -32,10 +32,14 @@ const patchRoutineSchema = z.object({
 const APP_IDENTITY_REQUIRED =
   'Routines can run as the App service principal only when BRICKSBOT_ROUTINE_APP_IDENTITY=allow';
 
-const sendError = createErrorResponder([[400, /required|disabled/i]]);
+const sendError = createErrorResponder([
+  [400, /required|disabled/i],
+  [409, /run is already active/i],
+]);
 const sendWebhookError = createErrorResponder([
   [401, /invalid webhook/i],
   [403, /required|disabled/i],
+  [409, /run is already active/i],
 ]);
 
 export type RoutineHttpApp = ChatHttpApp & {

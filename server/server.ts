@@ -1,6 +1,7 @@
 import { createApp, lakebase, server } from '@databricks/appkit';
 import type { ChatStore } from '../shared/chat/types.js';
 import type { CompactionStore, IdempotencyStore } from '../shared/durable/types.js';
+import type { RunStore } from '../shared/runs/types.js';
 import type { MemorySkillStore } from '../shared/agents/memory/types.js';
 import type { RoutineStore } from '../shared/routines/types.js';
 import type { VolumeUsageStore } from '../shared/agents/volume-namespace.js';
@@ -39,6 +40,8 @@ import { MemoryRoutineStore } from './routines/memory-store.js';
 import { registerRoutineRoutes } from './routines/routes.js';
 import { RoutineService } from './routines/service.js';
 import { initTracing } from './observability/tracing.js';
+import { LakebaseRunStore } from './runs/lakebase-store.js';
+import { MemoryRunStore } from './runs/memory-store.js';
 import { LakebaseSandboxStore } from './sandbox/lakebase-store.js';
 import { MemorySandboxStore } from './sandbox/memory-store.js';
 import { SandboxReaper } from './sandbox/reaper.js';
@@ -56,6 +59,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   memory: MemorySkillStore;
   compaction: CompactionStore;
   idempotency: IdempotencyStore;
+  runs: RunStore;
   approvals: ApprovalStore;
   sandbox: SandboxStore;
   volumeUsage: VolumeUsageStore;
@@ -73,6 +77,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       memory: new LakebaseMemorySkillStore(query),
       compaction: new LakebaseCompactionStore(query),
       idempotency: new LakebaseIdempotencyStore(query),
+      runs: new LakebaseRunStore(query),
       approvals: new ApprovalStore(query),
       sandbox: new LakebaseSandboxStore(query),
       volumeUsage: new LakebaseVolumeUsageStore(query),
@@ -90,6 +95,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     memory: new MemoryMemorySkillStore(),
     compaction: new MemoryCompactionStore(),
     idempotency: new MemoryIdempotencyStore(),
+    runs: new MemoryRunStore(),
     approvals: new ApprovalStore(),
     sandbox: new MemorySandboxStore(),
     volumeUsage: new MemoryVolumeUsageStore(),
@@ -113,6 +119,7 @@ createApp({
       memory,
       compaction,
       idempotency,
+      runs,
       approvals,
       sandbox,
       volumeUsage,
@@ -208,6 +215,7 @@ createApp({
       routines,
       compaction,
       idempotency,
+      runs,
       approvals,
       pluginHost,
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
@@ -230,6 +238,10 @@ createApp({
           }
         : undefined,
     });
+    // A run whose server died stays "running" until its lease lapses; this fails it and tidies the transcript.
+    const sweepRuns = () =>
+      chatService.sweepInterruptedRuns().catch((err) => console.warn('[bricksbot] Run sweep failed', err));
+    setInterval(() => void sweepRuns(), 30_000).unref();
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {
       registerChatRoutes(app, chats, chatService, { mcpDiscovery });

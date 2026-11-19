@@ -110,7 +110,7 @@ async function planVolumeWrite(
   ctx: HandoffTurnContext,
   options: VolumeWriteToolOptions
 ): Promise<Planned> {
-  if (ctx.routine) {
+  if (ctx.run?.routine) {
     return { ok: false, error: 'volume_write is not available on routine runs' };
   }
   if (!ctx.userId?.trim()) {
