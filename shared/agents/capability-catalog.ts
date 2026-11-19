@@ -144,7 +144,7 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
 
   if (catalog.tools.some((tool) => tool.name === 'ask_choice')) {
     blocks[0] +=
-      ' Use ask_choice (Ask-first, no Always allow) when the user must pick one of 2–5 options; the answer is stored in the transcript.';
+      ' Use ask_choice (Ask-first, no Always allow) when the user must pick between genuinely different options; the answer is stored in the transcript. Never use it, or a text question like "Proceed?", to confirm an action: Ask-first tools (create_bot, sql_query, schedule_routine, handoff_to_bot, …) already show an approval card, so just call the tool.';
   }
 
   if (catalog.tools.some((tool) => tool.name === 'schedule_routine')) {
@@ -190,7 +190,9 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
     creatable.push('memories (remember)');
   }
   if (creatable.length > 0) {
-    blocks.push(`You can create: ${creatable.join('; ')}. Prefer ask_choice when the user has not confirmed details.`);
+    blocks.push(
+      `You can create: ${creatable.join('; ')}. Use ask_choice only when details are ambiguous, not to confirm.`
+    );
   }
 
   const canCreateBot = catalog.tools.some((tool) => tool.name === 'create_bot');
@@ -209,7 +211,7 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
 
   if (canCreateBot) {
     blocks.push(
-      'You can create focused teammates with create_bot when a job needs a long-lived owner and no teammate fits. Prefer handoff_to_bot otherwise. Creating a bot always needs user approval — ask before creating several. Pass job as an operational brief: goal/ownership, sources, working style, and approval boundary (what never happens without the user).'
+      'You can create focused teammates with create_bot when a job needs a long-lived owner and no teammate fits. Prefer handoff_to_bot otherwise. Creating a bot always shows an approval card, so call create_bot directly (once per bot) without asking to proceed. Pass job as an operational brief: goal/ownership, sources, working style, and approval boundary (what never happens without the user).'
     );
   } else if (!canHandoff) {
     blocks.push(

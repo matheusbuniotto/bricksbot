@@ -8,7 +8,8 @@ export const ASK_CHOICE_TOOL_NAME = 'ask_choice';
 export const askChoiceToolDefinition: ToolDefinition = {
   name: ASK_CHOICE_TOOL_NAME,
   description:
-    'Ask the user to pick one option (2–5 choices). Use when a decision must come from the user before continuing. ' +
+    'Ask the user to pick one option (2–5 choices). Use only for genuine ambiguity between options the user must decide. ' +
+    'Never use it to confirm an action (Proceed? Yes/No): Ask-first tools already show an approval card, so just call the tool. ' +
     'The turn blocks until they select; the choice is stored in the transcript as “Your answer”.',
   parameters: {
     type: 'object',
@@ -27,6 +28,18 @@ export const askChoiceToolDefinition: ToolDefinition = {
   },
 };
 
+const CONFIRMATION_LABELS = new Set(['yes', 'no', 'proceed', 'cancel', 'confirm', 'ok', 'go ahead', 'sure']);
+
+const isPlainConfirmation = (options: string[]) =>
+  options.every((option) =>
+    CONFIRMATION_LABELS.has(
+      option
+        .toLowerCase()
+        .replace(/[^a-z ]/g, '')
+        .trim()
+    )
+  );
+
 type Planned = { ok: true; prompt: string; options: string[] } | { ok: false; error: string };
 
 export function planAskChoice(args: Record<string, unknown>): Planned {
@@ -39,6 +52,12 @@ export function planAskChoice(args: Record<string, unknown>): Planned {
     return {
       ok: false,
       error: 'ask_choice options must be 2–5 unique non-empty strings',
+    };
+  }
+  if (isPlainConfirmation(options)) {
+    return {
+      ok: false,
+      error: 'ask_choice is not for yes/no confirmation; call the action tool directly and the user approves it there',
     };
   }
   return { ok: true, prompt, options };
