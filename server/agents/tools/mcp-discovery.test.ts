@@ -96,6 +96,52 @@ describe('McpDiscoveryService', () => {
     expect(afterRemove.map((m) => m.service)).toContain('system.ai.slack');
   });
 
+  it('caches the catalog per user and never pins a refused listing', async () => {
+    let token = 'alice';
+    const granted: Record<string, string[]> = { alice: ['main.default.alice_only'], bob: [] };
+    const mockFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = requestUrl(input);
+      const auth = new Headers(init?.headers).get('Authorization')?.replace('Bearer ', '') ?? '';
+      if (url.includes('/api/2.1/unity-catalog/mcp-services')) {
+        if (auth === 'bob' && !granted.bob.length) return Promise.resolve(new Response('Forbidden', { status: 403 }));
+        const services = url.includes('main.default') ? (granted[auth] ?? []) : [];
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ mcp_services: services.map((full_name) => ({ name: full_name.split('.')[2], full_name })) }),
+            { status: 200 }
+          )
+        );
+      }
+      const service = /mcp-services\/([^/?]+)/.exec(url)?.[1] ?? '';
+      if (granted[auth]?.includes(service)) {
+        const parsed = JSON.parse(requestBody(init)) as { id?: number };
+        return Promise.resolve(
+          new Response(JSON.stringify({ jsonrpc: '2.0', id: parsed.id ?? 1, result: { tools: [{ name: 't' }] } }), {
+            status: 200,
+          })
+        );
+      }
+      return Promise.resolve(new Response('Forbidden', { status: 403 }));
+    }) as typeof fetch;
+
+    const discovery = new McpDiscoveryService({
+      host: 'https://workspace.cloud.databricks.com',
+      getToken: () => Promise.resolve(token),
+      fetchImpl: mockFetch,
+      cacheTtlMs: 60_000,
+    });
+    const services = async (userId: string) =>
+      (await discovery.listViableMcps({ userId })).map((m) => m.service);
+
+    expect(await services('alice')).toContain('main.default.alice_only');
+    token = 'bob';
+    expect(await services('bob')).not.toContain('main.default.alice_only');
+
+    // Bob's listing was refused (403): a later grant must show up without waiting for the TTL.
+    granted.bob = ['main.default.alice_only'];
+    expect(await services('bob')).toContain('main.default.alice_only');
+  });
+
   it('allows registering and removing custom user MCPs', async () => {
     const mockFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
       const url = requestUrl(input);
