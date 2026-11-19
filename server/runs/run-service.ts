@@ -42,6 +42,7 @@ export class RunService {
   /** Identifies this process as lease holder. */
   readonly owner = randomUUID();
   private readonly live = new Map<string, { controller: AbortController; heartbeat: NodeJS.Timeout }>();
+  private inserting: Promise<void> = Promise.resolve();
   /** Live model text per run id, in this process only. */
   private readonly deltas = new EventEmitter();
 
@@ -52,15 +53,30 @@ export class RunService {
 
   /** Opens a run unless the chat has one running (ActiveRunError). `ctx` is null for a requestId used before. */
   async start(input: StartRunInput): Promise<{ run: Run; ctx: RunContext | null }> {
-    await this.assertRoomFor(input);
-    const { run, duplicate } = await this.store.start(input);
+    const { run, duplicate } = await this.insert(input);
     return { run, ctx: duplicate ? null : await this.begin(run) };
   }
 
   /** `start` for callers that send no requestId, so the run is never a duplicate. */
   async open(input: Omit<StartRunInput, 'requestId'>): Promise<RunContext> {
-    await this.assertRoomFor(input);
-    return this.begin((await this.store.start(input)).run);
+    return this.begin((await this.insert(input)).run);
+  }
+
+  /**
+   * The cap check and the insert run one at a time, so concurrent sends cannot all pass the check.
+   * A repeated requestId skips the cap: it opens nothing new.
+   */
+  private insert(input: StartRunInput): Promise<{ run: Run; duplicate: boolean }> {
+    const attempt = this.inserting.then(async () => {
+      const repeat = input.requestId ? await this.store.findByRequestId(input.requestId) : null;
+      if (!repeat) await this.assertRoomFor(input);
+      return this.store.start(input);
+    });
+    this.inserting = attempt.then(
+      () => undefined,
+      () => undefined
+    );
+    return attempt;
   }
 
   private async assertRoomFor({ routine, payerUserId }: Pick<StartRunInput, 'routine' | 'payerUserId'>): Promise<void> {
@@ -91,7 +107,14 @@ export class RunService {
       routine: run.routine,
       payerUserId: run.payerUserId,
       signal: controller.signal,
-      delta: (text) => void this.deltas.emit(run.id, text),
+      // Live text is a feed for watchers; a broken listener must not fail the turn.
+      delta: (text) => {
+        try {
+          this.deltas.emit(run.id, text);
+        } catch {
+          // The listener's stream closes itself.
+        }
+      },
       // Events are a feed for watchers; losing one must not fail the turn.
       emit: async (type, payload = {}) => {
         try {

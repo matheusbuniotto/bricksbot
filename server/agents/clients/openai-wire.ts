@@ -196,8 +196,12 @@ async function readStreamedCompletion(
   };
 }
 
-/** Endpoints (url + model) that refused `stream: true` once; they are called without it from then on. */
-const streamRefused = new Set<string>();
+/**
+ * Endpoints (url + model) that refused `stream: true`, with when to ask again. They are called without it
+ * meanwhile; the memory expires so a one-off error cannot switch streaming off for the life of the process.
+ */
+const streamRefused = new Map<string, number>();
+const STREAM_REFUSED_FOR_MS = 10 * 60_000;
 const STREAM_REFUSED_STATUSES = new Set([400, 404, 405, 415, 422, 501]);
 
 /**
@@ -225,12 +229,12 @@ export async function postChatCompletion(input: {
       signal,
     });
 
-  const streaming = Boolean(onDelta) && !streamRefused.has(key);
+  const streaming = Boolean(onDelta) && (streamRefused.get(key) ?? 0) <= Date.now();
   let response = await post(streaming);
   if (streaming && STREAM_REFUSED_STATUSES.has(response.status)) {
     // Only a retry that works proves the endpoint refuses streaming rather than the request.
     const retry = await post(false);
-    if (retry.ok) streamRefused.add(key);
+    if (retry.ok) streamRefused.set(key, Date.now() + STREAM_REFUSED_FOR_MS);
     response = retry;
   }
 

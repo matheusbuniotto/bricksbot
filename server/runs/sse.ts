@@ -51,12 +51,21 @@ export function streamRunEvents(
   let closed = false;
   let pumping = false;
 
+  // A write to a connection that already ended must end the stream, never throw into the run or a timer.
+  const write = (chunk: string) => {
+    if (closed || res.writableEnded || res.destroyed) return;
+    try {
+      res.write(chunk);
+    } catch {
+      close();
+    }
+  };
   const send = (data: unknown, id?: number) =>
-    res.write(`${id === undefined ? '' : `id: ${id}\n`}data: ${JSON.stringify(data)}\n\n`);
+    write(`${id === undefined ? '' : `id: ${id}\n`}data: ${JSON.stringify(data)}\n\n`);
 
   const timers: NodeJS.Timeout[] = [];
   const stopDeltas = runs.onDelta(run.id, (text) => send({ type: 'llm.delta', payload: { text } }));
-  const close = () => {
+  function close() {
     if (closed) return;
     closed = true;
     timers.forEach(clearInterval);
@@ -65,7 +74,7 @@ export function streamRunEvents(
     if (left > 0) openStreams.set(userId, left);
     else openStreams.delete(userId);
     res.end();
-  };
+  }
 
   async function pump() {
     if (pumping || closed) return;
@@ -96,11 +105,12 @@ export function streamRunEvents(
   timers.push(setInterval(() => void pump(), timing.pollMs));
   timers.push(
     setInterval(() => {
-      res.write(': ping\n\n');
+      write(': ping\n\n');
       void stillAllowed().then((allowed) => allowed || close(), close);
     }, timing.heartbeatMs)
   );
   timers.push(setTimeout(close, timing.maxAgeMs));
   req.on('close', close);
+  res.on('error', close);
   void pump();
 }

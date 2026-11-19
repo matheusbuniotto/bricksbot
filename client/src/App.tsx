@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { PendingChoice } from '../../shared/chat/choice-notice';
 import type { Bot, Chat, MarketplaceBot, Message, Space } from '../../shared/chat/types';
@@ -37,6 +37,7 @@ import {
 import type { SandboxUiStatus } from '../../shared/sandbox/types';
 import { createRoutine, deleteRoutine, fetchRoutines, runRoutine, updateRoutine } from './lib/routines-api';
 import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
+import { newestTicket } from './lib/newest-ticket';
 import { lastUserFacingPreview, toolLabel } from './lib/user-facing';
 import type { Routine } from '../../shared/routines/types';
 
@@ -161,16 +162,24 @@ export default function App() {
     }
   }, [marketplaceOpen, refreshMarketplace]);
 
-  const loadChat = useCallback(async (botId: string) => {
-    const data = await fetchBotChat(botId);
-    setChat(data.chat);
-    setMessages(data.messages);
-    setPendingApprovals(data.pendingApprovals);
-    setPendingChoices(data.pendingChoices ?? []);
-    setAutoApprovedTools(data.autoApprovedTools ?? []);
-    setSandboxStatus(data.sandboxStatus ?? null);
-    setPreviews((prev) => ({ ...prev, [botId]: lastUserFacingPreview(data.messages) }));
-  }, []);
+  // Loads overlap (a run's commits, its end, switching bots); only the newest may touch the screen.
+  const nextLoad = useRef(newestTicket()).current;
+  const loadChat = useCallback(
+    async (botId: string) => {
+      const isNewest = nextLoad();
+      const data = await fetchBotChat(botId);
+      if (!isNewest()) return false;
+      setChat(data.chat);
+      setMessages(data.messages);
+      setPendingApprovals(data.pendingApprovals);
+      setPendingChoices(data.pendingChoices ?? []);
+      setAutoApprovedTools(data.autoApprovedTools ?? []);
+      setSandboxStatus(data.sandboxStatus ?? null);
+      setPreviews((prev) => ({ ...prev, [botId]: lastUserFacingPreview(data.messages) }));
+      return true;
+    },
+    [nextLoad]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -387,7 +396,7 @@ export default function App() {
       }));
     } else if (type === 'assistant.committed') {
       // Swap the streamed text for the saved message in one step, so it does not blink out.
-      void loadChat(botId).then(() => change((current) => ({ ...current, text: '' })));
+      void loadChat(botId).then((shown) => shown && change((current) => ({ ...current, text: '' })));
     }
   }
 
