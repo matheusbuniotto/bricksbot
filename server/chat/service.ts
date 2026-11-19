@@ -470,11 +470,8 @@ export class ChatService {
    * between the assistant's tool_calls and their results and make the history invalid for the LLM.
    */
   private async refuseWhilePaused(chatId: string): Promise<void> {
-    const [approvals, choices] = await Promise.all([
-      this.approvals.listPending(chatId),
-      this.choices.listPending(chatId),
-    ]);
-    if (approvals.length === 0 && choices.length === 0) return;
+    const approvals = await this.approvals.listPending(chatId);
+    if (approvals.length === 0 && this.choices.listPending(chatId).length === 0) return;
     const latest = await this.runs.store.latest(chatId);
     throw new ActiveRunError(latest?.id ?? '', 'This chat is waiting for an approval or an answer');
   }
