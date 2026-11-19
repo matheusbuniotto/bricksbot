@@ -23,14 +23,9 @@ Not included: a desktop or browser-control UI, and always-on Genie (Genie is opt
 
 ## How it fits together
 
-```mermaid
-flowchart LR
-  UI["React UI"] --> API["Express API + agent loop"]
-  API --> LLM["LLM: OpenRouter or Model Serving"]
-  API --> Tools["Tools: SQL warehouse, UC catalog, Volumes, sandbox, MCP"]
-  API --> DB[("Lakebase: chats, approvals, memories")]
-  Job["Lakeflow Job"] -->|webhook| API
-```
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="BricksBot architecture: the browser talks to a Databricks App whose bots call lakehouse tools as the signed-in user after an approval gate, with state in Lakebase, models from OpenRouter or Model Serving, and a Lakeflow Job triggering routines" width="880" />
+</p>
 
 Details: [docs/architecture.md](docs/architecture.md).
 
