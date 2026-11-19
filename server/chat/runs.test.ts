@@ -391,7 +391,7 @@ describe('sweeper and handoffs', () => {
       sql: () => new Promise(() => {}),
     });
     const analyst = await store.createBot({ name: 'Analyst', ownerId: bot.ownerId, spaceId: bot.spaceId });
-    const targetChat = await store.getOrCreateChatForBot(analyst.id);
+    const targetChat = await store.getHandoffChat(analyst.id, bot.ownerId);
     await service.getApprovals().setAutoApproved(chat.id, 'handoff_to_bot');
 
     void service.sendUserMessage(chat.id, 'ask the analyst').catch(() => {});
