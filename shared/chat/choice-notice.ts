@@ -83,7 +83,7 @@ export function parseChoiceAnswerNotice(content: string): ChoiceAnswerNotice | n
 
 /** Transcript line after the user picks an option. */
 export function choiceAnswerPreviewLine(notice: ChoiceAnswerNotice): string {
-  return `Sua resposta: ${notice.selectedOption}`;
+  return `Your answer: ${notice.selectedOption}`;
 }
 
 export function normalizeOptions(raw: unknown): string[] | null {

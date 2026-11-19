@@ -19,12 +19,22 @@ function parseJson(body: string): unknown {
   }
 }
 
+/** Columns are names, or `{ name, type }` objects as `sql_query` returns them. */
+function columnName(column: unknown): string | null {
+  if (typeof column === 'string') return column;
+  if (column && typeof column === 'object' && 'name' in column && typeof column.name === 'string') {
+    return column.name;
+  }
+  return null;
+}
+
 export function parseTableBody(body: string): TableData | null {
-  const v = parseJson(body) as Partial<TableData> | null;
+  const v = parseJson(body) as { columns?: unknown; rows?: unknown } | null;
   if (!v || !Array.isArray(v.columns) || !Array.isArray(v.rows)) return null;
-  if (!v.columns.every((c) => typeof c === 'string')) return null;
+  const columns = v.columns.map(columnName);
+  if (!columns.every((c) => c !== null)) return null;
   if (!v.rows.every((r) => Array.isArray(r))) return null;
-  return { columns: v.columns, rows: v.rows.slice(0, 200) };
+  return { columns, rows: (v.rows as TableData['rows']).slice(0, 200) };
 }
 
 export function parseChartBody(body: string): ChartData | null {

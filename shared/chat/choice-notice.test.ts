@@ -34,7 +34,7 @@ describe('choice-notice', () => {
     });
     const parsed = parseChoiceAnswerNotice(answer);
     expect(parsed?.selectedOption).toBe('prod');
-    expect(choiceAnswerPreviewLine(parsed!)).toBe('Sua resposta: prod');
+    expect(choiceAnswerPreviewLine(parsed!)).toBe('Your answer: prod');
   });
 
   test('normalizeOptions enforces 2–5 unique non-empty strings', () => {
