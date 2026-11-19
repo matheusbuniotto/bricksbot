@@ -52,6 +52,8 @@ export interface RunContext {
   /** Aborts when the user presses Stop (or the run's lease is lost). */
   signal: AbortSignal;
   emit(type: RunEventType, payload?: Record<string, unknown>): Promise<void>;
+  /** Live model text for watchers on this instance. Never stored: the committed message is the record. */
+  delta(text: string): void;
 }
 
 export interface StartRunInput {
@@ -74,7 +76,7 @@ export interface RunStore {
   finish(runId: string, status: Exclude<RunStatus, 'running'>, error?: string): Promise<boolean>;
   requestStop(runId: string): Promise<boolean>;
   appendEvent(chatId: string, runId: string, type: RunEventType, payload: Record<string, unknown>): Promise<RunEvent>;
-  listEvents(chatId: string, afterSeq: number): Promise<RunEvent[]>;
+  listEvents(chatId: string, afterSeq: number, runId?: string): Promise<RunEvent[]>;
   /** Takes the lease when free, expired, or already ours; false when another owner holds it. */
   acquireLease(name: string, owner: string, ttlMs: number): Promise<boolean>;
   releaseLease(name: string, owner: string): Promise<void>;
@@ -83,5 +85,12 @@ export interface RunStore {
 export class ActiveRunError extends Error {
   constructor(readonly activeRunId: string) {
     super('A run is already active in this chat');
+  }
+}
+
+/** Raised when a user already has the most runs in flight we allow. */
+export class TooManyRunsError extends Error {
+  constructor(readonly limit: number) {
+    super(`Too many runs in flight (limit ${limit}); wait for one to finish or stop it`);
   }
 }

@@ -1,8 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import type { Run, RunContext, RunStatus, RunStore, StartRunInput } from '../../shared/runs/types.js';
+import { EventEmitter } from 'node:events';
+import {
+  TooManyRunsError,
+  type Run,
+  type RunContext,
+  type RunStatus,
+  type RunStore,
+  type StartRunInput,
+} from '../../shared/runs/types.js';
 
 /** A run's lease lapses after this long without a heartbeat; the sweeper then declares it dead. */
 export const RUN_LEASE_TTL_MS = 30_000;
+
+/** Runs one user may have in flight at once; routines are exempt (the scheduler paces them). */
+export const MAX_RUNS_PER_USER = 3;
 
 /** Thrown inside a turn when Stop was pressed (or the run was lost): unwinds to the run's final status. */
 export class RunStoppedError extends Error {
@@ -26,6 +37,8 @@ export class RunService {
   /** Identifies this process as lease holder. */
   readonly owner = randomUUID();
   private readonly live = new Map<string, { controller: AbortController; heartbeat: NodeJS.Timeout }>();
+  /** Live model text per run id, in this process only. */
+  private readonly deltas = new EventEmitter();
 
   constructor(
     readonly store: RunStore,
@@ -34,13 +47,27 @@ export class RunService {
 
   /** Opens a run unless the chat has one running (ActiveRunError). `ctx` is null for a requestId used before. */
   async start(input: StartRunInput): Promise<{ run: Run; ctx: RunContext | null }> {
+    await this.assertRoomFor(input);
     const { run, duplicate } = await this.store.start(input);
     return { run, ctx: duplicate ? null : await this.begin(run) };
   }
 
   /** `start` for callers that send no requestId, so the run is never a duplicate. */
   async open(input: Omit<StartRunInput, 'requestId'>): Promise<RunContext> {
+    await this.assertRoomFor(input);
     return this.begin((await this.store.start(input)).run);
+  }
+
+  private async assertRoomFor({ routine, payerUserId }: Pick<StartRunInput, 'routine' | 'payerUserId'>): Promise<void> {
+    if (routine || !payerUserId) return;
+    const running = (await this.store.listRunning()).filter((run) => !run.routine && run.payerUserId === payerUserId);
+    if (running.length >= MAX_RUNS_PER_USER) throw new TooManyRunsError(MAX_RUNS_PER_USER);
+  }
+
+  /** Calls `listener` with each live text chunk of the run until the returned function is called. */
+  onDelta(runId: string, listener: (text: string) => void): () => void {
+    this.deltas.on(runId, listener);
+    return () => this.deltas.off(runId, listener);
   }
 
   private async begin(run: Run): Promise<RunContext> {
@@ -59,6 +86,7 @@ export class RunService {
       routine: run.routine,
       payerUserId: run.payerUserId,
       signal: controller.signal,
+      delta: (text) => void this.deltas.emit(run.id, text),
       // Events are a feed for watchers; losing one must not fail the turn.
       emit: async (type, payload = {}) => {
         try {

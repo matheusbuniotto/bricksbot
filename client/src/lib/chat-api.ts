@@ -208,26 +208,119 @@ export function newRequestId(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** `requestId` makes a replayed POST (proxy or browser retry) return the first result instead of running twice. */
-export async function sendChatMessage(
+/** What a run reports while it works; `llm.delta` carries live text and is never replayed. */
+export interface RunUpdate {
+  type:
+    | 'run.started'
+    | 'llm.delta'
+    | 'tool.started'
+    | 'tool.finished'
+    | 'approval.pending'
+    | 'assistant.committed'
+    | 'run.finished';
+  payload: Record<string, unknown>;
+}
+
+/** How a run ended. `waiting` means it paused on approvals or a choice. */
+export interface RunOutcome {
+  status: 'waiting' | 'completed' | 'failed' | 'stopped';
+  error?: string;
+}
+
+const POLL_MS = 1500;
+/** Safety net beside the stream: a gateway that buffers SSE delivers nothing and raises no error. */
+const WATCHDOG_MS = 5000;
+const MAX_STREAM_FAILURES = 3;
+
+type RunState = { status: RunOutcome['status'] | 'running'; error?: string };
+
+async function fetchRun(chatId: string, runId: string): Promise<RunState> {
+  const { run } = await readJson<{ run: RunState }>(await fetch(`/api/chats/${chatId}/runs/${runId}`));
+  return { status: run.status, error: run.error };
+}
+
+/** Without a live feed the run is checked every 1.5 s; the outcome is the same, the progress updates are lost. */
+async function pollRun(chatId: string, runId: string): Promise<RunOutcome> {
+  for (;;) {
+    const run = await fetchRun(chatId, runId);
+    if (run.status !== 'running') return run as RunOutcome;
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+  }
+}
+
+/**
+ * Follow a run to its end over server-sent events. The server closes each stream after about 90 s and
+ * EventSource reconnects on its own, resuming from the last event id; three connection failures in a row
+ * (or a refusal) fall back to polling, and a slow status check runs alongside in case the stream goes quiet.
+ */
+export function followRun(chatId: string, runId: string, onUpdate?: (update: RunUpdate) => void): Promise<RunOutcome> {
+  if (typeof EventSource === 'undefined') return pollRun(chatId, runId);
+  return new Promise((resolve, reject) => {
+    const source = new EventSource(`/api/chats/${chatId}/runs/${runId}/events`);
+    let failures = 0;
+    const end = () => {
+      source.close();
+      clearInterval(watchdog);
+    };
+    const watchdog = setInterval(() => {
+      fetchRun(chatId, runId)
+        .then((run) => {
+          if (run.status === 'running') return;
+          end();
+          resolve(run as RunOutcome);
+        })
+        .catch(() => {});
+    }, WATCHDOG_MS);
+
+    source.onopen = () => {
+      failures = 0;
+    };
+    source.onmessage = (message) => {
+      const update = JSON.parse(message.data as string) as RunUpdate;
+      onUpdate?.(update);
+      if (update.type === 'run.finished') {
+        const { status, error } = update.payload as { status: RunOutcome['status']; error?: string };
+        end();
+        resolve({ status, error });
+      }
+    };
+    source.onerror = () => {
+      failures += 1;
+      if (failures < MAX_STREAM_FAILURES && source.readyState !== EventSource.CLOSED) return;
+      end();
+      pollRun(chatId, runId).then(resolve, reject);
+    };
+  });
+}
+
+/** Starts the work detached (202 with the run id), then follows the run until it settles. */
+async function startAndFollow(
   chatId: string,
-  content: string,
-  requestId: string = newRequestId()
-): Promise<{
-  user: Message;
-  assistant: Message | null;
-  pendingApprovals: ApprovalRequest[];
-  pendingChoices?: PendingChoice[];
-  autoApprovedTools?: string[];
-  provider: string;
-}> {
-  return readJson(
-    await fetch(`/api/chats/${chatId}/messages`, {
+  path: string,
+  body: Record<string, unknown>,
+  onUpdate?: (update: RunUpdate) => void
+): Promise<RunOutcome> {
+  const { runId } = await readJson<{ runId: string }>(
+    await fetch(path, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content, requestId }),
+      body: JSON.stringify({ ...body, async: true }),
     })
   );
+  return followRun(chatId, runId, onUpdate);
+}
+
+/**
+ * `requestId` makes a replayed POST (proxy or browser retry) join the first run instead of starting another.
+ * Resolves when the run settles; reload the chat for the messages, approvals and choices it left.
+ */
+export function sendChatMessage(
+  chatId: string,
+  content: string,
+  onUpdate?: (update: RunUpdate) => void,
+  requestId: string = newRequestId()
+): Promise<RunOutcome> {
+  return startAndFollow(chatId, `/api/chats/${chatId}/messages`, { content, requestId }, onUpdate);
 }
 
 /** Stop whatever the chat is running. A no-op when it already finished. */
@@ -237,41 +330,22 @@ export async function stopActiveRun(chatId: string): Promise<void> {
   await readJson(await fetch(`/api/chats/${chatId}/runs/${run.id}/stop`, { method: 'POST' }));
 }
 
-export async function decideApproval(
+export function decideApproval(
+  chatId: string,
   approvalId: string,
-  decision: ApprovalDecision
-): Promise<{
-  assistant: Message | null;
-  pendingApprovals: ApprovalRequest[];
-  pendingChoices?: PendingChoice[];
-  autoApprovedTools?: string[];
-}> {
-  return readJson(
-    await fetch(`/api/approvals/${approvalId}/decide`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ decision }),
-    })
-  );
+  decision: ApprovalDecision,
+  onUpdate?: (update: RunUpdate) => void
+): Promise<RunOutcome> {
+  return startAndFollow(chatId, `/api/approvals/${approvalId}/decide`, { decision }, onUpdate);
 }
 
-export async function submitChoice(
+export function submitChoice(
   chatId: string,
   choiceId: string,
-  selectedOption: string
-): Promise<{
-  assistant: Message | null;
-  pendingApprovals: ApprovalRequest[];
-  pendingChoices?: PendingChoice[];
-  autoApprovedTools?: string[];
-}> {
-  return readJson(
-    await fetch(`/api/chats/${chatId}/choices/${choiceId}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ selectedOption }),
-    })
-  );
+  selectedOption: string,
+  onUpdate?: (update: RunUpdate) => void
+): Promise<RunOutcome> {
+  return startAndFollow(chatId, `/api/chats/${chatId}/choices/${choiceId}`, { selectedOption }, onUpdate);
 }
 
 export async function revokeAutoApproval(chatId: string, toolName?: string): Promise<{ autoApprovedTools: string[] }> {

@@ -21,3 +21,20 @@ export function stubFetchUntilAborted() {
     )
   );
 }
+
+/** An SSE response whose bytes are split at awkward places (mid-line), like a real network stream. */
+export function sseResponse(chunks: unknown[]): Response {
+  const text = [...chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`), 'data: [DONE]\n\n'].join('');
+  const half = Math.floor(text.length / 2);
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(`: OPENROUTER PROCESSING\n\n${text.slice(0, half)}`));
+        controller.enqueue(encoder.encode(text.slice(half)));
+        controller.close();
+      },
+    }),
+    { headers: { 'content-type': 'text/event-stream' } }
+  );
+}

@@ -929,7 +929,13 @@ export class ChatService {
           try {
             const result = await this.options.client.complete(
               { messages: llmMessages, tools },
-              { signal: run.signal, onDelta: (text) => (partial += text) }
+              {
+                signal: run.signal,
+                onDelta: (text) => {
+                  partial += text;
+                  run.delta(text);
+                },
+              }
             );
             annotate({ tool_calls: result.toolCalls.length, total_tokens: result.usage?.totalTokens });
             return result;
@@ -1291,7 +1297,7 @@ export class ChatService {
       const nested = await this.continueTurn(targetChat.id, undefined, 0, {
         autoApproveAll: true,
         callerUserId: callerId,
-        run: { ...ctx.run, chatId: targetChat.id, emit: async () => {} },
+        run: { ...ctx.run, chatId: targetChat.id, emit: async () => {}, delta: () => {} },
       });
       reply = nested.assistant?.content?.trim() || '(no reply)';
     } catch (err) {

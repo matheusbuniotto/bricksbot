@@ -51,7 +51,7 @@ flowchart TD
     D2["Databricks Lakehouse & Unity Catalog\n(Serverless SQL, UC Volumes, Governance)"]
   end
 
-  UI -->|"User Turns & SSE"| Gateway
+  UI -->|"Turns (POST) & run events (SSE)"| Gateway
   Gateway -->|"Prompting"| P1
   Gateway -->|"Tool Preflight & Exec"| P2
   Gateway -->|"Isolated Run"| P3
@@ -66,7 +66,7 @@ flowchart TD
 
 ### Layer 1: Client & User Experience (React + AppKit)
 - **Bot Roster & Spaces:** Multi-agent teams grouped into Personal and Shared Spaces. Presence state machine (`online`, `thinking`, `working`, `waiting`, `blocked`) gives visual feedback on whether a bot is reasoning, running a tool, or awaiting user approval.
-- **Durable Transcript:** Renders real-time Server-Sent Events (SSE) streaming with tool execution chips, handoff peek views, artifact pins, and choice prompts.
+- **Durable Transcript:** Sends detached runs and follows them over Server-Sent Events (SSE): streamed answer text and tool activity rows while the run works, then the saved messages. Also renders handoff peek views, artifact pins, and choice prompts.
 - **Human-in-the-Loop Dialogs:** 3-way approval cards (`all_the_time`, `once`, `not_approved`) ensure users have granular control over mutating operations (such as SQL writes, Unity Catalog file modifications, and bot creations).
 - **Connectors & Plugins Hub:** Dynamic discovery dialog managing native Lakehouse connectors, Databricks MCP servers (`system.ai.genie`, `system.ai.dbsql`), built-in TypeScript plugins (`plugin.teatools`), and per-bot skill packs.
 
@@ -75,6 +75,7 @@ flowchart TD
 - **Idempotency & Crash Resilience:** Every user action passes a client-generated `requestId`. If a network connection drops or the server restarts mid-turn, the transaction reconverges idempotently without repeating side effects or duplicating tool calls.
 - **Run model:** Every send, approval decision, and choice answer is a *run* (`chat_runs`): `running` until it answers, pauses (`waiting`), finishes, fails, or is stopped. A chat has at most one running run (partial unique index), so a second send gets `409 {activeRunId}`. A decision or choice after a pause starts a `resume` run that keeps the turn's `turn_id`. Runs append `run.started`, `tool.started|finished`, `approval.pending`, `assistant.committed`, `run.finished` to `run_events` (gap-free `seq` per chat, from `chats.event_seq`). A repeated `requestId` maps to the first run (unique `request_id`) instead of running twice.
 - **Detached sends:** `POST /api/chats/:chatId/messages`, `/api/approvals/:id/decide` and `/api/chats/:chatId/choices/:id` accept `async: true` and answer `202 {runId}` once the message is saved; the sync path stays for the API and tests. The caller's access is re-checked before every model step, so unsharing a bot fails the run.
+- **Live feed (SSE):** `GET /api/chats/:chatId/runs/:runId/events` replays the run's persisted events from `Last-Event-ID` (the per-chat `seq`), then follows them (store poll every 0.5 s, so it works across instances). `X-Accel-Buffering: no`, a `: ping` heartbeat every 10 s, and a server-side close after 90 s, below the gateway's reported ~2 min cut; `EventSource` reconnects and resumes without gaps. The stream ends after `run.finished`. Caps: 6 open streams and 3 running runs per user (429; routine runs are exempt from the run cap). `llm.delta` text chunks are pushed from the process running the turn, carry no id, and are never written to `run_events`, so a reconnect misses deltas but never committed messages. The client falls back to polling `GET .../runs/:runId` after 3 failed connections in a row and also checks the status every 5 s while streaming, so a buffering gateway delays progress but cannot hide the end of a run. Failures of detached runs reach the UI through `run.finished {status:'failed', error}`.
 - **Stop:** `POST /api/chats/:chatId/runs/:runId/stop` aborts the model call and tool fetches (a tool that ignores the signal is abandoned). Streamed text is kept marked "(stopped)"; tool calls left unanswered get a synthetic tool row, so the next turn's history stays valid. Stop works across instances: the flag is in `chat_runs` and each running run checks it at its lease heartbeat.
 - **Leases and the sweeper:** a running run renews `leases.run:<id>` every 10 s (TTL 30 s). Every 30 s each instance sweeps running runs whose lease lapsed (server died): it answers their dangling tool calls and marks them `failed`.
 - **Primary Router & Handoff:** A designated Primary bot acts as the front-desk router. Using `handoff_to_bot`, it delegates specialized tasks to teammate bots for one turn, summarizes the outcome, and links conversations with bidirectional notification chips.
@@ -84,7 +85,7 @@ flowchart TD
 - **Dual Chat Client Architecture:**
   - **Primary:** High-reasoning OpenAI-compatible provider (OpenRouter delivering Claude 3.5 Sonnet, GPT-4o, or DeepSeek).
   - **Fallback:** Native Databricks Model Serving endpoints (DBRX, Llama 3 70B, or custom fine-tuned enterprise models) for zero-egress internal VPC security.
-- **ChatClient contract:** `complete(request, { signal, onDelta })` returns content, tool calls, provider `usage` (tokens, cached, reasoning, provider `cost`), the answering `model` and `finishReason`. `request.model` overrides the default model (or Serving endpoint) per call. `signal` aborts the call; `onDelta` is reserved for token streaming.
+- **ChatClient contract:** `complete(request, { signal, onDelta })` returns content, tool calls, provider `usage` (tokens, cached, reasoning, provider `cost`), the answering `model` and `finishReason`. `request.model` overrides the default model (or Serving endpoint) per call. `signal` aborts the call. With `onDelta` the client streams (`stream: true`, `stream_options.include_usage`), calls `onDelta` per text chunk, folds tool-call fragments by `index` and reads `usage` from the final chunk, so the result has the same shape as a plain call. An endpoint that rejects `stream` (400/404/405/415/422/501) is retried plain and remembered per url+model, but only once the plain retry succeeds; an endpoint that answers JSON anyway also works. Without `onDelta` (compaction) nothing streams.
 - **Anti-Fast Model Policy:** Low-reasoning mini/flash models are avoided for tool-calling roles to prevent hallucinated tool arguments and cascading multi-turn failures.
 
 ### Layer 4: Lakehouse Tools & MCP Extensibility
@@ -142,7 +143,7 @@ Sensitive tools (`sql_query`, `volume_write`, sandbox operations) evaluate appro
 
 ## Gateway limits (X1)
 
-The Databricks Apps gateway reportedly cuts requests at about 2 minutes (forum reports, not official docs), and nothing documents SSE or upload limits. PR 1.1 ships a harness to measure them on a deployed App. **Results: not run yet.**
+The Databricks Apps gateway reportedly cuts requests at about 2 minutes (forum reports, not official docs), and nothing documents SSE or upload limits. PR 1.1 ships a harness to measure them on a deployed App. **Results: not run yet.** PR 1.3 ships the SSE feed and the async client on that assumption, with polling fallbacks; record the results before merging it.
 
 1. Deploy this branch to the dev App with `BRICKSBOT_DIAG=1` set (the `/api/_diag/stream` and `/api/_diag/upload` probes do not exist otherwise).
 2. Run `scripts/smoke-sse.sh https://<app-url> [profile]` (about 6 minutes). It checks:

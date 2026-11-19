@@ -134,11 +134,12 @@ export class LakebaseRunStore implements RunStore {
     return mapEvent(result.rows[0]);
   }
 
-  async listEvents(chatId: string, afterSeq: number): Promise<RunEvent[]> {
+  async listEvents(chatId: string, afterSeq: number, runId?: string): Promise<RunEvent[]> {
     const result = await this.query(
       `SELECT chat_id, seq, run_id, type, payload, created_at
-       FROM bricksbot.run_events WHERE chat_id = $1 AND seq > $2 ORDER BY seq ASC`,
-      [chatId, afterSeq]
+       FROM bricksbot.run_events WHERE chat_id = $1 AND seq > $2 AND ($3::uuid IS NULL OR run_id = $3::uuid)
+       ORDER BY seq ASC`,
+      [chatId, afterSeq, runId ?? null]
     );
     return result.rows.map(mapEvent);
   }

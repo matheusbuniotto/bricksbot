@@ -104,6 +104,8 @@ export function ChatTranscript({
   botId: _botId,
   thinking,
   thinkingLabel = 'Thinking',
+  streamingText = '',
+  liveTools = [],
   bots = [],
   onOpenBot,
 }: {
@@ -114,6 +116,10 @@ export function ChatTranscript({
   thinking?: boolean;
   /** Accessible + visible status while the bot is thinking/working. */
   thinkingLabel?: string;
+  /** Model text arriving for the answer in progress; replaced by the saved message once it commits. */
+  streamingText?: string;
+  /** Tools the run in progress has started, oldest first. */
+  liveTools?: Array<{ id: string; label: string; done: boolean }>;
   bots?: Bot[];
   onOpenBot?: (botId: string) => void;
 }) {
@@ -167,7 +173,7 @@ export function ChatTranscript({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [rows.length, thinking, thinkingLabel]);
+  }, [rows.length, thinking, thinkingLabel, streamingText.length, liveTools.length]);
 
   return (
     <div className="transcript">
@@ -322,7 +328,24 @@ export function ChatTranscript({
             </Fragment>
           );
         })}
-        {thinking ? (
+        {liveTools.map((tool) => (
+          <div key={tool.id} className="message message-enter">
+            <div className="message-body typing-status">
+              <span className="typing-status-label">
+                {tool.done ? 'Ran' : 'Running'} {tool.label}
+                {tool.done ? '' : '…'}
+              </span>
+            </div>
+          </div>
+        ))}
+        {streamingText ? (
+          <div className="message message-enter">
+            <div className="message-body message-body-md">
+              <ChatMarkdown content={streamingText} />
+            </div>
+          </div>
+        ) : null}
+        {thinking && !streamingText ? (
           <div className="message message-enter" aria-live="polite">
             <div className="message-body typing-status">
               <div className="typing-dots" aria-label={thinkingLabel}>

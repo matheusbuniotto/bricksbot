@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import { ActiveRunError } from '../../shared/runs/types.js';
+import { ActiveRunError, TooManyRunsError } from '../../shared/runs/types.js';
 import { LakebaseRunStore } from './lakebase-store.js';
 import { MemoryRunStore } from './memory-store.js';
-import { abortable, RunService, RunStoppedError } from './run-service.js';
+import { abortable, MAX_RUNS_PER_USER, RunService, RunStoppedError } from './run-service.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -128,5 +128,36 @@ describe('LakebaseRunStore', () => {
     expect(statements).toHaveLength(1);
     expect(statements[0]).toContain('SET event_seq = event_seq + 1');
     expect(event).toMatchObject({ seq: 7, runId: 'r1', payload: { kind: 'send' } });
+  });
+});
+
+describe('run cap', () => {
+  const input = (chatId: string, payerUserId: string, routine = false) => ({
+    chatId,
+    kind: 'send' as const,
+    routine,
+    payerUserId,
+  });
+
+  test('a user can have 3 runs in flight; the 4th waits until one settles', async () => {
+    const runs = new RunService(new MemoryRunStore());
+    const ctxs = [];
+    for (let i = 0; i < MAX_RUNS_PER_USER; i += 1) ctxs.push(await runs.open(input(`c${i}`, 'ana')));
+
+    await expect(runs.open(input('c9', 'ana'))).rejects.toBeInstanceOf(TooManyRunsError);
+    await expect(runs.start(input('c9', 'ana'))).rejects.toBeInstanceOf(TooManyRunsError);
+    ctxs.push(await runs.open(input('c9', 'bob')));
+
+    await runs.settle(ctxs[0], 'completed');
+    ctxs.push(await runs.open(input('c10', 'ana')));
+    for (const ctx of ctxs.slice(1)) await runs.settle(ctx, 'completed');
+  });
+
+  test('routine runs neither count nor are refused', async () => {
+    const runs = new RunService(new MemoryRunStore());
+    const ctxs = [];
+    for (let i = 0; i < MAX_RUNS_PER_USER; i += 1) ctxs.push(await runs.open(input(`c${i}`, 'ana')));
+    ctxs.push(await runs.open(input('routine-chat', 'ana', true)));
+    for (const ctx of ctxs) await runs.settle(ctx, 'completed');
   });
 });

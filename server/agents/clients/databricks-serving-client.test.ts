@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { DatabricksServingChatClient } from './databricks-serving-client.js';
-import { stubFetchJson, stubFetchUntilAborted } from './test-fetch.js';
+import { sseResponse, stubFetchJson, stubFetchUntilAborted } from './test-fetch.js';
 
 describe('DatabricksServingChatClient', () => {
   afterEach(() => {
@@ -74,5 +74,30 @@ describe('DatabricksServingChatClient', () => {
     const pending = client.complete({ messages: [{ role: 'user', content: 'hi' }] }, { signal: controller.signal });
     controller.abort();
     await expect(pending).rejects.toThrow();
+  });
+
+  test('streams from the invocations endpoint when asked for deltas', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        sseResponse([
+          { choices: [{ delta: { content: 'from ' } }] },
+          { choices: [{ delta: { content: 'stream' }, finish_reason: 'stop' }] },
+          { choices: [], usage: { prompt_tokens: 3, completion_tokens: 2 } },
+        ])
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new DatabricksServingChatClient({
+      host: 'https://dbc-stream.cloud.databricks.com',
+      endpointName: 'ep',
+      getToken: () => Promise.resolve('t'),
+    });
+    const deltas: string[] = [];
+    const result = await client.complete(
+      { messages: [{ role: 'user', content: 'hi' }] },
+      { onDelta: (t) => deltas.push(t) }
+    );
+    expect(deltas).toEqual(['from ', 'stream']);
+    expect(result).toMatchObject({ content: 'from stream', usage: { totalTokens: 5 } });
   });
 });

@@ -31,6 +31,8 @@ import {
   submitChoice,
   unarchiveBot,
   updateBot,
+  type RunOutcome,
+  type RunUpdate,
 } from './lib/chat-api';
 import type { SandboxUiStatus } from '../../shared/sandbox/types';
 import { createRoutine, deleteRoutine, fetchRoutines, runRoutine, updateRoutine } from './lib/routines-api';
@@ -62,6 +64,12 @@ export default function App() {
   const [pendingChoices, setPendingChoices] = useState<PendingChoice[]>([]);
   const [autoApprovedTools, setAutoApprovedTools] = useState<string[]>([]);
   const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
+  // What the run in progress shows before its messages are saved: streaming text and tool rows.
+  const [live, setLive] = useState<{
+    chatId: string;
+    text: string;
+    tools: Array<{ id: string; label: string; done: boolean }>;
+  } | null>(null);
   const [runningTool, setRunningTool] = useState<{
     label: string;
     startedAt: string;
@@ -363,6 +371,34 @@ export default function App() {
     }
   }
 
+  function showRunUpdate(chatId: string, botId: string, update: RunUpdate) {
+    const { type, payload } = update;
+    const change = (patch: (current: NonNullable<typeof live>) => NonNullable<typeof live>) =>
+      setLive((prev) => patch(prev?.chatId === chatId ? prev : { chatId, text: '', tools: [] }));
+    if (type === 'llm.delta') {
+      change((current) => ({ ...current, text: current.text + (payload.text as string) }));
+    } else if (type === 'tool.started') {
+      const tool = { id: String(payload.toolCallId), label: toolLabel(String(payload.name)), done: false };
+      change((current) => ({ ...current, tools: [...current.tools, tool] }));
+    } else if (type === 'tool.finished') {
+      change((current) => ({
+        ...current,
+        tools: current.tools.map((tool) => (tool.id === payload.toolCallId ? { ...tool, done: true } : tool)),
+      }));
+    } else if (type === 'assistant.committed') {
+      // Swap the streamed text for the saved message in one step, so it does not blink out.
+      void loadChat(botId).then(() => change((current) => ({ ...current, text: '' })));
+    }
+  }
+
+  /** A run ended: show what it left behind, and why when it failed (detached runs report only through the run). */
+  async function settleRun(botId: string, outcome: RunOutcome) {
+    setLive(null);
+    if (outcome.status === 'failed') setError(outcome.error ?? 'The run failed');
+    await loadChat(botId);
+    await refreshRoster();
+  }
+
   async function handleSend(content: string) {
     if (!chat || !selectedBotId) return;
     setError(null);
@@ -377,15 +413,12 @@ export default function App() {
     setMessages((prev) => [...prev, optimisticMessage]);
     setBots((prev) => prev.map((bot) => (bot.id === selectedBotId ? { ...bot, presence: 'thinking' } : bot)));
     try {
-      const result = await sendChatMessage(chat.id, content);
-      setPendingApprovals(result.pendingApprovals);
-      setPendingChoices(result.pendingChoices ?? []);
-      if (result.autoApprovedTools) {
-        setAutoApprovedTools(result.autoApprovedTools);
-      }
-      await loadChat(selectedBotId);
-      await refreshRoster();
+      const outcome = await sendChatMessage(chat.id, content, (update) =>
+        showRunUpdate(chat.id, selectedBotId, update)
+      );
+      await settleRun(selectedBotId, outcome);
     } catch (err) {
+      setLive(null);
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       setError(err instanceof Error ? err.message : 'Unable to send message');
       setBots((prev) => prev.map((bot) => (bot.id === selectedBotId ? { ...bot, presence: 'online' } : bot)));
@@ -404,6 +437,8 @@ export default function App() {
 
   async function handleDecide(id: string, decision: ApprovalDecision) {
     const approval = pendingApprovals.find((item) => item.id === id) ?? null;
+    const chatId = approval?.chatId ?? chat?.id;
+    if (!chatId) return;
     const accepted = decision === 'once' || decision === 'all_the_time';
     setApprovalBusyId(id);
     setError(null);
@@ -425,15 +460,12 @@ export default function App() {
     }
 
     try {
-      const result = await decideApproval(id, decision);
-      setPendingApprovals(result.pendingApprovals);
-      setPendingChoices(result.pendingChoices ?? []);
-      if (result.autoApprovedTools) {
-        setAutoApprovedTools(result.autoApprovedTools);
-      }
-      if (selectedBotId) await loadChat(selectedBotId);
-      await refreshRoster();
+      const outcome = await decideApproval(chatId, id, decision, (update) => {
+        if (selectedBotId) showRunUpdate(chatId, selectedBotId, update);
+      });
+      if (selectedBotId) await settleRun(selectedBotId, outcome);
     } catch (err) {
+      setLive(null);
       if (accepted && approval) {
         setPendingApprovals((prev) => (prev.some((item) => item.id === approval.id) ? prev : [approval, ...prev]));
       }
@@ -449,15 +481,15 @@ export default function App() {
     setChoiceBusyId(choiceId);
     setError(null);
     try {
-      const result = await submitChoice(chat.id, choiceId, selectedOption);
-      setPendingApprovals(result.pendingApprovals);
-      setPendingChoices(result.pendingChoices ?? []);
-      if (result.autoApprovedTools) {
-        setAutoApprovedTools(result.autoApprovedTools);
-      }
-      if (selectedBotId) await loadChat(selectedBotId);
-      await refreshRoster();
+      const outcome = await submitChoice(
+        chat.id,
+        choiceId,
+        selectedOption,
+        (update) => selectedBotId && showRunUpdate(chat.id, selectedBotId, update)
+      );
+      if (selectedBotId) await settleRun(selectedBotId, outcome);
     } catch (err) {
+      setLive(null);
       setError(err instanceof Error ? err.message : 'Choice failed');
     } finally {
       setChoiceBusyId(null);
@@ -620,6 +652,8 @@ export default function App() {
         ) : (
           <>
             <ChatTranscript
+              streamingText={live?.chatId === chat?.id ? live?.text : ''}
+              liveTools={live?.chatId === chat?.id ? live?.tools : []}
               thinking={
                 Boolean(runningTool) || selectedBot?.presence === 'thinking' || selectedBot?.presence === 'working'
               }
