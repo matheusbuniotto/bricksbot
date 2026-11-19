@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { ASK_CHOICE_TOOL_NAME, createAskChoiceTool, planAskChoice } from './ask-choice.js';
+import { ASK_CHOICE_TOOL_NAME, askChoiceToolDefinition, createAskChoiceTool, planAskChoice } from './ask-choice.js';
 
 describe('ask_choice', () => {
   test('plans valid prompts and options', () => {
@@ -13,6 +13,16 @@ describe('ask_choice', () => {
   test('rejects invalid option lists', () => {
     expect(planAskChoice({ prompt: 'x', options: ['only'] }).ok).toBe(false);
     expect(planAskChoice({ prompt: '', options: ['a', 'b'] }).ok).toBe(false);
+  });
+
+  test('rejects plain yes/no confirmations but allows real choices', () => {
+    expect(planAskChoice({ prompt: 'Proceed?', options: ['Yes', 'No'] }).ok).toBe(false);
+    expect(planAskChoice({ prompt: 'Proceed?', options: ['Yes, create them', 'Cancel'] }).ok).toBe(true);
+    expect(planAskChoice({ prompt: 'Which?', options: ['Yes', 'Weekly report'] }).ok).toBe(true);
+  });
+
+  test('description tells the model not to confirm actions', () => {
+    expect(askChoiceToolDefinition.description).toMatch(/Never use it to confirm an action/);
   });
 
   test('preflight requires an active bot', () => {

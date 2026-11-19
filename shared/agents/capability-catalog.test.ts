@@ -25,6 +25,14 @@ describe('capability-catalog', () => {
     expect(formatCapabilityPrompt(teammate)).toContain('cannot create bots');
   });
 
+  test('prompt says never to confirm Ask-first actions with ask_choice', () => {
+    const prompt = formatCapabilityPrompt(
+      buildCapabilityCatalog({ toolNames: ['ask_choice', 'create_bot'], isPrimary: true })
+    );
+    expect(prompt).toContain('Never use it, or a text question like "Proceed?", to confirm an action');
+    expect(prompt).toContain('call create_bot directly');
+  });
+
   test('soft limits reflect web_fetch registration and no computer', () => {
     const withFetch = buildCapabilityCatalog({ toolNames: ['web_fetch', 'sql_query'] });
     expect(withFetch.softLimits).toEqual({
