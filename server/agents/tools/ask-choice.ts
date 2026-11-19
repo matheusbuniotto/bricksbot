@@ -9,7 +9,7 @@ export const askChoiceToolDefinition: ToolDefinition = {
   name: ASK_CHOICE_TOOL_NAME,
   description:
     'Ask the user to pick one option (2–5 choices). Use when a decision must come from the user before continuing. ' +
-    'The turn blocks until they select; the choice is stored in the transcript as “Sua resposta”.',
+    'The turn blocks until they select; the choice is stored in the transcript as “Your answer”.',
   parameters: {
     type: 'object',
     additionalProperties: false,
