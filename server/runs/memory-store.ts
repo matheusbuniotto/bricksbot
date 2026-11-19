@@ -47,6 +47,12 @@ export class MemoryRunStore implements RunStore {
     return run ? { ...run } : null;
   }
 
+  async latest(chatId: string): Promise<Run | null> {
+    const forChat = [...this.runs.values()].filter((run) => run.chatId === chatId);
+    const run = forChat[forChat.length - 1];
+    return run ? { ...run } : null;
+  }
+
   async listRunning(): Promise<Run[]> {
     return [...this.runs.values()].filter((run) => run.status === 'running').map((run) => ({ ...run }));
   }

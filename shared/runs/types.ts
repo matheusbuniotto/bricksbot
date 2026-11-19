@@ -69,6 +69,8 @@ export interface RunStore {
    */
   start(input: StartRunInput): Promise<{ run: Run; duplicate: boolean }>;
   get(runId: string): Promise<Run | null>;
+  /** The chat's most recently started run. */
+  latest(chatId: string): Promise<Run | null>;
   listRunning(): Promise<Run[]>;
   /** Moves a running run to its final status. False when it was no longer running. */
   finish(runId: string, status: Exclude<RunStatus, 'running'>, error?: string): Promise<boolean>;
@@ -81,7 +83,10 @@ export interface RunStore {
 }
 
 export class ActiveRunError extends Error {
-  constructor(readonly activeRunId: string) {
-    super('A run is already active in this chat');
+  constructor(
+    readonly activeRunId: string,
+    message = 'A run is already active in this chat'
+  ) {
+    super(message);
   }
 }

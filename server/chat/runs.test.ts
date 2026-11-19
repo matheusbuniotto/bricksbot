@@ -170,6 +170,49 @@ describe('runs', () => {
     expect(runId).not.toBe(first.runId);
   });
 
+  test('a send is refused while a run waits on an approval, and allowed once it is decided', async () => {
+    const { chat, client, service, store, waitForCompletion } = await setup();
+    await service.getApprovals().revokeAutoApproved(chat.id, 'sql_query');
+    const sent = service.sendUserMessage(chat.id, 'go');
+    await waitForCompletion(1);
+    client.release(sqlCalls('call_1'));
+    const paused = await sent;
+    const messagesBefore = (await store.listMessages(chat.id)).length;
+
+    for (const refused of [
+      service.sendUserMessage(chat.id, 'cron', { routine: true, systemNote: '[routine:x] scheduled run' }),
+      service.startUserMessage(chat.id, 'typed anyway'),
+    ]) {
+      await expect(refused).rejects.toBeInstanceOf(ActiveRunError);
+    }
+    expect(await store.listMessages(chat.id)).toHaveLength(messagesBefore);
+
+    const resumed = service.decideApproval(paused.pendingApprovals[0].id, 'once');
+    await waitForCompletion(2);
+    client.release(answer('done'));
+    await resumed;
+
+    const next = service.sendUserMessage(chat.id, 'next');
+    await waitForCompletion(3);
+    client.release(answer('free'));
+    expect((await next).assistant?.content).toBe('free');
+  });
+
+  test('a resumed routine turn stays a routine run', async () => {
+    const { chat, client, service, runs, waitForCompletion } = await setup();
+    await service.getApprovals().revokeAutoApproved(chat.id, 'sql_query');
+    const sent = service.sendUserMessage(chat.id, 'go', { routine: true });
+    await waitForCompletion(1);
+    client.release(sqlCalls('call_1'));
+    const paused = await sent;
+
+    const runId = await service.decideApprovalDetached(paused.pendingApprovals[0].id, 'once');
+    await waitForCompletion(2);
+    client.release(answer('finished'));
+    await until(async () => (await runs.get(runId))?.status === 'completed');
+    expect(await runs.get(runId)).toMatchObject({ kind: 'resume', routine: true });
+  });
+
   test('losing access to the bot mid-run fails the run and keeps the history valid', async () => {
     const store = new MemoryChatStore();
     const { space } = await store.ensureBootstrap('alice');
