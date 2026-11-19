@@ -49,7 +49,7 @@ export class LakebaseRunStore implements RunStore {
   constructor(private readonly query: LakebaseQuery) {}
 
   async start(input: StartRunInput): Promise<{ run: Run; duplicate: boolean }> {
-    const sameRequest = await this.findByRequestId(input.requestId);
+    const sameRequest = input.requestId ? await this.findByRequestId(input.requestId) : null;
     if (sameRequest) return { run: sameRequest, duplicate: true };
 
     const id = randomUUID();
@@ -69,7 +69,7 @@ export class LakebaseRunStore implements RunStore {
     } catch (err) {
       if (!isUniqueViolation(err)) throw err;
       // Either the same requestId raced us, or the chat already has a running run.
-      const raced = await this.findByRequestId(input.requestId);
+      const raced = input.requestId ? await this.findByRequestId(input.requestId) : null;
       if (raced) return { run: raced, duplicate: true };
       const active = await this.query(`SELECT id FROM bricksbot.chat_runs WHERE chat_id = $1 AND status = 'running'`, [
         input.chatId,
@@ -79,8 +79,7 @@ export class LakebaseRunStore implements RunStore {
     }
   }
 
-  private async findByRequestId(requestId?: string): Promise<Run | null> {
-    if (!requestId) return null;
+  async findByRequestId(requestId: string): Promise<Run | null> {
     const result = await this.query(`SELECT ${RUN_COLUMNS} FROM bricksbot.chat_runs WHERE request_id = $1`, [
       requestId,
     ]);

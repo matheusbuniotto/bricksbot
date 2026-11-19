@@ -18,20 +18,29 @@ import { ChatService } from './service.js';
 class GatedClient implements ChatClient {
   readonly provider = 'stub' as const;
   readonly requests: ChatCompletionRequest[] = [];
-  private readonly waiting: Array<(result: ChatCompletionResult) => void> = [];
+  private readonly waiting: Array<{
+    resolve: (result: ChatCompletionResult) => void;
+    reject: (err: Error) => void;
+  }> = [];
 
   complete(request: ChatCompletionRequest, options?: ChatCompletionOptions): Promise<ChatCompletionResult> {
     this.requests.push(request);
     return new Promise((resolve, reject) => {
       options?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
-      this.waiting.push(resolve);
+      this.waiting.push({ resolve, reject });
     });
   }
 
   release(result: ChatCompletionResult) {
-    const resolve = this.waiting.shift();
-    if (!resolve) throw new Error('No completion is waiting');
-    resolve(result);
+    const next = this.waiting.shift();
+    if (!next) throw new Error('No completion is waiting');
+    next.resolve(result);
+  }
+
+  fail(err: Error) {
+    const next = this.waiting.shift();
+    if (!next) throw new Error('No completion is waiting');
+    next.reject(err);
   }
 }
 
@@ -106,6 +115,22 @@ describe('runs', () => {
     const again = await service.sendUserMessage(chat.id, 'one', { requestId: 'req-1' });
     expect(again.assistant?.id).toBe(result.assistant?.id);
     expect(client.requests).toHaveLength(1);
+  });
+
+  test('a repeated requestId of a failed run reports the failure; a new requestId runs again', async () => {
+    const { chat, client, service, waitForCompletion } = await setup();
+    const first = service.sendUserMessage(chat.id, 'one', { requestId: 'req-1' });
+    await waitForCompletion(1);
+    client.fail(new Error('gateway down'));
+    await expect(first).rejects.toThrow('gateway down');
+
+    await expect(service.sendUserMessage(chat.id, 'one', { requestId: 'req-1' })).rejects.toThrow('gateway down');
+    expect(client.requests).toHaveLength(1);
+
+    const retry = service.sendUserMessage(chat.id, 'one', { requestId: 'req-2' });
+    await waitForCompletion(2);
+    client.release(answer('ok'));
+    expect((await retry).assistant?.content).toBe('ok');
   });
 
   test('a detached send returns before the model answers and finishes in the background', async () => {
@@ -196,6 +221,26 @@ describe('runs', () => {
     await waitForCompletion(3);
     client.release(answer('free'));
     expect((await next).assistant?.content).toBe('free');
+  });
+
+  test('a repeated requestId while the chat waits returns the original run, not a refusal', async () => {
+    const { chat, client, service, waitForCompletion } = await setup();
+    await service.getApprovals().revokeAutoApproved(chat.id, 'sql_query');
+    const first = await service.startUserMessage(chat.id, 'go', { requestId: 'req-1' });
+    await waitForCompletion(1);
+    client.release(sqlCalls('call_1'));
+    await until(async () => (await service.getApprovals().listPending(chat.id)).length === 1);
+    await until(async () => (await service.getRuns().store.get(first.run.id))?.status === 'waiting');
+
+    const again = await service.startUserMessage(chat.id, 'go', { requestId: 'req-1' });
+    expect(again.run.id).toBe(first.run.id);
+    expect(again.user.id).toBe(first.user.id);
+    const sent = await service.sendUserMessage(chat.id, 'go', { requestId: 'req-1' });
+    expect(sent.pendingApprovals).toHaveLength(1);
+
+    await expect(service.startUserMessage(chat.id, 'go', { requestId: 'req-2' })).rejects.toBeInstanceOf(
+      ActiveRunError
+    );
   });
 
   test('a resumed routine turn stays a routine run', async () => {
@@ -332,6 +377,36 @@ describe('runs', () => {
     await waitForCompletion(1);
     client.release(answer('fine'));
     await next;
+  });
+});
+
+describe('sweeper and handoffs', () => {
+  test('a dead run mid-handoff also answers the dangling tool calls in the teammate chat', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const { store, bot, chat, client, runs, service, waitForCompletion } = await setup({
+      sql: () => new Promise(() => {}),
+    });
+    const analyst = await store.createBot({ name: 'Analyst', ownerId: bot.ownerId, spaceId: bot.spaceId });
+    const targetChat = await store.getOrCreateChatForBot(analyst.id);
+    await service.getApprovals().setAutoApproved(chat.id, 'handoff_to_bot');
+
+    void service.sendUserMessage(chat.id, 'ask the analyst').catch(() => {});
+    await waitForCompletion(1);
+    client.release({
+      content: null,
+      toolCalls: [{ id: 'call_h', name: 'handoff_to_bot', arguments: { bot_id: analyst.id, brief: 'revenue' } }],
+    });
+    await waitForCompletion(2);
+    client.release(sqlCalls('call_t'));
+    await until(async () => (await store.listMessages(targetChat.id)).some((message) => message.toolCalls?.length));
+
+    // A second instance sweeps once the first one's lease has lapsed (the first one is "dead").
+    const survivor = new ChatService({ store, client, runs });
+    vi.setSystemTime(Date.now() + 31_000);
+    expect(await survivor.sweepInterruptedRuns()).toBe(1);
+
+    const answered = (await store.listMessages(targetChat.id)).filter((message) => message.role === 'tool');
+    expect(answered.map((message) => message.toolCallId)).toEqual(['call_t']);
   });
 });
 

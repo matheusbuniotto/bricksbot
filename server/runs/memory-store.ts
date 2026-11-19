@@ -42,6 +42,11 @@ export class MemoryRunStore implements RunStore {
     return { run: { ...run }, duplicate: false };
   }
 
+  findByRequestId(requestId: string): Promise<Run | null> {
+    const run = [...this.runs.values()].find((candidate) => candidate.requestId === requestId);
+    return Promise.resolve(run ? { ...run } : null);
+  }
+
   async get(runId: string): Promise<Run | null> {
     const run = this.runs.get(runId);
     return run ? { ...run } : null;

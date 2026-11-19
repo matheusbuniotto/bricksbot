@@ -408,12 +408,14 @@ export class ChatService {
     const stored = await this.storedResult(chatId, requestId);
     if (stored) return stored;
 
-    await this.refuseWhilePaused(chatId);
+    await this.refuseWhilePaused(chatId, requestId);
     const { run, ctx } = await this.openRun(chatId, 'send', { requestId, routine: options?.routine });
     if (!ctx) {
       // Same requestId as a run that is still going (or whose result was never stored).
       if (run.chatId !== chatId) throw new Error('requestId already used for another chat');
       if (run.status === 'running') throw new ActiveRunError(run.id);
+      // The first attempt threw; a retry with the same requestId reports that, a new requestId runs again.
+      if (run.status === 'failed') throw new Error(run.error ?? 'The first attempt of this request failed');
       return (await this.storedResult(chatId, requestId)) ?? this.turnResult(chatId);
     }
 
@@ -443,7 +445,7 @@ export class ChatService {
     }
 
     const requestId = options?.requestId?.trim();
-    await this.refuseWhilePaused(chatId);
+    await this.refuseWhilePaused(chatId, requestId);
     const { run, ctx } = await this.openRun(chatId, 'send', { requestId });
     if (!ctx) {
       const user = (await this.options.store.listMessages(chatId)).find(
@@ -468,8 +470,10 @@ export class ChatService {
   /**
    * A turn paused on an approval or choice still owns the chat: a new message (user, cron, webhook) would land
    * between the assistant's tool_calls and their results and make the history invalid for the LLM.
+   * A repeated `requestId` is no new message: it gets its original run back instead.
    */
-  private async refuseWhilePaused(chatId: string): Promise<void> {
+  private async refuseWhilePaused(chatId: string, requestId?: string): Promise<void> {
+    if (requestId && (await this.runs.store.findByRequestId(requestId))) return;
     const approvals = await this.approvals.listPending(chatId);
     if (approvals.length === 0 && this.choices.listPending(chatId).length === 0) return;
     const latest = await this.runs.store.latest(chatId);
@@ -529,7 +533,17 @@ export class ChatService {
 
   /** Fails runs whose server died mid-turn, leaving every tool call answered so the next turn replays cleanly. */
   sweepInterruptedRuns(): Promise<number> {
-    return this.runs.sweep((run) => this.closeOrphanToolCalls(run.chatId, 'Interrupted: the server restarted'));
+    return this.runs.sweep(async (run) => {
+      const reason = 'Interrupted: the server restarted';
+      await this.closeOrphanToolCalls(run.chatId, reason);
+      // A handoff in flight leaves the teammate's chat mid-turn as well.
+      for (const message of await this.options.store.listMessages(run.chatId)) {
+        const notice =
+          message.runId === run.id && message.role === 'system' ? parseHandoffNotice(message.content) : null;
+        if (notice?.direction === 'sent' && notice.targetChatId)
+          await this.closeOrphanToolCalls(notice.targetChatId, reason);
+      }
+    });
   }
 
   /** What the UI gets whenever a turn stops; missing user/assistant default to the latest in the chat. */
@@ -1304,7 +1318,8 @@ export class ChatService {
         senderName: sender.name,
         brief,
         threadBotId: target.id,
-      })
+      }),
+      { runId: ctx.run.runId }
     );
 
     let reply: string;
