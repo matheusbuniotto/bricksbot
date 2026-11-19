@@ -125,6 +125,16 @@ describe('app purpose', () => {
     });
   });
 
+  test('skips a static PAT in a deployed App and uses the App SP', async () => {
+    const m2mGetToken = vi.fn(() => Promise.resolve('m2m-tok'));
+    const getToken = createDatabricksTokenProvider({
+      env: { DATABRICKS_APP_NAME: 'bricksbot', DATABRICKS_TOKEN: 'pat' },
+      purpose: 'app',
+      m2mGetToken,
+    });
+    await expect(getToken()).resolves.toBe('m2m-tok');
+  });
+
   test('is unaffected by the deployed-App guard', async () => {
     const m2mGetToken = vi.fn(() => Promise.resolve('m2m-tok'));
     const getToken = createDatabricksTokenProvider({
