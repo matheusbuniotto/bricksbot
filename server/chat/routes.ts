@@ -593,14 +593,12 @@ export function registerChatRoutes(
       const systemChats = (await store.listChats(chat.botId, chat.userId ?? '')).filter(
         (other) => (other.kind ?? 'user') !== 'user'
       );
-      const [approvals, choices] = await Promise.all([
-        Promise.all(systemChats.map((other) => service.getApprovals().listPending(other.id))),
-        Promise.all(systemChats.map((other) => service.getChoices().listPending(other.id))),
-      ]);
+      const approvals = await Promise.all(systemChats.map((other) => service.getApprovals().listPending(other.id)));
+      const choices = systemChats.flatMap((other) => service.getChoices().listPending(other.id));
       res.json({
         ...payload,
         pendingApprovals: [...payload.pendingApprovals, ...approvals.flat()],
-        pendingChoices: [...payload.pendingChoices, ...choices.flat()],
+        pendingChoices: [...payload.pendingChoices, ...choices],
       });
     } catch (err) {
       sendError(res, err);
