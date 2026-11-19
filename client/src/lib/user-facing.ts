@@ -12,7 +12,8 @@ export function isOnceOnlyApproval(toolName: string): boolean {
     toolName === 'ask_choice' ||
     toolName === 'delete_routine' ||
     toolName === 'sandbox_delete' ||
-    toolName === 'genie_ask'
+    toolName === 'genie_ask' ||
+    toolName === 'ask_genie_space'
   );
 }
 

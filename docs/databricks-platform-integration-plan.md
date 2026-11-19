@@ -70,7 +70,7 @@ URL: `https://<host>/ai-gateway/mcp-services/<fqn>?o=<workspace_id>` · scope `a
 
 Harness phases (when we start coding):
 
-1. **F-a**, Optional Genie Agent tool (Ask-first, never Always-allow by default) + citations in transcript.  
+1. **F-a** (shipped), Optional Genie Agent tool `ask_genie_space` (Ask-first, never Always-allow) + citations in transcript. Calls the Genie Conversation API directly (`/api/2.0/genie/spaces/{id}/start-conversation`, poll message, `query-result`) as the user; the AppKit `genie` plugin is route/SSE-shaped for `GenieChat`, so it is not used for the tool.  
 2. **F-b**, Thin MCP client for explicitly enabled `system.ai.*` servers.  
 3. **F-c**, `tool_search` / deferred tools when the surface is large ([durable-harness.md](durable-harness.md)).
 
@@ -91,7 +91,7 @@ MVP Biblioteca without Genie: SQL result pin, Volume markdown brief, later Genie
 ```text
 F0  Docs + cost posture locked (this file)                          ← done
 F1  Biblioteca chrome + cheap artifact types (no Genie)            ← mostly done (Library tab + pin_artifact); volume_write / richer kinds later
-F2  Optional Genie Agent resource + Ask-first tool (single space)  ← first Genie spend (after OSS share)
+F2  Optional Genie Agent resource + Ask-first tool (single space)  ← done (`ask_genie_space`)
 F3  Measure cost/UX; only then consider Genie One MCP
 F4  Broader system.ai registry / external connectors
 F5  Ontology enrich helpers (metric view drafts) — last
@@ -110,11 +110,11 @@ F5  Ontology enrich helpers (metric view drafts) — last
 
 - [x] Cost posture locked: Genie opt-in, cheap tools default  
 - [x] Ontology = via Genie only (no fake API) documented here + project-context  
-- [ ] Genie tools absent from default `toolsFor` until resource configured  
-- [ ] Ask-first on Genie; no Always-allow default  
-- [ ] Capability prompt escalation language (not Genie-first) when tool present  
+- [x] Genie tools absent from default `toolsFor` until resource configured  
+- [x] Ask-first on Genie; no Always-allow default  
+- [x] Capability prompt escalation language (not Genie-first) when tool present  
 - [x] Biblioteca ≥1 artifact type without Genie (`pin_artifact` + Library tab)  
-- [ ] Install wizard / egress notes Genie cost + optional bind (when F2 starts)  
+- [x] Install wizard / egress notes Genie cost + optional bind (when F2 starts)  
 
 ## References
 

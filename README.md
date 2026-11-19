@@ -79,6 +79,7 @@ This picks (or creates) a Lakebase project and a SQL warehouse, stores your Open
 | `web_fetch` | Store comma-separated hosts in secret `bricksbot/web-fetch-allowlist`, then uncomment it in `databricks.yml` and `app.yaml`. |
 | `volume_write` | Create a Volume and set `BRICKSBOT_VOLUME_ROOT` in `app.yaml`. Files go under `users/{user}/bots/{bot}/`. |
 | MLflow tracing | Set `MLFLOW_EXPERIMENT_ID` in `app.yaml` and give the App service principal `CAN_EDIT` on the experiment. One trace per chat turn, with spans for LLM calls, tool calls (with approval outcome) and handoffs. Ids and names only, never message content. |
+| Genie space | One curated Genie space as `ask_genie_space` (Ask-first, runs as the user, incurs Genie compute). Set `genie_space_id`, uncomment the `genie-space` resource, the `genie` scope in `databricks.yml` and `BRICKSBOT_GENIE_SPACE_ID` in `app.yaml`. Off and absent from the prompt until set. Users need `CAN_RUN` on the space. |
 | Sandbox | On by default (`SANDBOX_BACKEND=databricks`). Set it to `off` to disable. |
 | Second install | Set `app_name` in a separate target (see `dev.local.yml.example`). |
 

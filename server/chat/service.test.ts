@@ -1119,6 +1119,111 @@ describe('ChatService', () => {
     expect(await service.getApprovals().isAutoApproved(chat.id, 'genie_ask')).toBe(false);
   });
 
+  describe('ask_genie_space', () => {
+    const genieSpace = {
+      spaceId: '01abc',
+      host: 'https://test.databricks.com',
+      getToken: () => Promise.resolve('obo-token'),
+    };
+    const askGenie = { id: 'call_gs', name: 'ask_genie_space', arguments: { question: 'What is churn?' } };
+
+    test('is not offered to the model or named in the prompt without a configured space', async () => {
+      const store = new MemoryChatStore();
+      const bot = await store.ensurePrimaryBot();
+      const chat = await store.getOrCreateChatForBot(bot.id);
+      const client = new ScriptedClient([{ content: 'ok', toolCalls: [] }]);
+
+      await new ChatService({ store, client }).sendUserMessage(chat.id, 'hi');
+
+      expect(client.lastRequest?.tools?.map((t) => t.name)).not.toContain('ask_genie_space');
+      expect(client.lastRequest?.messages[0]?.content).not.toContain('ask_genie_space');
+    });
+
+    test('is offered with escalation-only prompt language when configured', async () => {
+      const store = new MemoryChatStore();
+      const bot = await store.ensurePrimaryBot();
+      const chat = await store.getOrCreateChatForBot(bot.id);
+      const client = new ScriptedClient([{ content: 'ok', toolCalls: [] }]);
+
+      await new ChatService({ store, client, genieSpace }).sendUserMessage(chat.id, 'hi');
+
+      expect(client.lastRequest?.tools?.map((t) => t.name)).toContain('ask_genie_space');
+      expect(client.lastRequest?.messages[0]?.content).toContain('Prefer sql_query / lakehouse_catalog');
+    });
+
+    test('is Ask-first and never persists Always allow', async () => {
+      const store = new MemoryChatStore();
+      const bot = await store.ensurePrimaryBot();
+      const chat = await store.getOrCreateChatForBot(bot.id);
+      let fetched = 0;
+      const client = new ScriptedClient([
+        { content: null, toolCalls: [askGenie] },
+        { content: 'Churn is 2%.', toolCalls: [] },
+      ]);
+      const service = new ChatService({
+        store,
+        client,
+        genieSpace: {
+          ...genieSpace,
+          pollIntervalMs: 0,
+          fetchImpl: ((input: string | URL) => {
+            fetched += 1;
+            return Promise.resolve(
+              String(input).endsWith('/start-conversation')
+                ? new Response(JSON.stringify({ conversation_id: 'c1', message_id: 'm1' }))
+                : new Response(JSON.stringify({ status: 'COMPLETED', attachments: [] }))
+            );
+          }) as typeof fetch,
+        },
+      });
+
+      const pending = await service.sendUserMessage(chat.id, 'churn?');
+      expect(pending.pendingApprovals[0]?.toolCall.name).toBe('ask_genie_space');
+      expect(fetched).toBe(0);
+
+      const continued = await service.decideApproval(pending.pendingApprovals[0].id, 'all_the_time');
+      expect(continued.assistant?.content).toBe('Churn is 2%.');
+      expect(fetched).toBeGreaterThan(0);
+      expect(await service.getApprovals().isAutoApproved(chat.id, 'ask_genie_space')).toBe(false);
+    });
+
+    test('handoff autoApproveAll does not bypass approval, even with a stale auto-approval', async () => {
+      const store = new MemoryChatStore();
+      const primary = await store.ensurePrimaryBot();
+      const analyst = await store.createBot({ name: 'Analyst', ownerId: primary.ownerId, spaceId: primary.spaceId });
+      const chat = await store.getOrCreateChatForBot(primary.id);
+      const targetChat = await store.getOrCreateChatForBot(analyst.id);
+      let fetched = 0;
+      const client = new ScriptedClient([
+        {
+          content: null,
+          toolCalls: [{ id: 'call_hand', name: 'handoff_to_bot', arguments: { bot_id: analyst.id, brief: 'churn' } }],
+        },
+        { content: null, toolCalls: [askGenie] },
+        { content: 'Analyst is waiting for approval.', toolCalls: [] },
+      ]);
+      const service = new ChatService({
+        store,
+        client,
+        genieSpace: {
+          ...genieSpace,
+          fetchImpl: (() => {
+            fetched += 1;
+            return Promise.resolve(new Response('{}'));
+          }) as typeof fetch,
+        },
+      });
+      await service.getApprovals().setAutoApproved(targetChat.id, 'ask_genie_space');
+
+      const pending = await service.sendUserMessage(chat.id, 'ask the analyst');
+      await service.decideApproval(pending.pendingApprovals[0].id, 'once');
+
+      expect(fetched).toBe(0);
+      const waiting = await service.getApprovals().listPending(targetChat.id);
+      expect(waiting.map((approval) => approval.toolCall.name)).toEqual(['ask_genie_space']);
+    });
+  });
+
   test('offers each turn only the MCP connectors of the turn user (chat, routine, handoff)', async () => {
     const store = new MemoryChatStore();
     const { space, primary } = await store.ensureBootstrap('user-a');

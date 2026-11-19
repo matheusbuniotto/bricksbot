@@ -113,7 +113,14 @@ describe('user-facing', () => {
 
 describe('isOnceOnlyApproval', () => {
   test('matches the server tools that never get Always allow', () => {
-    for (const name of ['create_bot', 'ask_choice', 'delete_routine', 'sandbox_delete', 'genie_ask']) {
+    for (const name of [
+      'create_bot',
+      'ask_choice',
+      'delete_routine',
+      'sandbox_delete',
+      'genie_ask',
+      'ask_genie_space',
+    ]) {
       expect(isOnceOnlyApproval(name)).toBe(true);
     }
     expect(isOnceOnlyApproval('sql_query')).toBe(false);

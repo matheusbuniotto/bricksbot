@@ -23,6 +23,7 @@ import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idem
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
 import { parseVolumeQuotaLimits, resolveVolumeRoot } from './agents/tools/volume-namespace.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
+import { genieSpaceConfigFromEnv } from './agents/tools/genie-space.js';
 import { DEFAULT_GENIE_SERVICE_NAME, systemAiMcpConfigFromEnv } from './agents/tools/system-ai-mcp.js';
 import { LakebaseMcpConnectorStore } from './agents/tools/mcp-connector-lakebase-store.js';
 import { MemoryMcpConnectorStore } from './agents/tools/mcp-connector-memory-store.js';
@@ -150,6 +151,12 @@ createApp({
       await reaper.reconcileAtStartup();
       reaper.start();
     }
+    const genieSpace = genieSpaceConfigFromEnv(process.env, sqlQuery);
+    if (genieSpace) {
+      console.info(
+        `[bricksbot] Genie space configured (id=${genieSpace.spaceId.slice(0, 8)}…); ask_genie_space is Ask-first`
+      );
+    }
     const systemAiMcp = systemAiMcpConfigFromEnv(process.env);
     if (systemAiMcp) {
       if (!systemAiMcp.getToken && sqlQuery.getToken) {
@@ -204,6 +211,7 @@ createApp({
       pluginHost,
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
       sqlQuery,
+      genieSpace,
       sandbox: sandboxService,
       resolveMcpTools: (userId) =>
         buildConnectedMcpTools(mcpDiscovery, userId, {

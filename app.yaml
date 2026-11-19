@@ -24,6 +24,11 @@ env:
   # - name: WEB_FETCH_ALLOWLIST
   #   valueFrom: web-fetch-allowlist
 
+  # Optional: one Genie space for ask_genie_space (Ask-first, incurs Genie compute).
+  # Bind the genie-space resource in databricks.yml first. The tool is absent until set.
+  # - name: BRICKSBOT_GENIE_SPACE_ID
+  #   valueFrom: genie-space
+
   # Optional: surfaced on GET /api/setup/status as appPublicUrl (UI may use window.location when open)
   # - name: BRICKSBOT_PUBLIC_APP_URL
   #   value: https://bricksbot-1234567890123456.us-west-2.databricksapps.com
