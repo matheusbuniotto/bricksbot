@@ -7,6 +7,10 @@ describe('artifact-render', () => {
     const t = parseTableBody(JSON.stringify({ columns: ['n'], rows }));
     expect(t?.rows).toHaveLength(200);
   });
+  it('accepts sql_query-style column objects', () => {
+    const body = { columns: [{ name: 'zip', type: 'integer' }, { name: 'trips' }], rows: [[10001, 1227]] };
+    expect(parseTableBody(JSON.stringify(body))?.columns).toEqual(['zip', 'trips']);
+  });
   it('rejects malformed table and chart', () => {
     expect(parseTableBody('nope')).toBeNull();
     expect(parseChartBody(JSON.stringify({ type: 'bar', x: ['a'], y: [1, 2] }))).toBeNull();
