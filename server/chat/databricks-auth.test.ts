@@ -155,6 +155,15 @@ describe('viewer purpose', () => {
     });
   });
 
+  test('refuses a routine Test run even when the caller OBO token is present', async () => {
+    const getToken = createDatabricksTokenProvider({ env: appEnv, purpose: 'viewer' });
+    await runWithDatabricksRequestAuth(fakeReq({ 'x-forwarded-access-token': 'obo' }), () =>
+      runWithRoutineAuth('owner_approval', async () => {
+        await expect(getToken()).rejects.toBeInstanceOf(RoutineIdentityRequiredError);
+      })
+    );
+  });
+
   test('has no SP fallback in a deployed App, even with the interactive escape hatch', async () => {
     const m2mGetToken = vi.fn(() => Promise.resolve('m2m-tok'));
     const getToken = createDatabricksTokenProvider({

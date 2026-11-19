@@ -176,9 +176,9 @@ export function createDatabricksTokenProvider(options: DatabricksTokenProviderOp
       if (m2mGetToken) return m2mGetToken();
       throw noCredentials();
     }
+    if (purpose === 'viewer' && store?.routine) throw new RoutineIdentityRequiredError();
     if (store?.userAccessToken) return store.userAccessToken;
     if (purpose === 'viewer') {
-      if (store?.routine) throw new RoutineIdentityRequiredError();
       if (isDatabricksProxyEnvironment(env) && env.NODE_ENV !== 'development') throw new UserTokenRequiredError();
       if (staticToken) return staticToken;
       throw new UserTokenRequiredError();
