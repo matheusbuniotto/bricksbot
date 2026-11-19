@@ -6,7 +6,7 @@ A multi-bot chat assistant that runs inside your Databricks workspace as a Datab
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 <p align="center">
-  <img src="docs/assets/bricksbot-demo.gif" alt="BricksBot: bot roster, chat, and an approval card" width="880" />
+  <img src="docs/assets/bricksbot-demo.gif" alt="BricksBot answering a question about samples.nyctaxi.trips: it asks to approve the SQL query, runs it on a SQL warehouse, and replies with a table" width="880" />
 </p>
 
 ## What it does
