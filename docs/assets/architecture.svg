@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 490" width="880" height="490" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">BricksBot architecture</title>
+  <desc id="d">A signed-in user talks to a Databricks App. Bots call lakehouse tools as that user after an approval gate. State lives in Lakebase, models come from OpenRouter or Model Serving, and a Lakeflow Job triggers routines by webhook.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker>
+    <style>
+      text { fill: #0f172a; font-size: 13px }
+      .s { fill: #475569; font-size: 11px }
+      .h { fill: #475569; font-size: 11px; font-weight: 700; letter-spacing: 1px }
+      .b { font-weight: 600 }
+      .box { fill: #fff; stroke: #cbd5e1; stroke-width: 1.2 }
+      .opt { fill: #fff; stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 4 3 }
+      .zone { fill: #f1f5f9; stroke: #cbd5e1; stroke-width: 1.2 }
+      .bot { fill: #ffe9e5; stroke: #ff3621; stroke-width: 1.2 }
+      .gate { fill: #fef3c7; stroke: #d97706; stroke-width: 1.2 }
+      .ln { stroke: #475569; stroke-width: 1.4; fill: none }
+    </style>
+  </defs>
+  <rect width="880" height="490" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+
+  <!-- user -->
+  <rect class="box" x="24" y="60" width="150" height="56" rx="8"/>
+  <text class="b" x="99" y="84" text-anchor="middle">Browser</text>
+  <text class="s" x="99" y="102" text-anchor="middle">signed-in user</text>
+
+  <!-- app zone -->
+  <rect class="zone" x="210" y="24" width="330" height="290" rx="10"/>
+  <text class="h" x="226" y="46">DATABRICKS APP</text>
+  <rect class="box" x="226" y="58" width="298" height="60" rx="8"/>
+  <text class="b" x="375" y="82" text-anchor="middle">React UI + Express API</text>
+  <text class="s" x="375" y="100" text-anchor="middle">agent loop, durable chat</text>
+  <rect class="bot" x="226" y="140" width="125" height="52" rx="8"/>
+  <text class="b" x="288" y="162" text-anchor="middle">Primary bot</text>
+  <text class="s" x="288" y="179" text-anchor="middle">answers, hands off</text>
+  <rect class="bot" x="399" y="140" width="125" height="52" rx="8"/>
+  <text class="b" x="461" y="162" text-anchor="middle">Teammate bots</text>
+  <text class="s" x="461" y="179" text-anchor="middle">made with create_bot</text>
+  <path class="ln" d="M351 166H397" marker-end="url(#a)"/>
+  <path class="ln" d="M288 118V140" marker-end="url(#a)"/>
+  <rect class="gate" x="226" y="226" width="298" height="64" rx="8"/>
+  <text class="b" x="375" y="250" text-anchor="middle">Ask first</text>
+  <text class="s" x="375" y="269" text-anchor="middle">Always allow / Approve once / Deny</text>
+  <path class="ln" d="M288 192V226" marker-end="url(#a)"/>
+
+  <path class="ln" d="M174 88H226" marker-end="url(#a)"/>
+
+  <!-- tools zone -->
+  <rect class="zone" x="580" y="24" width="276" height="290" rx="10"/>
+  <text class="h" x="596" y="46">LAKEHOUSE TOOLS</text>
+  <text class="s" x="596" y="62">run as the signed-in user (OBO)</text>
+  <rect class="box" x="596" y="76" width="118" height="44" rx="8"/>
+  <text class="b" x="655" y="95" text-anchor="middle">SQL warehouse</text>
+  <text class="s" x="655" y="111" text-anchor="middle">read-only</text>
+  <rect class="box" x="722" y="76" width="118" height="44" rx="8"/>
+  <text class="b" x="781" y="95" text-anchor="middle">Unity Catalog</text>
+  <text class="s" x="781" y="111" text-anchor="middle">grants apply</text>
+  <rect class="box" x="596" y="130" width="118" height="44" rx="8"/>
+  <text class="b" x="655" y="149" text-anchor="middle">Volumes</text>
+  <text class="s" x="655" y="165" text-anchor="middle">read, write opt-in</text>
+  <rect class="box" x="722" y="130" width="118" height="44" rx="8"/>
+  <text class="b" x="781" y="149" text-anchor="middle">Sandbox</text>
+  <text class="s" x="781" y="165" text-anchor="middle">Linux exec per chat</text>
+  <rect class="box" x="596" y="184" width="118" height="44" rx="8"/>
+  <text class="b" x="655" y="203" text-anchor="middle">MCP</text>
+  <text class="s" x="655" y="219" text-anchor="middle">tool servers</text>
+  <rect class="opt" x="722" y="184" width="118" height="44" rx="8"/>
+  <text class="b" x="781" y="203" text-anchor="middle">web_fetch</text>
+  <text class="s" x="781" y="219" text-anchor="middle">allowlisted hosts</text>
+  <rect class="opt" x="596" y="238" width="244" height="60" rx="8"/>
+  <text class="b" x="718" y="262" text-anchor="middle">Genie space</text>
+  <text class="s" x="718" y="280" text-anchor="middle">one curated space, Ask-first, extra cost</text>
+  <path class="ln" d="M524 258H580" marker-end="url(#a)"/>
+
+  <!-- bottom row -->
+  <rect class="box" x="210" y="370" width="190" height="84" rx="8"/>
+  <text class="b" x="305" y="394" text-anchor="middle">Lakebase</text>
+  <text class="s" x="305" y="414" text-anchor="middle">chats, approvals</text>
+  <text class="s" x="305" y="431" text-anchor="middle">memories, skills</text>
+  <path class="ln" d="M305 314V370" marker-start="url(#a)" marker-end="url(#a)"/>
+
+  <rect class="box" x="425" y="370" width="200" height="84" rx="8"/>
+  <text class="b" x="525" y="394" text-anchor="middle">Model</text>
+  <text class="s" x="525" y="414" text-anchor="middle">OpenRouter (any OpenAI-</text>
+  <text class="s" x="525" y="431" text-anchor="middle">compatible) or Model Serving</text>
+  <path class="ln" d="M475 314V370" marker-end="url(#a)"/>
+
+  <rect class="opt" x="650" y="370" width="206" height="84" rx="8"/>
+  <text class="b" x="753" y="394" text-anchor="middle">MLflow tracing</text>
+  <text class="s" x="753" y="414" text-anchor="middle">one trace per chat turn</text>
+  <text class="s" x="753" y="431" text-anchor="middle">ids and names only</text>
+  <path class="ln" stroke-dasharray="4 3" d="M505 314V346H753V370" marker-end="url(#a)"/>
+
+  <!-- job -->
+  <rect class="box" x="24" y="370" width="150" height="84" rx="8"/>
+  <text class="b" x="99" y="394" text-anchor="middle">Lakeflow Job</text>
+  <text class="s" x="99" y="414" text-anchor="middle">schedule triggers</text>
+  <text class="s" x="99" y="431" text-anchor="middle">a routine</text>
+  <path class="ln" d="M99 370V300H210" marker-end="url(#a)"/>
+  <text class="s" x="112" y="340">webhook</text>
+
+  <text class="s" x="866" y="480" text-anchor="end">Dashed = optional</text>
+</svg>
