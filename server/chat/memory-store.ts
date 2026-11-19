@@ -383,10 +383,11 @@ export class MemoryChatStore implements ChatStore {
     return chat;
   }
 
-  async archiveRoutineChat(routineId: string): Promise<void> {
+  archiveRoutineChat(routineId: string): Promise<void> {
     for (const chat of this.chatById.values()) {
       if (chat.routineId === routineId && chat.kind === 'routine') chat.archivedAt ??= nowIso();
     }
+    return Promise.resolve();
   }
 
   async getRoutineChat(routine: { id: string; botId: string; ownerId: string; name: string }): Promise<Chat> {
