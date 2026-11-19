@@ -64,6 +64,7 @@ import { isConnectedMcpTool } from '../agents/tools/mcp-tools.js';
 import type { SystemAiMcpOptions } from '../../shared/agents/mcp-types.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
+import { annotate, traced } from '../observability/tracing.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
 import type { ArtifactSyncService } from '../sandbox/artifact-sync.js';
 import type { SandboxSessionService } from '../sandbox/session-service.js';
@@ -207,6 +208,9 @@ function toLlmHistory(history: Message[]): LlmMessage[] {
 
   return out;
 }
+
+/** How a tool call got past (or failed to get past) approval, for traces. */
+type ApprovalOutcome = 'auto' | 'user_approved' | 'user_denied' | 'refused';
 
 type ContinueTurnOptions = {
   /** Nested teammate turns from handoff auto-run tools without extra approvals. */
@@ -429,7 +433,18 @@ export class ChatService {
     };
   }
 
-  async decideApproval(
+  /** One trace covers the decision, the tool it releases, and the resumed turn. */
+  decideApproval(
+    approvalId: string,
+    decision: ApprovalDecision,
+    opts?: { decidedBy?: string }
+  ): Promise<SendMessageResult> {
+    return traced('approval_decision', 'CHAIN', { approval_id: approvalId, decision }, () =>
+      this.settleApproval(approvalId, decision, opts)
+    );
+  }
+
+  private async settleApproval(
     approvalId: string,
     decision: ApprovalDecision,
     opts?: { decidedBy?: string }
@@ -482,11 +497,13 @@ export class ChatService {
   private async applyDecidedApproval(approval: ApprovalRequest, isDenial: boolean): Promise<void> {
     const chatId = approval.chatId;
     if (isDenial) {
-      await this.options.store.addMessage(
-        chatId,
-        'tool',
-        JSON.stringify({ error: 'User denied tool call', tool: approval.toolCall.name }),
-        { toolCallId: approval.toolCall.id }
+      await this.traceTool(approval.toolCall, { chatId }, 'user_denied', () =>
+        this.options.store.addMessage(
+          chatId,
+          'tool',
+          JSON.stringify({ error: 'User denied tool call', tool: approval.toolCall.name }),
+          { toolCallId: approval.toolCall.id }
+        )
       );
       return;
     }
@@ -508,11 +525,11 @@ export class ChatService {
       await this.options.store.setBotPresence(botId, 'working');
     }
     await this.loadMcpTools(chat?.userId);
-    const toolResult = await this.executeTool(approval.toolCall, {
-      chatId,
-      bot,
-      userId: chat?.userId,
-    });
+    const toolResult = await this.executeTool(
+      approval.toolCall,
+      { chatId, bot, userId: chat?.userId },
+      'user_approved'
+    );
     await this.options.store.addMessage(chatId, 'tool', toolResult, {
       toolCallId: approval.toolCall.id,
     });
@@ -621,7 +638,23 @@ export class ChatService {
     return { pendingApprovals, pendingChoices, autoApprovedTools };
   }
 
-  private async continueTurn(
+  /** One trace per turn; follow-up model calls (depth > 0) stay inside it. */
+  private continueTurn(
+    chatId: string,
+    user?: Message,
+    depth: number = 0,
+    opts: ContinueTurnOptions = {}
+  ): Promise<SendMessageResult> {
+    if (depth > 0) return this.runTurn(chatId, user, depth, opts);
+    return traced(
+      'chat_turn',
+      'AGENT',
+      { chat_id: chatId, routine: opts.routine === true, handoff: opts.autoApproveAll === true },
+      () => this.runTurn(chatId, user, depth, opts)
+    );
+  }
+
+  private async runTurn(
     chatId: string,
     user?: Message,
     depth: number = 0,
@@ -637,6 +670,7 @@ export class ChatService {
     }
 
     const { chat, botId, bot } = await this.chatContext(chatId);
+    if (depth === 0) annotate({ bot_id: botId });
     if (botId) {
       if (depth === 0) {
         this.markBotTurnStart(botId);
@@ -698,7 +732,22 @@ export class ChatService {
       if (botId) {
         await this.options.store.setBotPresence(botId, 'working');
       }
-      const completion = await this.options.client.complete({ messages: llmMessages, tools });
+      const completion = await traced(
+        'llm_call',
+        'LLM',
+        {
+          model: this.options.client.model,
+          provider: this.options.client.provider,
+          messages: llmMessages.length,
+          tools: tools.length,
+          depth,
+        },
+        async () => {
+          const result = await this.options.client.complete({ messages: llmMessages, tools });
+          annotate({ tool_calls: result.toolCalls.length });
+          return result;
+        }
+      );
 
       if (completion.toolCalls.length > 0) {
         const needsApproval: ToolCall[] = [];
@@ -750,19 +799,22 @@ export class ChatService {
         });
 
         for (const { toolCall, reason } of refusals) {
-          await this.options.store.addMessage(chatId, 'tool', JSON.stringify({ error: reason, tool: toolCall.name }), {
-            toolCallId: toolCall.id,
-          });
+          await this.traceTool(toolCall, turnCtx, 'refused', () =>
+            this.options.store.addMessage(chatId, 'tool', JSON.stringify({ error: reason, tool: toolCall.name }), {
+              toolCallId: toolCall.id,
+            })
+          );
         }
 
         for (const toolCall of toAutoExecute) {
-          const toolResult = await this.executeTool(toolCall, turnCtx);
+          const toolResult = await this.executeTool(toolCall, turnCtx, 'auto');
           await this.options.store.addMessage(chatId, 'tool', toolResult, {
             toolCallId: toolCall.id,
           });
         }
 
         if (needsApproval.length > 0) {
+          annotate({ pending_approvals: needsApproval.length });
           const trailMeta = {
             botId: bot?.id ?? null,
             userId: turnCtx.userId ?? chat?.userId ?? null,
@@ -913,7 +965,26 @@ export class ChatService {
     return this.toolsForUser(userId).find((tool) => tool.definition.name === name);
   }
 
-  private async executeTool(toolCall: ToolCall, ctx: HandoffTurnContext): Promise<string> {
+  /** Span per tool call, named after the tool. The handoff span holds the teammate's turn. */
+  private traceTool<T>(
+    toolCall: ToolCall,
+    ctx: { chatId: string; bot?: Bot | null },
+    approval: ApprovalOutcome,
+    run: () => Promise<T>
+  ): Promise<T> {
+    return traced(
+      toolCall.name,
+      'TOOL',
+      { tool: toolCall.name, approval, chat_id: ctx.chatId, bot_id: ctx.bot?.id },
+      run
+    );
+  }
+
+  private executeTool(toolCall: ToolCall, ctx: HandoffTurnContext, approval: ApprovalOutcome): Promise<string> {
+    return this.traceTool(toolCall, ctx, approval, () => this.runTool(toolCall, ctx));
+  }
+
+  private async runTool(toolCall: ToolCall, ctx: HandoffTurnContext): Promise<string> {
     if (toolCall.name === HANDOFF_TOOL_NAME) {
       return this.executeHandoffRoundTrip(toolCall.arguments, ctx);
     }
@@ -941,6 +1012,7 @@ export class ChatService {
     if (!planned.ok) return planned.error;
 
     const { sender, target, brief } = planned.plan;
+    annotate({ target_bot_id: target.id });
     const callerId = ctx.userId?.trim() || sender.ownerId;
     const targetChat = await this.options.store.getOrCreateChatForBot(target.id, callerId);
     const sourceChatId = ctx.chatId;

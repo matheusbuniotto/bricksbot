@@ -36,6 +36,7 @@ import { LakebaseRoutineStore } from './routines/lakebase-store.js';
 import { MemoryRoutineStore } from './routines/memory-store.js';
 import { registerRoutineRoutes } from './routines/routes.js';
 import { RoutineService } from './routines/service.js';
+import { initTracing } from './observability/tracing.js';
 import { LakebaseSandboxStore } from './sandbox/lakebase-store.js';
 import { MemorySandboxStore } from './sandbox/memory-store.js';
 import { SandboxReaper } from './sandbox/reaper.js';
@@ -119,6 +120,7 @@ createApp({
     const volumeRoot = resolveVolumeRoot(process.env);
     const client = createChatClientFromEnv(process.env);
     console.info(`[bricksbot] ChatClient provider=${client.provider}`);
+    await initTracing(process.env);
     const sqlQuery = sqlQueryConfigFromEnv(process.env);
     if (sqlQuery.warehouseId) {
       console.info(
