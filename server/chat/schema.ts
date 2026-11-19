@@ -75,6 +75,8 @@ export const CHAT_SCHEMA_STATEMENTS = [
   ON bricksbot.chats(routine_id) WHERE kind = 'routine'`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chats_handoff
   ON bricksbot.chats(bot_id, user_id) WHERE kind = 'handoff'`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_chats_user_recent
+  ON bricksbot.chats(user_id, updated_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_space_members_user
   ON bricksbot.space_members(user_id, space_id)`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_bots_roster
@@ -267,4 +269,8 @@ export const CHAT_SCHEMA_STATEMENTS = [
   expires_at TIMESTAMPTZ NOT NULL
 )`,
   `ALTER TABLE bricksbot.messages ADD COLUMN IF NOT EXISTS run_id UUID`,
+  // Search covers what people and bots said; tool output stays out of the index.
+  `ALTER TABLE bricksbot.messages ADD COLUMN IF NOT EXISTS search_tsv tsvector
+  GENERATED ALWAYS AS (CASE WHEN role IN ('user', 'assistant') THEN to_tsvector('simple', left(content, 20000)) END) STORED`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_messages_search ON bricksbot.messages USING GIN (search_tsv)`,
 ] as const;

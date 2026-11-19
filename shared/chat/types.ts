@@ -93,6 +93,18 @@ export interface Message {
   runId?: string;
 }
 
+/** A conversation that matches a search, shown by its latest matching message. */
+export interface SearchHit {
+  chatId: string;
+  botId: string;
+  chatTitle: string;
+  messageId: string;
+  role: 'user' | 'assistant';
+  /** The words around the match, on one line. */
+  snippet: string;
+  createdAt: string;
+}
+
 export interface CreateBotInput {
   name: string;
   spaceId?: string | null;
@@ -147,7 +159,6 @@ export interface ChatStore {
   unarchiveBot(botId: string): Promise<Bot>;
   deleteBot(botId: string): Promise<void>;
   getBot(botId: string): Promise<Bot | null>;
-  setBotPresence(botId: string, presence: Presence): Promise<Bot>;
   /** @deprecated Prefer ensureBootstrap — kept for older call sites during Phase 3. */
   ensurePrimaryBot(): Promise<Bot>;
   listMarketplaceBots(): Promise<Bot[]>;
@@ -155,6 +166,8 @@ export interface ChatStore {
   getDefaultChat(botId: string, userId?: string): Promise<Chat>;
   /** Every active chat the user has with the bot (user, routine and handoff), newest first. */
   listChats(botId: string, userId: string): Promise<Chat[]>;
+  /** Every active chat the user has, across bots, newest first. */
+  listUserChats(userId: string): Promise<Chat[]>;
   createChat(botId: string, userId: string, title?: string): Promise<Chat>;
   renameChat(chatId: string, title: string): Promise<Chat>;
   archiveChat(chatId: string): Promise<Chat>;
@@ -167,6 +180,8 @@ export interface ChatStore {
   getChat(chatId: string): Promise<Chat | null>;
   findBotIdForChat(chatId: string): Promise<string | null>;
   listMessages(chatId: string): Promise<Message[]>;
+  /** The user's own active chats that mention every word of `query` (user and assistant text), newest first. */
+  searchMessages(userId: string, query: string, options?: { botId?: string; limit?: number }): Promise<SearchHit[]>;
   addMessage(
     chatId: string,
     role: MessageRole,

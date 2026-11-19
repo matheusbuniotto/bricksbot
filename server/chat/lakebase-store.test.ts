@@ -183,13 +183,6 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       return { rows: row ? [row] : [] };
     }
 
-    if (normalized.startsWith('UPDATE bricksbot.bots SET presence')) {
-      const bot = bots.get(String(params[0]));
-      if (!bot) return { rows: [] };
-      bot.presence = String(params[1]);
-      return { rows: [bot] };
-    }
-
     if (normalized.startsWith('UPDATE bricksbot.bots SET last_message_preview')) {
       const bot = bots.get(String(params[0]));
       if (bot) {
@@ -287,6 +280,37 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       if (normalized.includes('archived_at IS NULL')) rows = rows.filter((c) => c.archived_at == null);
       rows.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
       return { rows: normalized.includes('LIMIT 1') ? rows.slice(0, 1) : rows };
+    }
+
+    // listUserChats
+    if (normalized.startsWith('SELECT id, bot_id') && normalized.includes('FROM bricksbot.chats WHERE user_id =')) {
+      const rows = [...chats.values()]
+        .reverse()
+        .filter((c) => c.user_id === params[0] && c.archived_at == null)
+        .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+      return { rows };
+    }
+
+    // searchMessages: the fake stands in for the tsvector match with a word-contains check
+    if (normalized.includes('m.search_tsv @@ websearch_to_tsquery')) {
+      const [userId, text, limit, botId] = params as [string, string, number, string | undefined];
+      const terms = text.toLowerCase().split(/\s+/).filter(Boolean);
+      const rows: Row[] = [];
+      for (const chat of chats.values()) {
+        if (chat.user_id !== userId || chat.archived_at != null) continue;
+        if (normalized.includes('c.bot_id = $4') && chat.bot_id !== botId) continue;
+        const match = messages
+          .filter(
+            (m) =>
+              m.chat_id === chat.id &&
+              (m.role === 'user' || m.role === 'assistant') &&
+              terms.every((t) => String(m.content).toLowerCase().includes(t))
+          )
+          .pop();
+        if (match) rows.push({ ...match, bot_id: chat.bot_id, title: chat.title });
+      }
+      rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+      return { rows: rows.slice(0, limit) };
     }
 
     if (normalized.includes('FROM bricksbot.chats WHERE user_id =')) {
@@ -489,7 +513,6 @@ describe('LakebaseChatStore', () => {
     await cachedStore.ensureBootstrap('user-1');
     await cachedStore.getBot(primary.id);
     await cachedStore.findBotIdForChat(chat.id);
-    await cachedStore.setBotPresence(primary.id, primary.presence);
     expect(queries).toHaveLength(0);
   });
 
@@ -650,6 +673,54 @@ describe('LakebaseChatStore', () => {
     const fresh = new LakebaseChatStore(fake.query);
     const mine = await fresh.listBots({ ownerId: 'user-a' });
     expect(mine.find((b) => b.id === bot.id)?.lastPreview).toBe('older chat');
+  });
+
+  test('lists every active chat of a user across bots', async () => {
+    const one = await store.createBot({ name: 'One', ownerId: 'user-a' });
+    const two = await store.createBot({ name: 'Two', ownerId: 'user-a' });
+    const first = await store.createChat(one.id, 'user-a');
+    await tick();
+    const second = await store.createChat(two.id, 'user-a');
+    await store.createChat(two.id, 'user-b');
+    await tick();
+    const archived = await store.createChat(one.id, 'user-a');
+    await store.archiveChat(archived.id);
+
+    expect((await store.listUserChats('user-a')).map((chat) => chat.id)).toEqual([second.id, first.id]);
+  });
+
+  test('search returns one hit per chat for the user, newest first, and honors archive and bot filters', async () => {
+    const bot = await store.createBot({ name: 'Analyst', ownerId: 'user-a' });
+    const other = await store.createBot({ name: 'Other', ownerId: 'user-a' });
+    const older = await store.createChat(bot.id, 'user-a', 'Older');
+    const newer = await store.createChat(other.id, 'user-a', 'Newer');
+    const theirs = await store.createChat(bot.id, 'user-b');
+    await store.addMessage(older.id, 'user', 'revenue by region');
+    await store.addMessage(older.id, 'assistant', 'Here is the revenue table');
+    await tick();
+    await store.addMessage(newer.id, 'user', 'revenue again');
+    await store.addMessage(theirs.id, 'user', 'revenue of user-b');
+
+    const hits = await store.searchMessages('user-a', 'Revenue');
+    expect(hits.map((hit) => [hit.chatTitle, hit.role, hit.botId])).toEqual([
+      ['Newer', 'user', other.id],
+      ['Older', 'assistant', bot.id],
+    ]);
+    expect(hits[1].snippet).toBe('Here is the revenue table');
+    expect((await store.searchMessages('user-a', 'revenue', { botId: bot.id })).map((hit) => hit.chatId)).toEqual([
+      older.id,
+    ]);
+    expect(await store.searchMessages('user-a', '  ')).toEqual([]);
+
+    await store.archiveChat(newer.id);
+    expect((await store.searchMessages('user-a', 'revenue')).map((hit) => hit.chatId)).toEqual([older.id]);
+  });
+
+  test('schema indexes user and assistant text for search', () => {
+    const statements = CHAT_SCHEMA_STATEMENTS.join('\n');
+    expect(statements).toContain("to_tsvector('simple', left(content, 20000))");
+    expect(statements).toContain("role IN ('user', 'assistant')");
+    expect(statements).toContain('USING GIN (search_tsv)');
   });
 
   test('schema drops the one-chat-per-bot index and adds the multi-chat columns', () => {

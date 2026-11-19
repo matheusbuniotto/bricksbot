@@ -19,6 +19,19 @@ describe('MemoryRunStore', () => {
     expect(resume.run.turnId).toBe(run.turnId);
   });
 
+  test("latestByChat returns each chat's newest run and skips chats without one", async () => {
+    const store = new MemoryRunStore();
+    const first = await store.start({ chatId: 'c1', kind: 'send', routine: false });
+    await store.finish(first.run.id, 'waiting');
+    const second = await store.start({ chatId: 'c1', kind: 'resume', routine: false });
+    const other = await store.start({ chatId: 'c2', kind: 'send', routine: false });
+    await store.start({ chatId: 'c3', kind: 'send', routine: false });
+
+    const latest = await store.latestByChat(['c1', 'c2', 'c4']);
+    expect(latest.map((run) => run.id).sort()).toEqual([second.run.id, other.run.id].sort());
+    expect(await store.latestByChat([])).toEqual([]);
+  });
+
   test('numbers events per chat without gaps', async () => {
     const store = new MemoryRunStore();
     await store.appendEvent('c1', 'r1', 'run.started', {});

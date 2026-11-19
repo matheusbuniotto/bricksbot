@@ -181,7 +181,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     expect(teammatePending[0]?.toolCall.name).toBe('sandbox_exec');
   });
 
-  test('SB-1, SB-2, SB-4, SB-10: sandbox_exec requires approval, sets working presence, reuses session, and preserves toolCallId', async () => {
+  test('SB-1, SB-2, SB-4, SB-10: sandbox_exec requires approval, shows the bot busy, reuses session, and preserves toolCallId', async () => {
     const store = new MemoryChatStore();
     const { primary } = await store.ensureBootstrap('user-1');
     const chat = await store.getDefaultChat(primary.id);
@@ -189,8 +189,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     let presenceDuringExec: string | undefined;
     const { sessionService, createdSessions } = createFakeSandboxSetup({
       async onDuringExec() {
-        const botNow = await store.getBot(primary.id);
-        presenceDuringExec = botNow?.presence;
+        presenceDuringExec = (await service.presenceByBot('user-1')).get(primary.id);
       },
     });
 
@@ -222,11 +221,11 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
     const first = await service.sendUserMessage(chat.id, 'run echo hello');
     expect(first.pendingApprovals).toHaveLength(1);
     expect(first.pendingApprovals[0]?.toolCall.name).toBe('sandbox_exec');
-    expect((await store.getBot(primary.id))?.presence).toBe('waiting');
+    expect((await service.presenceByBot('user-1')).get(primary.id)).toBe('waiting');
 
     // Approve with all_the_time so a second call in this chat auto-runs and reuses the session.
     const decided = await service.decideApproval(first.pendingApprovals[0].id, 'all_the_time');
-    expect(presenceDuringExec).toBe('working');
+    expect(presenceDuringExec).toBe('thinking');
     expect(decided.assistant?.content).toBe('Sandbox said hello.');
     expect(createdSessions).toHaveLength(1);
 

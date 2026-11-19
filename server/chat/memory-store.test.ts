@@ -62,14 +62,6 @@ describe('MemoryChatStore', () => {
     expect(await store.listMessages(chat.id)).toHaveLength(2);
   });
 
-  test('setBotPresence updates roster presence', async () => {
-    const { primary } = await store.ensureBootstrap('user-1');
-    const updated = await store.setBotPresence(primary.id, 'thinking');
-    expect(updated.presence).toBe('thinking');
-    const waiting = await store.setBotPresence(primary.id, 'waiting');
-    expect(waiting.presence).toBe('waiting');
-  });
-
   test('rename, move, archive, restore, and delete bots', async () => {
     const { space, primary } = await store.ensureBootstrap('user-1');
     const team = await store.createSpace({ name: 'Code', ownerId: 'user-1' });
@@ -291,6 +283,41 @@ describe('MemoryChatStore', () => {
       const chat = await store.createChat(bot.id, 'alice');
       await store.deleteBot(bot.id);
       expect(await store.getChat(chat.id)).toBeNull();
+    });
+
+    test('lists every active chat of a user across bots', async () => {
+      const { store, bot } = await setup();
+      const other = await store.createBot({ name: 'Other', ownerId: 'alice' });
+      const first = await store.createChat(bot.id, 'alice');
+      await tick();
+      const second = await store.createChat(other.id, 'alice');
+      await store.createChat(bot.id, 'bob');
+      const archived = await store.createChat(bot.id, 'alice');
+      await store.archiveChat(archived.id);
+      expect((await store.listUserChats('alice')).map((chat) => chat.id)).toEqual([second.id, first.id]);
+    });
+
+    test('search matches every word in user and assistant text, one hit per chat, for that user only', async () => {
+      const { store, bot } = await setup();
+      const chat = await store.createChat(bot.id, 'alice', 'Revenue');
+      const bobs = await store.createChat(bot.id, 'bob');
+      await store.addMessage(chat.id, 'user', 'revenue by region please');
+      await tick();
+      await store.addMessage(chat.id, 'assistant', 'Revenue by REGION: EMEA leads');
+      await store.addMessage(chat.id, 'tool', '{"revenue": "region"}', { toolCallId: 't1' });
+      await store.addMessage(bobs.id, 'user', 'revenue by region from bob');
+
+      const hits = await store.searchMessages('alice', 'region revenue');
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toMatchObject({ chatId: chat.id, chatTitle: 'Revenue', role: 'assistant', botId: bot.id });
+      expect(hits[0].snippet).toBe('Revenue by REGION: EMEA leads');
+      expect(await store.searchMessages('alice', 'region emea churn')).toEqual([]);
+      expect(await store.searchMessages('alice', 'revenue', { botId: 'other-bot' })).toEqual([]);
+      expect(await store.searchMessages('alice', 'revenue', { limit: 0 })).toEqual([]);
+      expect(await store.searchMessages('alice', '   ')).toEqual([]);
+
+      await store.archiveChat(chat.id);
+      expect(await store.searchMessages('alice', 'revenue')).toEqual([]);
     });
   });
 });

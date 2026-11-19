@@ -1,4 +1,13 @@
-import type { Bot, Chat, MarketplaceBot, Message, Space, SpaceMember, WorkspaceUser } from '../../../shared/chat/types';
+import type {
+  Bot,
+  Chat,
+  MarketplaceBot,
+  Message,
+  SearchHit,
+  Space,
+  SpaceMember,
+  WorkspaceUser,
+} from '../../../shared/chat/types';
 import type { PendingChoice } from '../../../shared/chat/choice-notice';
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
 import type { SandboxUiStatus } from '../../../shared/sandbox/types';
@@ -169,6 +178,39 @@ export async function fetchBotChat(botId: string) {
 /** A specific chat, e.g. the handoff chat a notice points at. */
 export async function fetchChat(chatId: string) {
   return fetchChatPayload(`/api/chats/${chatId}`);
+}
+
+/** Every active chat the caller has with the bot (user, routine and handoff), newest first. */
+export async function fetchChats(botId: string): Promise<Chat[]> {
+  return (await readJson<{ chats: Chat[] }>(await fetch(`/api/bots/${botId}/chats`))).chats;
+}
+
+export async function createChat(botId: string): Promise<Chat> {
+  const res = await fetch(`/api/bots/${botId}/chats`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{}',
+  });
+  return (await readJson<{ chat: Chat }>(res)).chat;
+}
+
+export async function renameChat(chatId: string, title: string): Promise<Chat> {
+  const res = await fetch(`/api/chats/${chatId}/update`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  return (await readJson<{ chat: Chat }>(res)).chat;
+}
+
+export async function archiveChat(chatId: string): Promise<Chat> {
+  return (await readJson<{ chat: Chat }>(await fetch(`/api/chats/${chatId}/archive`, { method: 'POST' }))).chat;
+}
+
+/** The caller's own conversations that mention every word of `query`. */
+export async function searchChats(query: string, signal?: AbortSignal): Promise<SearchHit[]> {
+  const params = new URLSearchParams({ q: query });
+  return (await readJson<{ hits: SearchHit[] }>(await fetch(`/api/search?${params.toString()}`, { signal }))).hits;
 }
 
 async function fetchChatPayload(url: string): Promise<{

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { DEFAULT_META_TOOL_NAMES } from '../../shared/agents/meta-tools.js';
 import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../shared/agents/types.js';
 import type { Request } from 'express';
+import type { Bot } from '../../shared/chat/types.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { McpDiscoveryService } from '../agents/tools/mcp-discovery.js';
 import { buildConnectedMcpTools } from '../agents/tools/mcp-tools.js';
@@ -25,6 +26,11 @@ class ScriptedClient implements ChatClient {
   }
 }
 
+/** What the bot looks like to its owner, whose chats the tests use. */
+async function presenceOf(service: ChatService, bot: Bot) {
+  return (await service.presenceByBot(bot.ownerId)).get(bot.id) ?? 'online';
+}
+
 describe('ChatService', () => {
   test('persists user + assistant from the ChatClient', async () => {
     const store = new MemoryChatStore();
@@ -39,6 +45,62 @@ describe('ChatService', () => {
     expect(result.assistant?.content).toBe('model says hi');
     expect(result.provider).toBe('stub');
     expect(await store.listMessages(chat.id)).toHaveLength(2);
+  });
+
+  test('the first message names an untitled chat; later messages and custom titles are left alone', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const service = new ChatService({
+      store,
+      client: new ScriptedClient([
+        { content: 'one', toolCalls: [] },
+        { content: 'two', toolCalls: [] },
+        { content: 'three', toolCalls: [] },
+      ]),
+    });
+
+    const opened = await store.getDefaultChat(bot.id);
+    expect(opened.title).toBe(bot.name);
+    await service.sendUserMessage(opened.id, 'Compare Q3 revenue by region\nand flag outliers');
+    expect((await store.getChat(opened.id))?.title).toBe('Compare Q3 revenue by region');
+    await service.sendUserMessage(opened.id, 'Now show churn');
+    expect((await store.getChat(opened.id))?.title).toBe('Compare Q3 revenue by region');
+
+    const fresh = await store.createChat(bot.id, bot.ownerId);
+    expect(fresh.title).toBe('New chat');
+    const named = await store.createChat(bot.id, bot.ownerId, 'My own title');
+    await service.sendUserMessage(named.id, 'something else entirely');
+    expect((await store.getChat(named.id))?.title).toBe('My own title');
+  });
+
+  test('routine and handoff chats keep the title the system gave them', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.ensurePrimaryBot();
+    const service = new ChatService({ store, client: new ScriptedClient([{ content: 'ok', toolCalls: [] }]) });
+    const routineChat = await store.getRoutineChat({ id: 'r1', botId: bot.id, ownerId: bot.ownerId, name: 'Nightly' });
+    await service.sendUserMessage(routineChat.id, 'Run the nightly digest');
+    expect((await store.getChat(routineChat.id))?.title).toBe('Routine: Nightly');
+  });
+
+  test('presence is per user: a run in one chat shows as thinking only there, and a pending choice is blocked', async () => {
+    const store = new MemoryChatStore();
+    const bot = await store.createBot({ name: 'Shared', ownerId: 'alice', isShared: true });
+    const service = new ChatService({ store, client: new ScriptedClient([]) });
+    const aliceChat = await store.createChat(bot.id, 'alice');
+    await store.createChat(bot.id, 'bob');
+
+    const run = await service.getRuns().open({ chatId: aliceChat.id, kind: 'send', routine: false });
+    expect((await service.presenceByBot('alice')).get(bot.id)).toBe('thinking');
+    expect((await service.presenceByBot('bob')).has(bot.id)).toBe(false);
+
+    service.getChoices().create({ chatId: aliceChat.id, toolCallId: 't1', prompt: 'Which?', options: ['a', 'b'] });
+    await service.getRuns().settle(run, 'waiting');
+    expect((await service.presenceByBot('alice')).get(bot.id)).toBe('blocked');
+
+    await service
+      .getRuns()
+      .settle(await service.getRuns().open({ chatId: aliceChat.id, kind: 'resume', routine: false }), 'completed');
+    expect((await service.presenceByBot('alice')).get(bot.id)).toBeUndefined();
   });
 
   test('creates a pending approval for web_fetch tool calls', async () => {
@@ -61,8 +123,7 @@ describe('ChatService', () => {
     expect(result.pendingApprovals[0]?.toolCall.name).toBe('web_fetch');
     // Wait state lives on the approval card / presence — not a chat bubble.
     expect(result.assistant?.content ?? '').toBe('');
-    const updatedBot = await store.getBot(bot.id);
-    expect(updatedBot?.presence).toBe('waiting');
+    expect(await presenceOf(service, bot)).toBe('waiting');
   });
 
   test('runs web_fetch after approval and continues the turn', async () => {
@@ -93,8 +154,7 @@ describe('ChatService', () => {
       const continued = await service.decideApproval(approvalId, 'approved');
       expect(continued.assistant?.content).toBe('fetched summary');
       expect(continued.pendingApprovals).toHaveLength(0);
-      const after = await store.getBot(bot.id);
-      expect(after?.presence).toBe('online');
+      expect(await presenceOf(service, bot)).toBe('online');
       const messages = await store.listMessages(chat.id);
       expect(messages.some((m) => m.role === 'tool' && m.content.includes('page body'))).toBe(true);
     } finally {
@@ -123,7 +183,7 @@ describe('ChatService', () => {
 
     const pending = await service.sendUserMessage(chat.id, 'fetch both');
     expect(pending.pendingApprovals).toHaveLength(2);
-    expect((await store.getBot(bot.id))?.presence).toBe('waiting');
+    expect(await presenceOf(service, bot)).toBe('waiting');
     // Approval cards own the wait UX — do not spam the transcript.
     expect(pending.assistant?.content ?? '').toBe('');
 
@@ -132,11 +192,11 @@ describe('ChatService', () => {
     try {
       const mid = await service.decideApproval(pending.pendingApprovals[0].id, 'approved');
       expect(mid.pendingApprovals).toHaveLength(1);
-      expect((await store.getBot(bot.id))?.presence).toBe('waiting');
+      expect(await presenceOf(service, bot)).toBe('waiting');
 
       const done = await service.decideApproval(mid.pendingApprovals[0].id, 'approved');
       expect(done.pendingApprovals).toHaveLength(0);
-      expect((await store.getBot(bot.id))?.presence).toBe('online');
+      expect(await presenceOf(service, bot)).toBe('online');
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -433,7 +493,7 @@ describe('ChatService', () => {
     expect(afterDeny.assistant?.toolCalls?.[0]?.name).toBe('sql_query');
     const messages = await store.listMessages(chat.id);
     expect(messages.some((m) => m.role === 'tool' && /User denied tool call/.test(m.content))).toBe(true);
-    expect(await store.getBot(bot.id)).toEqual(expect.objectContaining({ presence: 'online' }));
+    expect(await presenceOf(service, bot)).toBe('online');
 
     const resumed = await service.sendUserMessage(chat.id, 'try something else');
     expect(client.requests).toHaveLength(2);
@@ -998,7 +1058,7 @@ describe('ChatService', () => {
     const pending = await service.sendUserMessage(chat.id, 'which env?');
     expect(pending.pendingApprovals).toHaveLength(1);
     expect(pending.pendingApprovals[0]?.toolCall.name).toBe('ask_choice');
-    expect((await store.getBot(bot.id))?.presence).toBe('waiting');
+    expect(await presenceOf(service, bot)).toBe('waiting');
 
     const afterApproval = await service.decideApproval(pending.pendingApprovals[0].id, 'once');
     expect(afterApproval.pendingChoices).toHaveLength(1);

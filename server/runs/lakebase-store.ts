@@ -99,6 +99,16 @@ export class LakebaseRunStore implements RunStore {
     return result.rows[0] ? mapRun(result.rows[0]) : null;
   }
 
+  async latestByChat(chatIds: string[]): Promise<Run[]> {
+    if (chatIds.length === 0) return [];
+    const result = await this.query(
+      `SELECT DISTINCT ON (chat_id) ${RUN_COLUMNS} FROM bricksbot.chat_runs
+       WHERE chat_id = ANY($1::uuid[]) ORDER BY chat_id, started_at DESC`,
+      [chatIds]
+    );
+    return result.rows.map(mapRun);
+  }
+
   async listRunning(): Promise<Run[]> {
     const result = await this.query(`SELECT ${RUN_COLUMNS} FROM bricksbot.chat_runs WHERE status = 'running'`);
     return result.rows.map(mapRun);

@@ -8,7 +8,7 @@ import {
   type PendingChoice,
 } from '../../shared/chat/choice-notice.js';
 import { handoffBriefUserLine, parseHandoffNotice, serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
-import type { Bot, Chat, ChatStore, Message } from '../../shared/chat/types.js';
+import type { Bot, Chat, ChatStore, Message, Presence } from '../../shared/chat/types.js';
 import type { CompactionSettings, CompactionStore, IdempotencyStore } from '../../shared/durable/types.js';
 import { DEFAULT_COMPACTION_SETTINGS } from '../../shared/durable/types.js';
 import { buildCapabilityCatalog, formatCapabilityPrompt } from '../../shared/agents/capability-catalog.js';
@@ -78,6 +78,7 @@ import type { ArtifactSyncService } from '../sandbox/artifact-sync.js';
 import type { SandboxSessionService } from '../sandbox/session-service.js';
 import { MemoryVolumeUsageStore } from '../volumes/usage-store.js';
 import { ApprovalStore } from './approvals.js';
+import { DEFAULT_CHAT_TITLE, titleFromMessage } from './bot-defaults.js';
 import { ChoiceStore } from './choices.js';
 import { canUseBot } from './access-policy.js';
 import { routineNeedsOwnerApproval } from './databricks-auth.js';
@@ -85,6 +86,9 @@ import { PluginHost } from '../plugins/host/plugin-host.js';
 import type { PluginExecutionContext, PluginPromptContext, PluginTurnContext } from '../../shared/plugins/types.js';
 
 const SILENT_LOG: PluginExecutionContext['log'] = { info: () => {}, warn: () => {}, error: () => {} };
+
+/** Most urgent first: a bot waiting on the user shows that rather than being busy in another chat. */
+const URGENCY: Presence[] = ['blocked', 'waiting', 'thinking'];
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Unexpected error');
 
@@ -270,7 +274,6 @@ export class ChatService {
   private readonly memory: MemorySkillStore;
   private readonly pluginHost?: PluginHost;
   private readonly runs: RunService;
-  private readonly activeTurnsByBot = new Map<string, number>();
   /** After a deny, skip auto-continue until the next user message for that chat. */
   private readonly denyPauseByChat = new Set<string>();
 
@@ -423,7 +426,7 @@ export class ChatService {
     const result = await this.inRun(ctx, async () => {
       // Written inside the run so a refused send (409) leaves no stray note in the transcript.
       if (options?.systemNote) await this.options.store.addMessage(chatId, 'system', options.systemNote);
-      const user = await this.options.store.addMessage(chatId, 'user', trimmed, { runId: ctx.runId });
+      const user = await this.saveUserMessage(chatId, trimmed, ctx.runId);
       return this.continueTurn(chatId, user, 0, { run: ctx });
     });
 
@@ -458,13 +461,25 @@ export class ChatService {
     this.denyPauseByChat.delete(chatId);
     let user: Message;
     try {
-      user = await this.options.store.addMessage(chatId, 'user', trimmed, { runId: ctx.runId });
+      user = await this.saveUserMessage(chatId, trimmed, ctx.runId);
     } catch (err) {
       await this.runs.settle(ctx, 'failed', errorText(err));
       throw err;
     }
     this.inBackground(ctx, () => this.continueTurn(chatId, user, 0, { run: ctx }));
     return { run, user };
+  }
+
+  /** Saves the user's message; the first one in an untitled chat also names it. */
+  private async saveUserMessage(chatId: string, text: string, runId: string): Promise<Message> {
+    const message = await this.options.store.addMessage(chatId, 'user', text, { runId });
+    const { chat, bot } = await this.chatContext(chatId);
+    const untitled = chat?.title === DEFAULT_CHAT_TITLE || chat?.title === bot?.name;
+    const title = titleFromMessage(text);
+    if (chat && (chat.kind ?? 'user') === 'user' && untitled && title) {
+      await this.options.store.renameChat(chatId, title);
+    }
+    return message;
   }
 
   /**
@@ -570,7 +585,6 @@ export class ChatService {
     const paused =
       pendingApprovals.length > 0 || pendingChoices.length > 0 || (honorDenyPause && this.denyPauseByChat.has(chatId));
     if (!paused) return this.continueTurn(chatId, undefined, 0, { run });
-    await this.syncBotPresenceAfterTurn(chatId, await this.options.store.findBotIdForChat(chatId));
     return this.turnResult(chatId);
   }
 
@@ -713,10 +727,7 @@ export class ChatService {
       return;
     }
 
-    const { chat, botId, bot } = await this.chatContext(chatId);
-    if (botId) {
-      await this.options.store.setBotPresence(botId, 'working');
-    }
+    const { chat, bot } = await this.chatContext(chatId);
     await this.loadMcpTools(chat?.userId);
     const toolResult = await this.executeTool(
       approval.toolCall,
@@ -807,31 +818,32 @@ export class ChatService {
     return null;
   }
 
-  private markBotTurnStart(botId: string | null): void {
-    if (!botId) return;
-    this.activeTurnsByBot.set(botId, (this.activeTurnsByBot.get(botId) ?? 0) + 1);
-  }
-
-  private async markBotTurnEnd(chatId: string, botId: string | null): Promise<void> {
-    if (!botId) return;
-    const active = (this.activeTurnsByBot.get(botId) ?? 1) - 1;
-    if (active <= 0) {
-      this.activeTurnsByBot.delete(botId);
-      await this.syncBotPresenceAfterTurn(chatId, botId);
-    } else {
-      this.activeTurnsByBot.set(botId, active);
+  /**
+   * What each bot is doing for `userId`, read from the latest run of each of their chats. It is per caller,
+   * so a shared bot never shows what someone else is asking it. Bots not listed are online.
+   */
+  async presenceByBot(userId: string): Promise<Map<string, Presence>> {
+    const chats = await this.options.store.listUserChats(userId);
+    const botByChat = new Map(chats.map((chat) => [chat.id, chat.botId]));
+    const runs = await this.runs.store.latestByChat(chats.map((chat) => chat.id));
+    const presence = new Map<string, Presence>();
+    for (const run of runs) {
+      const botId = botByChat.get(run.chatId)!;
+      const state = await this.presenceOfRun(run);
+      const current = presence.get(botId);
+      if (state !== 'online' && (!current || URGENCY.indexOf(state) < URGENCY.indexOf(current))) {
+        presence.set(botId, state);
+      }
     }
+    return presence;
   }
 
-  /** After a turn stops: waiting (approvals) or blocked (user choice) or online. */
-  private async syncBotPresenceAfterTurn(chatId: string, botId: string | null): Promise<void> {
-    if (!botId) return;
-    const [pendingApprovals, pendingChoices] = await Promise.all([
-      this.approvals.listPending(chatId),
-      this.choices.listPending(chatId),
-    ]);
-    const presence = pendingApprovals.length > 0 ? 'waiting' : pendingChoices.length > 0 ? 'blocked' : 'online';
-    await this.options.store.setBotPresence(botId, presence);
+  /** Running is thinking; a paused run is waiting on approvals, or blocked on a choice. */
+  private async presenceOfRun(run: Run): Promise<Presence> {
+    if (run.status === 'running') return 'thinking';
+    if (run.status !== 'waiting') return 'online';
+    if (this.choices.listPending(run.chatId).length > 0) return 'blocked';
+    return (await this.approvals.listPending(run.chatId)).length > 0 ? 'waiting' : 'online';
   }
 
   private async pauseSnapshot(chatId: string): Promise<{
@@ -882,12 +894,6 @@ export class ChatService {
 
     const { chat, botId, bot } = await this.chatContext(chatId);
     if (depth === 0) annotate({ bot_id: botId });
-    if (botId) {
-      if (depth === 0) {
-        this.markBotTurnStart(botId);
-      }
-      await this.options.store.setBotPresence(botId, 'thinking');
-    }
 
     try {
       let history = await this.options.store.listMessages(chatId);
@@ -940,9 +946,6 @@ export class ChatService {
         ...toLlmHistory(windowed),
       ];
 
-      if (botId) {
-        await this.options.store.setBotPresence(botId, 'working');
-      }
       const completion = await traced(
         'llm_call',
         'LLM',
@@ -1109,10 +1112,6 @@ export class ChatService {
         );
       }
       throw err;
-    } finally {
-      if (depth === 0) {
-        await this.markBotTurnEnd(chatId, botId);
-      }
     }
   }
 

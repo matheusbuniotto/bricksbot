@@ -195,7 +195,7 @@
   },
   "server/chat/memory-store.ts": {
     "@typescript-eslint/require-await": {
-      "count": 26
+      "count": 25
     }
   },
   "server/chat/routes.ts": {
@@ -222,7 +222,7 @@
   },
   "server/chat/service.ts": {
     "@typescript-eslint/await-thenable": {
-      "count": 4
+      "count": 3
     }
   },
   "server/durable/compaction-store.ts": {
