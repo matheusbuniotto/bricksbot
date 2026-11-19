@@ -1,7 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, test } from 'vitest';
+import { CHAT_SCHEMA_STATEMENTS } from './schema.js';
 import { LakebaseChatStore, type LakebaseQuery } from './lakebase-store.js';
 
 type Row = Record<string, unknown>;
+
+/** Chat order is by timestamp, so let the clock move between steps. */
+const tick = () => new Promise((resolve) => setTimeout(resolve, 3));
 
 function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
   const spaces = new Map<string, Row>();
@@ -266,32 +271,65 @@ function createFakeLakebase(): { query: LakebaseQuery; reset: () => void } {
       return { rows };
     }
 
-    if (normalized.includes('FROM bricksbot.chats WHERE bot_id =')) {
-      const row = [...chats.values()].find(
-        (c) => c.bot_id === params[0] && (params.length < 2 || c.user_id === params[1])
-      );
-      return { rows: row ? [row] : [] };
+    if (
+      normalized.includes('FROM bricksbot.chats WHERE bot_id =') ||
+      normalized.includes('FROM bricksbot.chats WHERE routine_id =')
+    ) {
+      let rows = [...chats.values()].reverse(); // later insert wins an updated_at tie
+      if (normalized.includes('routine_id = $1')) {
+        rows = rows.filter((c) => c.routine_id === params[0] && c.kind === 'routine');
+      } else {
+        rows = rows.filter((c) => c.bot_id === params[0] && c.user_id === params[1]);
+        for (const kind of ['user', 'handoff']) {
+          if (normalized.includes(`kind = '${kind}'`)) rows = rows.filter((c) => c.kind === kind);
+        }
+      }
+      if (normalized.includes('archived_at IS NULL')) rows = rows.filter((c) => c.archived_at == null);
+      rows.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+      return { rows: normalized.includes('LIMIT 1') ? rows.slice(0, 1) : rows };
     }
 
     if (normalized.includes('FROM bricksbot.chats WHERE user_id =')) {
-      const rows = [...chats.values()].filter((c) => c.user_id === params[0]);
+      const rows = [...chats.values()].filter((c) => c.user_id === params[0] && c.last_message_preview != null);
       return { rows };
     }
 
     if (normalized.startsWith('INSERT INTO bricksbot.chats')) {
-      const [id, bot_id, user_id, title] = params.map(String);
+      const [id, bot_id, user_id, title, kind] = params.map(String);
+      const routine_id = params[5] ?? null;
+      const taken = [...chats.values()].some((c) =>
+        kind === 'routine'
+          ? c.routine_id === routine_id && c.kind === 'routine'
+          : kind === 'handoff' && c.bot_id === bot_id && c.user_id === user_id && c.kind === 'handoff'
+      );
+      if (taken) return { rows: [] }; // ON CONFLICT DO NOTHING
       const now = new Date().toISOString();
       const row = {
         id,
         bot_id,
         user_id,
         title,
+        kind,
+        routine_id,
+        archived_at: null as string | null,
         created_at: now,
         updated_at: now,
         last_message_preview: null as string | null,
       };
       chats.set(id, row);
       return { rows: [row] };
+    }
+
+    if (normalized.startsWith('UPDATE bricksbot.chats SET title')) {
+      const chat = chats.get(String(params[0]));
+      if (chat) chat.title = String(params[1]);
+      return { rows: chat ? [chat] : [] };
+    }
+
+    if (normalized.startsWith('UPDATE bricksbot.chats SET archived_at')) {
+      const chat = chats.get(String(params[0]));
+      if (chat) chat.archived_at ??= new Date().toISOString();
+      return { rows: chat ? [chat] : [] };
     }
 
     if (normalized.includes('SELECT bot_id FROM bricksbot.chats')) {
@@ -367,7 +405,7 @@ describe('LakebaseChatStore', () => {
 
   test('bootstraps Personal space and persists chat', async () => {
     const { primary } = await store.ensureBootstrap('user-1');
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
     await store.addMessage(chat.id, 'user', 'survives restart');
     await store.addMessage(chat.id, 'assistant', 'ack');
 
@@ -377,7 +415,7 @@ describe('LakebaseChatStore', () => {
 
   test('persists assistant tool_calls JSON', async () => {
     const { primary } = await store.ensureBootstrap('user-1');
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
     await store.addMessage(chat.id, 'assistant', 'Approval needed', {
       toolCalls: [{ id: 'call_1', name: 'sql_query', arguments: { statement: 'SELECT 1' } }],
     });
@@ -412,7 +450,7 @@ describe('LakebaseChatStore', () => {
   test('addMessage updates bot.lastPreview and ignores tool rows', async () => {
     const { primary } = await store.ensureBootstrap('user-a');
     expect(primary.lastPreview).toBe('');
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
 
     await store.addMessage(chat.id, 'user', 'Run report');
     expect((await store.getBot(primary.id))?.lastPreview).toBe('Run report');
@@ -434,7 +472,7 @@ describe('LakebaseChatStore', () => {
     };
     const cachedStore = new LakebaseChatStore(countingQuery);
     const { primary } = await cachedStore.ensureBootstrap('user-1');
-    const chat = await cachedStore.getOrCreateChatForBot(primary.id);
+    const chat = await cachedStore.getDefaultChat(primary.id);
 
     queries.length = 0;
     await cachedStore.ensureBootstrap('user-1');
@@ -456,8 +494,8 @@ describe('LakebaseChatStore', () => {
       isShared: true,
     });
 
-    const chatA = await store.getOrCreateChatForBot(bot.id, 'user-a');
-    const chatB = await store.getOrCreateChatForBot(bot.id, 'user-b');
+    const chatA = await store.getDefaultChat(bot.id, 'user-a');
+    const chatB = await store.getDefaultChat(bot.id, 'user-b');
     expect(chatA.id).not.toBe(chatB.id);
     expect(chatA.userId).toBe('user-a');
     expect(chatB.userId).toBe('user-b');
@@ -488,7 +526,7 @@ describe('LakebaseChatStore', () => {
     expect(bot.isShared).toBe(false);
     expect(await store.listMarketplaceBots()).toEqual([]);
 
-    const chat = await store.getOrCreateChatForBot(bot.id, 'user-a');
+    const chat = await store.getDefaultChat(bot.id, 'user-a');
     await store.addMessage(chat.id, 'user', 'Private owner prompt');
 
     await store.updateBot(bot.id, { isShared: true, description: 'Updated SQL Helper' });
@@ -507,7 +545,7 @@ describe('LakebaseChatStore', () => {
       name: 'ExistingBot',
       ownerId: 'migrated-user',
     });
-    const preMigrationChat = await store.getOrCreateChatForBot(bot.id, 'workspace-user');
+    const preMigrationChat = await store.getDefaultChat(bot.id, 'workspace-user');
     expect(preMigrationChat.userId).toBe('workspace-user');
 
     await store.initSchema();
@@ -515,5 +553,65 @@ describe('LakebaseChatStore', () => {
     const freshStore = new LakebaseChatStore(fake.query);
     const backfilledChat = await freshStore.getChat(preMigrationChat.id);
     expect(backfilledChat?.userId).toBe('migrated-user');
+  });
+
+  test('keeps several chats per (bot, user), with routine and handoff chats on their own', async () => {
+    const bot = await store.createBot({ name: 'Analyst', ownerId: 'user-a' });
+    const first = await store.getDefaultChat(bot.id, 'user-a');
+    await tick();
+    const second = await store.createChat(bot.id, 'user-a', 'Q3');
+    expect((await store.getDefaultChat(bot.id, 'user-a')).id).toBe(second.id);
+
+    await tick();
+    await store.addMessage(first.id, 'user', 'ping');
+    const fresh = new LakebaseChatStore(fake.query);
+    expect((await fresh.getDefaultChat(bot.id, 'user-a')).id).toBe(first.id);
+    expect((await fresh.listChats(bot.id, 'user-a')).map((c) => c.id)).toEqual([first.id, second.id]);
+    expect(await fresh.listChats(bot.id, 'user-b')).toEqual([]);
+
+    const routine = { id: randomUUID(), botId: bot.id, ownerId: 'user-a', name: 'Daily' };
+    const routineChat = await fresh.getRoutineChat(routine);
+    expect(routineChat).toMatchObject({ kind: 'routine', routineId: routine.id });
+    expect((await new LakebaseChatStore(fake.query).getRoutineChat(routine)).id).toBe(routineChat.id);
+
+    const handoffChat = await fresh.getHandoffChat(bot.id, 'user-a');
+    expect(handoffChat.kind).toBe('handoff');
+    expect((await new LakebaseChatStore(fake.query).getHandoffChat(bot.id, 'user-a')).id).toBe(handoffChat.id);
+    expect((await fresh.getDefaultChat(bot.id, 'user-a')).id).toBe(first.id);
+  });
+
+  test('renames and archives chats, and archived chats leave the list and the default', async () => {
+    const bot = await store.createBot({ name: 'Analyst', ownerId: 'user-a' });
+    const first = await store.getDefaultChat(bot.id, 'user-a');
+    const second = await store.createChat(bot.id, 'user-a');
+    expect(second.title).toBe('New chat');
+
+    expect((await store.renameChat(second.id, ' Weekly ')).title).toBe('Weekly');
+    const archived = await store.archiveChat(second.id);
+    expect(archived.archivedAt).toBeTruthy();
+    expect((await store.getChat(second.id))?.archivedAt).toBeTruthy();
+
+    expect((await store.listChats(bot.id, 'user-a')).map((c) => c.id)).toEqual([first.id]);
+    expect((await store.getDefaultChat(bot.id, 'user-a')).id).toBe(first.id);
+    await expect(store.archiveChat('missing')).rejects.toThrow('Chat not found');
+  });
+
+  test('the roster preview follows the latest chat that has a message', async () => {
+    const bot = await store.createBot({ name: 'Analyst', ownerId: 'user-a' });
+    const first = await store.getDefaultChat(bot.id, 'user-a');
+    await store.addMessage(first.id, 'user', 'older chat');
+    await store.createChat(bot.id, 'user-a');
+
+    const fresh = new LakebaseChatStore(fake.query);
+    const mine = await fresh.listBots({ ownerId: 'user-a' });
+    expect(mine.find((b) => b.id === bot.id)?.lastPreview).toBe('older chat');
+  });
+
+  test('schema drops the one-chat-per-bot index and adds the multi-chat columns', () => {
+    const statements = CHAT_SCHEMA_STATEMENTS.join('\n');
+    expect(statements).not.toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chats_bot_user ');
+    expect(statements).toContain('DROP INDEX IF EXISTS bricksbot.idx_bricksbot_chats_bot_user');
+    expect(statements).toContain("kind TEXT NOT NULL DEFAULT 'user'");
+    expect(statements).toContain('bricksbot.chats(bot_id, user_id, updated_at DESC)');
   });
 });

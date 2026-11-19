@@ -162,7 +162,16 @@ export async function deleteBot(botId: string): Promise<void> {
   }
 }
 
-export async function fetchBotChat(botId: string): Promise<{
+export async function fetchBotChat(botId: string) {
+  return fetchChatPayload(`/api/bots/${botId}/chat`);
+}
+
+/** A specific chat, e.g. the handoff chat a notice points at. */
+export async function fetchChat(chatId: string) {
+  return fetchChatPayload(`/api/chats/${chatId}`);
+}
+
+async function fetchChatPayload(url: string): Promise<{
   chat: Chat;
   messages: Message[];
   pendingApprovals: ApprovalRequest[];
@@ -177,7 +186,7 @@ export async function fetchBotChat(botId: string): Promise<{
     pendingChoices?: PendingChoice[];
     autoApprovedTools?: string[];
     sandboxStatus?: SandboxUiStatus;
-  }>(await fetch(`/api/bots/${botId}/chat`));
+  }>(await fetch(url));
   return {
     chat: data.chat,
     messages: data.messages,

@@ -50,7 +50,7 @@ export class RoutineService {
     if (!(await canUseBot(this.chats, bot, routine.ownerId))) {
       throw new Error('Bot access required for this routine');
     }
-    const chat = await this.chats.getOrCreateChatForBot(routine.botId, routine.ownerId);
+    const chat = await this.chats.getRoutineChat(routine);
     const systemNote = `[routine:${routine.name}] scheduled run`;
     await this.chats.addMessage(chat.id, 'system', systemNote);
     const runAs = routine.runAs === 'app' && routineAppIdentityAllowed(this.env) ? 'app' : 'owner_approval';

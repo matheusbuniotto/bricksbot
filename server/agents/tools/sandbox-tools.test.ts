@@ -98,7 +98,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
   test('SB-3: when sandbox flag is off, no sandbox tools are registered or listed in prompt', async () => {
     const store = new MemoryChatStore();
     const { primary } = await store.ensureBootstrap('user-1');
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
     const { sessionService } = createFakeSandboxSetup({ enabled: false });
 
     let capturedRequest: ChatCompletionRequest | null = null;
@@ -133,8 +133,8 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
       ownerId: primary.ownerId,
       spaceId: primary.spaceId,
     });
-    const primaryChat = await store.getOrCreateChatForBot(primary.id);
-    const teammateChat = await store.getOrCreateChatForBot(teammate.id);
+    const primaryChat = await store.getDefaultChat(primary.id);
+    const teammateChat = await store.getHandoffChat(teammate.id, teammate.ownerId);
     const { sessionService } = createFakeSandboxSetup();
 
     let turn = 0;
@@ -184,7 +184,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
   test('SB-1, SB-2, SB-4, SB-10: sandbox_exec requires approval, sets working presence, reuses session, and preserves toolCallId', async () => {
     const store = new MemoryChatStore();
     const { primary } = await store.ensureBootstrap('user-1');
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
 
     let presenceDuringExec: string | undefined;
     const { sessionService, createdSessions } = createFakeSandboxSetup({
@@ -249,7 +249,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
   test('SB-6 (Phase 5.3 E2E): analyze and return a CSV -> syncs to UC Volume and pins artifact before delete', async () => {
     const store = new MemoryChatStore();
     const { primary } = await store.ensureBootstrap('user-1');
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
     const { sessionService, volumeFiles, stoppedSessions, deletedSessions } = createFakeSandboxSetup();
 
     const artifactSync = new ArtifactSyncService({
@@ -360,7 +360,7 @@ describe('Phase 5.2–5.5 — Sandbox tools, approvals, artifact sync, and UI st
   test('SB-7 & SB-8: sandbox failure returns redacted error to Bot and turn continues cleanly', async () => {
     const store = new MemoryChatStore();
     const { primary } = await store.ensureBootstrap('user-1');
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
     const { sessionService } = createFakeSandboxSetup({ failExec: true });
 
     let turn = 0;

@@ -8,7 +8,7 @@ describe('pin_chart', () => {
   test('injects rows from a prior sql_query tool result into a chart pin', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
 
     await store.addMessage(chat.id, 'assistant', 'Running query', {
       toolCalls: [{ id: 'call-sql-1', name: 'sql_query', arguments: { statement: 'SELECT month, orders FROM t' } }],
@@ -50,7 +50,7 @@ describe('pin_chart', () => {
   test('rejects unknown or non-sql toolCallId and truncated results', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
 
     const missing = await executePinChart(
       store,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Bot, Message } from '../../../shared/chat/types';
 import { handoffPeekBotId, sliceHandoffThread, type HandoffNotice } from '../../../shared/chat/handoff-notice';
-import { fetchBotChat } from '../lib/chat-api';
+import { fetchBotChat, fetchChat } from '../lib/chat-api';
 import { BotFace, botColor } from './BotFace';
 import { ChatMarkdown } from './ChatMarkdown';
 
@@ -50,7 +50,8 @@ export function HandoffPeek({
         return;
       }
       try {
-        const data = await fetchBotChat(peekBotId);
+        // Handoffs land in their own chat, not the teammate's regular one.
+        const data = notice.targetChatId ? await fetchChat(notice.targetChatId) : await fetchBotChat(peekBotId);
         if (cancelled) return;
         const thread = sliceHandoffThread(data.messages, notice).filter(
           (m) => m.role !== 'tool' || !m.content.startsWith('Handed off')

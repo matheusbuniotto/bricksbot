@@ -7,7 +7,7 @@ describe('pin_artifact', () => {
   test('plans and writes a system artifact_pin notice', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
 
     const planned = planPinArtifact(
       {
@@ -53,7 +53,7 @@ describe('pin_artifact', () => {
   test('rejects missing bot and invalid kind', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
 
     expect(planPinArtifact({ title: 'x', kind: 'note', body: 'y' }, null)).toEqual({
       ok: false,

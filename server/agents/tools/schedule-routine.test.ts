@@ -72,7 +72,7 @@ describe('schedule_routine', () => {
     const chats = new MemoryChatStore();
     const routines = new MemoryRoutineStore();
     const { primary } = await chats.ensureBootstrap('owner-1');
-    const chat = await chats.getOrCreateChatForBot(primary.id);
+    const chat = await chats.getDefaultChat(primary.id);
 
     const raw = await executeScheduleRoutine(
       routines,
@@ -108,7 +108,7 @@ describe('schedule_routine', () => {
     const chats = new MemoryChatStore();
     const routines = new MemoryRoutineStore();
     const { primary } = await chats.ensureBootstrap('owner-1');
-    const chat = await chats.getOrCreateChatForBot(primary.id);
+    const chat = await chats.getDefaultChat(primary.id);
     const tool = createScheduleRoutineTool(routines, chats);
 
     expect(tool.definition.name).toBe('schedule_routine');

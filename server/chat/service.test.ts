@@ -29,7 +29,7 @@ describe('ChatService', () => {
   test('persists user + assistant from the ChatClient', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({
       store,
       client: new ScriptedClient([{ content: 'model says hi', toolCalls: [] }]),
@@ -44,7 +44,7 @@ describe('ChatService', () => {
   test('creates a pending approval for web_fetch tool calls', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({
       store,
       client: new ScriptedClient([
@@ -68,7 +68,7 @@ describe('ChatService', () => {
   test('runs web_fetch after approval and continues the turn', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({
       store,
       client: new ScriptedClient([
@@ -105,7 +105,7 @@ describe('ChatService', () => {
   test('sets waiting when one of multiple tool approvals is still pending', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({
       store,
       client: new ScriptedClient([
@@ -145,7 +145,7 @@ describe('ChatService', () => {
   test('all_the_time clears sibling pending approvals for the same tool', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const catalogCalls: string[] = [];
     const service = new ChatService({
       store,
@@ -191,7 +191,7 @@ describe('ChatService', () => {
   test('remember tool auto-runs and writes durable memory', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const memory = new MemoryMemorySkillStore();
     const client = new ScriptedClient([
       {
@@ -230,13 +230,13 @@ describe('ChatService', () => {
     // No explicit memory store — meta tools must still be default for every bot.
     const service = new ChatService({ store, client });
 
-    const primaryChat = await store.getOrCreateChatForBot(primary.id);
+    const primaryChat = await store.getDefaultChat(primary.id);
     await service.sendUserMessage(primaryChat.id, 'hi');
     const primaryTools = client.lastRequest?.tools?.map((t) => t.name) ?? [];
     expect(primaryTools).toEqual(expect.arrayContaining([...DEFAULT_META_TOOL_NAMES]));
     expect(primaryTools).toContain('handoff_to_bot');
 
-    const teammateChat = await store.getOrCreateChatForBot(teammate.id);
+    const teammateChat = await store.getDefaultChat(teammate.id);
     await service.sendUserMessage(teammateChat.id, 'hi');
     const teammateTools = client.lastRequest?.tools?.map((t) => t.name) ?? [];
     expect(teammateTools).toEqual(expect.arrayContaining([...DEFAULT_META_TOOL_NAMES]));
@@ -262,7 +262,7 @@ describe('ChatService', () => {
     ]);
     const service = new ChatService({ store, client, memory });
 
-    const primaryChat = await store.getOrCreateChatForBot(primary.id);
+    const primaryChat = await store.getDefaultChat(primary.id);
     await service.sendUserMessage(primaryChat.id, 'hi');
     const primarySystem = client.lastRequest?.messages[0]?.content ?? '';
     expect(primarySystem).toContain('## Capabilities');
@@ -278,7 +278,7 @@ describe('ChatService', () => {
       expect.arrayContaining(['handoff_to_bot', 'activate_skill', 'list_memories'])
     );
 
-    const otherChat = await store.getOrCreateChatForBot(other.id);
+    const otherChat = await store.getDefaultChat(other.id);
     await service.sendUserMessage(otherChat.id, 'hi');
     const otherSystem = client.lastRequest?.messages[0]?.content ?? '';
     expect(otherSystem).not.toContain('warehouse');
@@ -291,7 +291,7 @@ describe('ChatService', () => {
   test('activate_skill auto-runs without approval', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const memory = new MemoryMemorySkillStore();
     await memory.createSkill(bot.id, 'SQL style', 'Prefer concise SQL.');
     const client = new ScriptedClient([
@@ -310,7 +310,7 @@ describe('ChatService', () => {
   test('offers sql_query and runs it only after approval', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const calls: { statement: string; warehouseId: string }[] = [];
     const client = new ScriptedClient([
       {
@@ -349,7 +349,7 @@ describe('ChatService', () => {
   test('rejects non-select sql before approval or execute', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const calls: string[] = [];
     const client = new ScriptedClient([
       {
@@ -382,7 +382,7 @@ describe('ChatService', () => {
   test('returns a SQL config error after approval without throwing', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -404,7 +404,7 @@ describe('ChatService', () => {
   test('does not execute sql_query when the approval is denied', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const calls: string[] = [];
     const client = new ScriptedClient([
       {
@@ -448,8 +448,8 @@ describe('ChatService', () => {
       ownerId: primary.ownerId,
       spaceId: primary.spaceId,
     });
-    const chat = await store.getOrCreateChatForBot(primary.id);
-    const targetChat = await store.getOrCreateChatForBot(analyst.id);
+    const chat = await store.getDefaultChat(primary.id);
+    const targetChat = await store.getHandoffChat(analyst.id, analyst.ownerId);
     const client = new ScriptedClient([
       {
         content: null,
@@ -525,8 +525,8 @@ describe('ChatService', () => {
       ownerId: primary.ownerId,
       spaceId: primary.spaceId,
     });
-    const chat = await store.getOrCreateChatForBot(primary.id);
-    const targetChat = await store.getOrCreateChatForBot(analyst.id);
+    const chat = await store.getDefaultChat(primary.id);
+    const targetChat = await store.getHandoffChat(analyst.id, analyst.ownerId);
     const client = new ScriptedClient([
       {
         content: null,
@@ -595,8 +595,8 @@ describe('ChatService', () => {
       ownerId: primary.ownerId,
       spaceId: primary.spaceId,
     });
-    const chat = await store.getOrCreateChatForBot(primary.id);
-    const targetChat = await store.getOrCreateChatForBot(analyst.id);
+    const chat = await store.getDefaultChat(primary.id);
+    const targetChat = await store.getDefaultChat(analyst.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -625,7 +625,7 @@ describe('ChatService', () => {
   test('records an approval trail for request and decide', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -683,8 +683,8 @@ describe('ChatService', () => {
       ownerId: primary.ownerId,
       spaceId: primary.spaceId,
     });
-    const chat = await store.getOrCreateChatForBot(analyst.id);
-    const targetChat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(analyst.id);
+    const targetChat = await store.getDefaultChat(primary.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -712,8 +712,8 @@ describe('ChatService', () => {
       ownerId: primary.ownerId,
       spaceId: other.id,
     });
-    const chat = await store.getOrCreateChatForBot(primary.id);
-    const targetChat = await store.getOrCreateChatForBot(analyst.id);
+    const chat = await store.getDefaultChat(primary.id);
+    const targetChat = await store.getDefaultChat(analyst.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -734,7 +734,7 @@ describe('ChatService', () => {
   test('auto-approves tool calls when user selects all_the_time', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const sqlCalls: string[] = [];
 
     const client = new ScriptedClient([
@@ -787,7 +787,7 @@ describe('ChatService', () => {
   test('persists assistant tool_calls so the next completion is valid', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -820,7 +820,7 @@ describe('ChatService', () => {
   test('drops orphan tool messages that lack a matching assistant tool_calls', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     await store.addMessage(chat.id, 'user', 'old turn');
     await store.addMessage(chat.id, 'tool', 'orphan result', { toolCallId: 'call_orphan' });
 
@@ -836,7 +836,7 @@ describe('ChatService', () => {
   test('runs native lakehouse_catalog tool when approved', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -868,7 +868,7 @@ describe('ChatService', () => {
     const store = new MemoryChatStore();
     const memory = new MemoryMemorySkillStore();
     const primary = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -899,7 +899,7 @@ describe('ChatService', () => {
     expect(probe).toBeTruthy();
     expect(probe?.spaceId).toBe(primary.spaceId);
 
-    const probeChat = await store.getOrCreateChatForBot(probe!.id);
+    const probeChat = await store.getDefaultChat(probe!.id);
     const probeMessages = await store.listMessages(probeChat.id);
     expect(probeMessages[0]?.content).toContain("I'm Probe");
 
@@ -921,7 +921,7 @@ describe('ChatService', () => {
       ownerId: primary.ownerId,
       spaceId: primary.spaceId,
     });
-    const chat = await store.getOrCreateChatForBot(analyst.id);
+    const chat = await store.getDefaultChat(analyst.id);
     const client = new ScriptedClient([{ content: 'no create tool', toolCalls: [] }]);
     const service = new ChatService({ store, client });
 
@@ -934,7 +934,7 @@ describe('ChatService', () => {
     const store = new MemoryChatStore();
     const routines = new MemoryRoutineStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({
       store,
       routines,
@@ -977,7 +977,7 @@ describe('ChatService', () => {
   test('ask_choice waits for approval then user pick before continuing', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({
       store,
       client: new ScriptedClient([
@@ -1037,7 +1037,7 @@ describe('ChatService', () => {
       isShared: true,
     });
 
-    const primaryChat = await store.getOrCreateChatForBot(primaryA.id);
+    const primaryChat = await store.getDefaultChat(primaryA.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -1065,7 +1065,7 @@ describe('ChatService', () => {
   test('genie_ask is Ask-first and coerces all_the_time to once', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const client = new ScriptedClient([
       {
         content: null,
@@ -1130,7 +1130,7 @@ describe('ChatService', () => {
     test('is not offered to the model or named in the prompt without a configured space', async () => {
       const store = new MemoryChatStore();
       const bot = await store.ensurePrimaryBot();
-      const chat = await store.getOrCreateChatForBot(bot.id);
+      const chat = await store.getDefaultChat(bot.id);
       const client = new ScriptedClient([{ content: 'ok', toolCalls: [] }]);
 
       await new ChatService({ store, client }).sendUserMessage(chat.id, 'hi');
@@ -1142,7 +1142,7 @@ describe('ChatService', () => {
     test('is offered with escalation-only prompt language when configured', async () => {
       const store = new MemoryChatStore();
       const bot = await store.ensurePrimaryBot();
-      const chat = await store.getOrCreateChatForBot(bot.id);
+      const chat = await store.getDefaultChat(bot.id);
       const client = new ScriptedClient([{ content: 'ok', toolCalls: [] }]);
 
       await new ChatService({ store, client, genieSpace }).sendUserMessage(chat.id, 'hi');
@@ -1154,7 +1154,7 @@ describe('ChatService', () => {
     test('is Ask-first and never persists Always allow', async () => {
       const store = new MemoryChatStore();
       const bot = await store.ensurePrimaryBot();
-      const chat = await store.getOrCreateChatForBot(bot.id);
+      const chat = await store.getDefaultChat(bot.id);
       let fetched = 0;
       const client = new ScriptedClient([
         { content: null, toolCalls: [askGenie] },
@@ -1191,8 +1191,8 @@ describe('ChatService', () => {
       const store = new MemoryChatStore();
       const primary = await store.ensurePrimaryBot();
       const analyst = await store.createBot({ name: 'Analyst', ownerId: primary.ownerId, spaceId: primary.spaceId });
-      const chat = await store.getOrCreateChatForBot(primary.id);
-      const targetChat = await store.getOrCreateChatForBot(analyst.id);
+      const chat = await store.getDefaultChat(primary.id);
+      const targetChat = await store.getHandoffChat(analyst.id, analyst.ownerId);
       let fetched = 0;
       const client = new ScriptedClient([
         {
@@ -1268,20 +1268,20 @@ describe('ChatService', () => {
     const offered = (index: number) => client.requests[index]?.tools?.map((tool) => tool.name) ?? [];
 
     // Bob chatting with Alice's shared bot gets Bob's connectors, never Alice's.
-    const bobTeammateChat = await store.getOrCreateChatForBot(teammate.id, 'user-b');
+    const bobTeammateChat = await store.getDefaultChat(teammate.id, 'user-b');
     await service.sendUserMessage(bobTeammateChat.id, 'hi');
     expect(offered(0)).toContain('mcp_user_b_lookup');
     expect(offered(0)).not.toContain('mcp_user_a_lookup');
 
     // Routine turns run in the routine owner's chat, so they use the routine owner's connectors.
-    const aliceTeammateChat = await store.getOrCreateChatForBot(teammate.id, 'user-a');
+    const aliceTeammateChat = await store.getDefaultChat(teammate.id, 'user-a');
     await service.sendUserMessage(aliceTeammateChat.id, 'scheduled', { routine: true });
     expect(offered(1)).toContain('mcp_user_a_lookup');
     expect(offered(1)).not.toContain('mcp_user_b_lookup');
 
     // Handoff: the teammate's nested turn keeps the calling user's connectors.
     await store.createBot({ name: 'DataWizard', spaceId: bobPrimary.spaceId, ownerId: 'user-b' });
-    const bobPrimaryChat = await store.getOrCreateChatForBot(bobPrimary.id, 'user-b');
+    const bobPrimaryChat = await store.getDefaultChat(bobPrimary.id, 'user-b');
     const pending = await service.sendUserMessage(bobPrimaryChat.id, 'ask DataWizard');
     expect(offered(2)).toContain('mcp_user_b_lookup');
     await service.decideApproval(pending.pendingApprovals[0].id, 'once');
@@ -1293,7 +1293,7 @@ describe('ChatService', () => {
   test('routine turns gate credentialed tools on the owner even when Always allow is on', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const executed: string[] = [];
     const client = new ScriptedClient([
       {
@@ -1330,7 +1330,7 @@ describe('ChatService', () => {
   test('routine turns that run as the App identity keep normal approval rules', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({
       store,
       client: new ScriptedClient([
@@ -1352,7 +1352,7 @@ describe('ChatService', () => {
   test('a routine turn without a user token does not cache an empty MCP connector list', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const listTools = ((_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
       const { id } = JSON.parse(init?.body as string) as { id: number };
       const result = { tools: [{ name: 'lookup', description: 'Look things up' }] };
@@ -1386,8 +1386,8 @@ describe('ChatService', () => {
     const store = new MemoryChatStore();
     const primary = await store.ensurePrimaryBot();
     const analyst = await store.createBot({ name: 'Analyst', ownerId: primary.ownerId, spaceId: primary.spaceId });
-    const chat = await store.getOrCreateChatForBot(primary.id);
-    const targetChat = await store.getOrCreateChatForBot(analyst.id);
+    const chat = await store.getDefaultChat(primary.id);
+    const targetChat = await store.getHandoffChat(analyst.id, analyst.ownerId);
     const executed: string[] = [];
     const geniePoll: RegisteredTool = {
       definition: { name: 'genie_poll_response', description: 'Poll Genie', parameters: { type: 'object' } },
@@ -1434,7 +1434,7 @@ describe('ChatService', () => {
   test("a routine-gated approval runs under the approver's OBO token", async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const getToken = createDatabricksTokenProvider({
       env: { DATABRICKS_APP_NAME: 'bricksbot' },
       staticToken: 'app-pat',

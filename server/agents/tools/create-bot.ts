@@ -133,7 +133,7 @@ export async function executeCreateBot(
     description: plan.job || undefined,
   });
 
-  const chat = await store.getOrCreateChatForBot(bot.id, plan.creator.ownerId);
+  const chat = await store.getDefaultChat(bot.id, plan.creator.ownerId);
 
   if (plan.job) {
     await memory.upsertMemory(bot.id, 'job', plan.job);

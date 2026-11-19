@@ -146,7 +146,7 @@ export default {
       expect(listData.plugins[0].promptSections).toContain('inventory-policy');
 
       // 6. User initiates chat turn triggering the tool
-      const chat = await store.getOrCreateChatForBot(primary.id);
+      const chat = await store.getDefaultChat(primary.id);
 
       client.enqueue({
         content: '',

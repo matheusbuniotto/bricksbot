@@ -97,10 +97,10 @@ describe('volume_write', () => {
     });
     await store.addSpaceMember(primary.spaceId!, 'Alice@Co.com', 'member');
     await store.addSpaceMember(primary.spaceId!, 'bob@co.com', 'member');
-    const primaryChat = await store.getOrCreateChatForBot(primary.id, 'user-1');
-    const teammateChat = await store.getOrCreateChatForBot(teammate.id, 'user-1');
-    const aliceChat = await store.getOrCreateChatForBot(shared.id, 'Alice@Co.com');
-    const bobChat = await store.getOrCreateChatForBot(shared.id, 'bob@co.com');
+    const primaryChat = await store.getDefaultChat(primary.id, 'user-1');
+    const teammateChat = await store.getHandoffChat(teammate.id, 'user-1');
+    const aliceChat = await store.getDefaultChat(shared.id, 'Alice@Co.com');
+    const bobChat = await store.getDefaultChat(shared.id, 'bob@co.com');
 
     const writes: string[] = [];
     const usage = new MemoryVolumeUsageStore();

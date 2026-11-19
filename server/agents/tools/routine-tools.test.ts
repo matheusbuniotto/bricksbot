@@ -28,7 +28,7 @@ describe('routine tools CRUD', () => {
     const chats = new MemoryChatStore();
     const routines = new MemoryRoutineStore();
     const { primary } = await chats.ensureBootstrap('owner-1');
-    const chat = await chats.getOrCreateChatForBot(primary.id);
+    const chat = await chats.getDefaultChat(primary.id);
     const ctx = { chatId: chat.id, bot: primary, userId: 'owner-1' };
     const [listTool, scheduleTool, updateTool, deleteTool] = createRoutineTools(routines, chats);
 
@@ -71,7 +71,7 @@ describe('routine tools CRUD', () => {
       name: 'Daily',
       cron: '0 8 * * *',
     });
-    const bobChat = await chats.getOrCreateChatForBot(bot.id, 'bob');
+    const bobChat = await chats.getDefaultChat(bot.id, 'bob');
     const ctx = { chatId: bobChat.id, bot, userId: 'bob' };
     const [listTool, scheduleTool, updateTool, deleteTool] = createRoutineTools(routines, chats);
 

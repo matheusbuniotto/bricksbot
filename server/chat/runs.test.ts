@@ -58,7 +58,7 @@ async function until(condition: () => boolean | Promise<boolean>) {
 async function setup(options: { sql?: () => Promise<string>; runs?: MemoryRunStore } = {}) {
   const store = new MemoryChatStore();
   const bot = await store.ensurePrimaryBot();
-  const chat = await store.getOrCreateChatForBot(bot.id);
+  const chat = await store.getDefaultChat(bot.id);
   const client = new GatedClient();
   const runs = options.runs ?? new MemoryRunStore();
   const service = new ChatService({
@@ -182,7 +182,7 @@ describe('runs', () => {
     await store.ensureBootstrap('bob');
     await store.addSpaceMember(space.id, 'bob', 'member');
     const bot = await store.createBot({ name: 'Shared', spaceId: space.id, ownerId: 'alice', isShared: true });
-    const chat = await store.getOrCreateChatForBot(bot.id, 'bob');
+    const chat = await store.getDefaultChat(bot.id, 'bob');
     const client = new GatedClient();
     const runs = new MemoryRunStore();
     const service = new ChatService({

@@ -516,8 +516,8 @@ describe('chat HTTP API', () => {
   test('a retried message with the same requestId runs the turn once, and only in its own chat', async () => {
     await withChatApp(async (baseUrl, { store }) => {
       const bot = await store.ensurePrimaryBot();
-      const chat = await store.getOrCreateChatForBot(bot.id);
-      const other = await store.getOrCreateChatForBot(
+      const chat = await store.getDefaultChat(bot.id);
+      const other = await store.getDefaultChat(
         (await store.createBot({ name: 'Analyst', ownerId: bot.ownerId, spaceId: bot.spaceId })).id
       );
       const send = (chatId: string) =>
@@ -535,6 +535,79 @@ describe('chat HTTP API', () => {
       const reused = await send(other.id);
       expect(reused.status).toBe(409);
       expect(await store.listMessages(other.id)).toEqual([]);
+    });
+  });
+
+  describe('multiple chats per bot', () => {
+    const as = (user: string, body?: unknown) => ({
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-user': user },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+    type ChatRef = { id: string; title: string; kind: string; botId: string };
+    const chatOf = async (res: Response) => ((await res.json()) as { chat: ChatRef }).chat;
+    const chatsOf = async (res: Response) => ((await res.json()) as { chats: ChatRef[] }).chats;
+
+    test('creates, lists, renames and archives chats; the bot alias follows the latest one', async () => {
+      await withChatApp(async (baseUrl, { store }) => {
+        const bot = await store.createBot({ name: 'Analyst', ownerId: 'alice' });
+        const first = await chatOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, as('alice')));
+
+        const created = await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('alice', { title: ' Q3 review ' }));
+        expect(created.status).toBe(201);
+        const second = await chatOf(created);
+        expect(second).toMatchObject({ title: 'Q3 review', kind: 'user', botId: bot.id });
+
+        const list = async () =>
+          (await chatsOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('alice')))).map((c) => c.id);
+        expect(await list()).toEqual([second.id, first.id]);
+
+        const alias = async () => (await chatOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, as('alice')))).id;
+        expect(await alias()).toBe(second.id);
+
+        const renamed = await fetch(`${baseUrl}/api/chats/${first.id}/update`, as('alice', { title: 'Renamed' }));
+        expect((await chatOf(renamed)).title).toBe('Renamed');
+        expect((await fetch(`${baseUrl}/api/chats/${first.id}/update`, as('alice', {}))).status).toBe(400);
+
+        const byId = await fetch(`${baseUrl}/api/chats/${first.id}`, as('alice'));
+        expect((await chatOf(byId)).title).toBe('Renamed');
+
+        expect((await fetch(`${baseUrl}/api/chats/${second.id}/archive`, as('alice', {}))).status).toBe(200);
+        expect(await list()).toEqual([first.id]);
+        expect(await alias()).toBe(first.id);
+      });
+    });
+
+    test('only the caller sees their chats, and losing access to the bot cuts them off', async () => {
+      await withChatApp(async (baseUrl, { store }) => {
+        const space = await store.createSpace({ name: 'Team', ownerId: 'alice' });
+        await store.addSpaceMember(space.id, 'bob', 'member');
+        const bot = await store.createBot({ name: 'Shared', ownerId: 'alice', spaceId: space.id, isShared: true });
+
+        const bobChat = await chatOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('bob', {})));
+        expect(await chatsOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('alice')))).toEqual([]);
+
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}`, as('alice'))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}/archive`, as('alice', {}))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}`, as('bob'))).status).toBe(200);
+
+        await store.removeSpaceMember(space.id, 'bob');
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}`, as('bob'))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}/update`, as('bob', { title: 'x' }))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('bob'))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('bob', {}))).status).toBe(403);
+      });
+    });
+
+    test('Space viewers can read a bot but not start chats with it', async () => {
+      await withChatApp(async (baseUrl, { store }) => {
+        const space = await store.createSpace({ name: 'Team', ownerId: 'alice' });
+        await store.addSpaceMember(space.id, 'vera', 'viewer');
+        const bot = await store.createBot({ name: 'Shared', ownerId: 'alice', spaceId: space.id, isShared: true });
+        expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('vera'))).status).toBe(200);
+        expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('vera', {}))).status).toBe(403);
+      });
     });
   });
 });

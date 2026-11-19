@@ -1269,7 +1269,7 @@ export class ChatService {
     const { sender, target, brief } = planned.plan;
     annotate({ target_bot_id: target.id });
     const callerId = ctx.userId?.trim() || sender.ownerId;
-    const targetChat = await this.options.store.getOrCreateChatForBot(target.id, callerId);
+    const targetChat = await this.options.store.getHandoffChat(target.id, callerId);
     const sourceChatId = ctx.chatId;
     const briefLine = handoffBriefUserLine(sender.name, brief);
 

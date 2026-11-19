@@ -38,9 +38,9 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 
 - **Space.** Folder of bots; Personal space on bootstrap. Roles: `viewer` sees shared bots, `member` also chats/approves/schedules with them, `admin` also manages members. Bot owners keep full control; only owners may `save_skill`. Members can leave; owners/admins remove others. Access is re-checked on every turn (`requireBotUse`, `canUseBot`), so unsharing or removal cuts off existing chats and routines.
 - **Bot.** Named agent; one is **Primary** (router + `handoff_to_bot`); presence includes thinking/working/waiting/blocked.
-- **Chat.** One chat per bot; messages: `user` \| `assistant` \| `system` \| `tool`.
+- **Chat.** Many chats per (bot, user), each with a `kind`: `user` (opened by people; `GET /api/bots/:botId/chat` is an alias for the latest active one), `routine` (one per routine) or `handoff` (one per teammate and caller). Archived chats leave the list. Messages: `user` \| `assistant` \| `system` \| `tool`.
 - **Tool call replay.** Assistant rows must store `toolCalls`; tool rows need matching `toolCallId`. Never send orphan tool results to the LLM.
-- **Handoff.** Primary `handoff_to_bot` runs the teammate one turn (most tools auto-approved; sandbox Ask-first tools still need approval), relays the reply, and posts a tight "N messages with …" chip on both chats (click → peek).
+- **Handoff.** Primary `handoff_to_bot` runs the teammate one turn (most tools auto-approved; sandbox Ask-first tools still need approval), relays the reply (the brief and reply live in the teammate's `handoff` chat, not the chat the user opens), and posts a tight "N messages with …" chip on both chats (click → peek).
 - **Run.** One stretch of agent work (a send, or a resume after an approval/choice); one running run per chat (409 `{activeRunId}` otherwise), events in `run_events`, Stop via `POST /api/chats/:chatId/runs/:runId/stop`, live feed via `GET .../runs/:runId/events` (SSE; the UI sends `async:true` and follows it). `RunContext` replaces the old routine flag. Lives in `server/runs/`.
 - **Approval.** `all_the_time` / `once` / `not_approved`; auto-approve is per chat+tool name.
 - **ChatClient.** `openai-compatible` (primary) → `databricks-serving` → `stub` if no key.

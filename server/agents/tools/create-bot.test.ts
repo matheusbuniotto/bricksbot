@@ -8,7 +8,7 @@ describe('create_bot', () => {
     const store = new MemoryChatStore();
     const memory = new MemoryMemorySkillStore();
     const primary = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
 
     const planned = await planCreateBot(store, primary, {
       name: 'Revenue',
@@ -44,7 +44,7 @@ describe('create_bot', () => {
       ])
     );
 
-    const newChat = await store.getOrCreateChatForBot(parsed.bot_id);
+    const newChat = await store.getDefaultChat(parsed.bot_id);
     const newMessages = await store.listMessages(newChat.id);
     expect(newMessages[0]?.role).toBe('assistant');
     expect(newMessages[0]?.content).toContain("I'm Revenue");

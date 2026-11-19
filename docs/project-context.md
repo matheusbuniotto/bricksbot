@@ -8,6 +8,7 @@ Databricks App aiming for near 1:1 Grok Bot product shape (Bot roster, durable a
 - **Codebase.** Slim greenfield Databricks App with a strongly cloned Grok Bot UI, not Rakazo-based.
 - **Models.** OpenAI-compatible primary (OpenRouter-like); Databricks Model Serving as an option.
 - **Tenancy.** User-owned Bots; Spaces/folders; team sharing. Egress allowlists for LLM, connectors, and future sandbox.
+- **Chats (2026-11-19, lifts "one chat per bot").** Many chats per (bot, user). Routines get one chat per routine and handoffs one per (teammate, caller); history labels them by `kind`. "Always allow" stays per chat. Memories and skills stay per (bot, user), shared by its chats.
 
 ## Locked later (2026-10-29)
 
