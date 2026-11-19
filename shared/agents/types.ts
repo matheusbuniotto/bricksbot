@@ -35,6 +35,8 @@ export interface ChatCompletionResult {
 
 export interface ChatClient {
   readonly provider: 'openai-compatible' | 'databricks-serving' | 'stub';
+  /** Model or endpoint name, for traces. */
+  readonly model?: string;
   complete(request: ChatCompletionRequest): Promise<ChatCompletionResult>;
 }
 

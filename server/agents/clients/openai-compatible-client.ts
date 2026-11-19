@@ -18,10 +18,12 @@ function chatCompletionsUrl(baseUrl: string): string {
 
 export class OpenAICompatibleChatClient implements ChatClient {
   readonly provider = 'openai-compatible' as const;
+  readonly model: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly config: OpenAICompatibleConfig) {
     this.fetchImpl = config.fetchImpl ?? fetch;
+    this.model = config.model;
   }
 
   async complete(request: ChatCompletionRequest): Promise<ChatCompletionResult> {

@@ -45,6 +45,7 @@ All default to off. Turn one on only if you accept what it does.
 
 - The LLM provider (`openrouter.ai` by default). Use Databricks Model Serving (`LLM_PROVIDER=databricks`) to keep model traffic in your workspace.
 - `web_fetch` hosts on your allowlist.
+- The MLflow tracking server, only if you set `MLFLOW_EXPERIMENT_ID`. Traces are sent as the App service principal and hold chat, bot and tool ids, model, tool names, approval outcomes and counts. They never hold prompts, replies, tool arguments or results, because experiment permissions are not Space roles.
 - MCP connectors that a user adds.
 
 ## Sharing

@@ -12,10 +12,12 @@ export interface DatabricksServingConfig {
 /** Databricks Model Serving / Foundation Model invocations (OpenAI-compatible body). */
 export class DatabricksServingChatClient implements ChatClient {
   readonly provider = 'databricks-serving' as const;
+  readonly model: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly config: DatabricksServingConfig) {
     this.fetchImpl = config.fetchImpl ?? fetch;
+    this.model = config.endpointName;
   }
 
   async complete(request: ChatCompletionRequest): Promise<ChatCompletionResult> {

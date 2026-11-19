@@ -34,6 +34,13 @@ env:
   # - name: DATABRICKS_SERVING_ENDPOINT_NAME
   #   valueFrom: serving-endpoint
 
+  # Optional: MLflow tracing, off unless MLFLOW_EXPERIMENT_ID is set. Give the App service principal
+  # CAN_EDIT on the experiment. Traces hold ids, model, tool names and outcomes, never message content.
+  # - name: MLFLOW_EXPERIMENT_ID
+  #   value: "<experiment-id>"
+  # - name: MLFLOW_TRACKING_URI   # default: databricks
+  #   value: databricks
+
   # Phase 5 Sandbox — Databricks Sandboxes (Public Beta); falls back to system.ai.python_exec if preview is off:
   - name: SANDBOX_BACKEND
     value: 'databricks'
