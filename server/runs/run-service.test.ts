@@ -64,6 +64,22 @@ describe('RunService', () => {
     await service.settle(ctx, 'stopped');
   });
 
+  test('a run the sweeper already failed is aborted as lost, not as a user stop', async () => {
+    const store = new MemoryRunStore();
+    const service = new RunService(store, 30);
+    const ctx = await service.open({ chatId: 'c1', kind: 'send', routine: false });
+
+    await store.finish(ctx.runId, 'failed', 'Interrupted');
+    await sleep(60);
+
+    expect(ctx.signal.aborted).toBe(true);
+    expect(ctx.signal.reason).toBe('lease_lost');
+    await expect(abortable(new Promise<string>(() => {}), ctx.signal)).rejects.toMatchObject({
+      reason: 'lease_lost',
+    });
+    await service.settle(ctx, 'failed');
+  });
+
   test('the first settle wins and emits run.finished once', async () => {
     const store = new MemoryRunStore();
     const service = new RunService(store);

@@ -92,6 +92,14 @@ export class LakebaseRunStore implements RunStore {
     return result.rows[0] ? mapRun(result.rows[0]) : null;
   }
 
+  async latest(chatId: string): Promise<Run | null> {
+    const result = await this.query(
+      `SELECT ${RUN_COLUMNS} FROM bricksbot.chat_runs WHERE chat_id = $1 ORDER BY started_at DESC LIMIT 1`,
+      [chatId]
+    );
+    return result.rows[0] ? mapRun(result.rows[0]) : null;
+  }
+
   async listRunning(): Promise<Run[]> {
     const result = await this.query(`SELECT ${RUN_COLUMNS} FROM bricksbot.chat_runs WHERE status = 'running'`);
     return result.rows.map(mapRun);

@@ -22,11 +22,16 @@ export class RunStoppedError extends Error {
   }
 }
 
+/** The error for an aborted run signal: Stop reads as a user stop, anything else as a lost run. */
+export function stoppedBy(signal: AbortSignal): RunStoppedError {
+  return new RunStoppedError(signal.reason === 'lease_lost' ? 'lease_lost' : 'stop');
+}
+
 /** Rejects with RunStoppedError as soon as `signal` aborts; the work itself is abandoned, not cancelled. */
 export function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(new RunStoppedError());
+  if (signal.aborted) return Promise.reject(stoppedBy(signal));
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(new RunStoppedError());
+    const onAbort = () => reject(stoppedBy(signal));
     signal.addEventListener('abort', onAbort, { once: true });
     work.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
   });
@@ -100,13 +105,15 @@ export class RunService {
     return ctx;
   }
 
-  /** Renews the lease and picks up a Stop pressed on another instance. */
+  /** Renews the lease, and picks up a Stop pressed on another instance or a run the sweeper already failed. */
   private async beat(runId: string, lease: string, controller: AbortController): Promise<void> {
     try {
       if (!(await this.store.acquireLease(lease, this.owner, this.leaseTtlMs))) {
         controller.abort('lease_lost');
-      } else if ((await this.store.get(runId))?.stopRequested) {
-        controller.abort('stop');
+      } else {
+        const run = await this.store.get(runId);
+        if (!run || run.status !== 'running') controller.abort('lease_lost');
+        else if (run.stopRequested) controller.abort('stop');
       }
     } catch {
       // A missed beat is fine; the lease only lapses after several.

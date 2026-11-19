@@ -44,8 +44,8 @@ function cleanServiceName(serviceName: string): string {
 }
 
 export class McpDiscoveryService {
-  /** Discovered catalog (UC + built-ins), shared by all users; per-user state is applied on read. */
-  private cache: { timestamp: number; mcps: DatabricksMcpApp[] } | null = null;
+  /** Discovered catalog per caller: it is listed with that user's OBO token, so grants differ by user. */
+  private readonly cache = new Map<string, { timestamp: number; mcps: DatabricksMcpApp[] }>();
   /** Services connected for every user unless that user disconnects them (env bootstrap). */
   private readonly defaultConnected = new Set<string>();
   private readonly store: McpConnectorStore;
@@ -68,7 +68,7 @@ export class McpDiscoveryService {
   }
 
   clearCache(): void {
-    this.cache = null;
+    this.cache.clear();
   }
 
   getClientConfig(): {
@@ -256,15 +256,16 @@ export class McpDiscoveryService {
     return connected;
   }
 
-  private async fetchUnityCatalogMcpServices(schema: string): Promise<UnityCatalogMcpServiceItem[]> {
+  /** `null` when the listing failed (no token, 403, network), so callers can tell it from an empty schema. */
+  private async fetchUnityCatalogMcpServices(schema: string): Promise<UnityCatalogMcpServiceItem[] | null> {
     if (!this.config.host?.trim() || !this.config.getToken) {
-      return [];
+      return null;
     }
     const host = normalizeHostUrl(this.config.host);
 
     const token = await this.config.getToken();
     if (!token) {
-      return [];
+      return null;
     }
 
     const fetchImpl = this.config.fetchImpl ?? globalThis.fetch;
@@ -279,13 +280,13 @@ export class McpDiscoveryService {
       });
 
       if (!res.ok) {
-        return [];
+        return null;
       }
 
       const data = (await res.json()) as UnityCatalogListResponse;
       return data.mcp_services ?? [];
     } catch {
-      return [];
+      return null;
     }
   }
 
@@ -357,7 +358,7 @@ export class McpDiscoveryService {
    * Without `userId`, only the shared catalog with env defaults is returned.
    */
   async listViableMcps(options?: { refresh?: boolean; userId?: string }): Promise<DatabricksMcpApp[]> {
-    const catalog = await this.listCatalog(options?.refresh === true);
+    const catalog = await this.listCatalog(options?.userId ?? '', options?.refresh === true);
     const records = options?.userId ? await this.store.listConnectors(options.userId) : [];
     const connected = this.connectedFrom(records);
 
@@ -374,15 +375,16 @@ export class McpDiscoveryService {
     return [...byService.values()].map((app) => ({ ...app, connected: connected.has(app.service) }));
   }
 
-  private async listCatalog(refresh: boolean): Promise<DatabricksMcpApp[]> {
+  private async listCatalog(userId: string, refresh: boolean): Promise<DatabricksMcpApp[]> {
     const now = Date.now();
-    if (!refresh && this.cache && now - this.cache.timestamp < this.getCacheTtlMs()) {
-      return this.cache.mcps;
+    const cached = this.cache.get(userId);
+    if (!refresh && cached && now - cached.timestamp < this.getCacheTtlMs()) {
+      return cached.mcps;
     }
 
     if (!this.config.host || !this.config.getToken) {
       const viable = [...AVAILABLE_DATABRICKS_MCPS, ...BUILTIN_PLUGIN_MCPS].filter((app) => app.isViable);
-      this.cache = { timestamp: now, mcps: viable };
+      this.cache.set(userId, { timestamp: now, mcps: viable });
       return viable;
     }
 
@@ -392,6 +394,7 @@ export class McpDiscoveryService {
 
     const itemsBySchema = await Promise.all(schemas.map((schema) => this.fetchUnityCatalogMcpServices(schema)));
     for (const [index, items] of itemsBySchema.entries()) {
+      if (!items) continue;
       const schema = schemas[index];
       for (const item of items) {
         const fullService = item.full_name || `${schema}.${item.name}`;
@@ -428,7 +431,13 @@ export class McpDiscoveryService {
       }
     }
 
-    this.cache = { timestamp: now, mcps: viableMcps };
+    // If every listing failed the gateway likely refused this token; retry next time instead of pinning it.
+    if (itemsBySchema.some(Boolean)) {
+      for (const [key, entry] of this.cache) {
+        if (now - entry.timestamp >= this.getCacheTtlMs()) this.cache.delete(key);
+      }
+      this.cache.set(userId, { timestamp: now, mcps: viableMcps });
+    }
     return viableMcps;
   }
 }
