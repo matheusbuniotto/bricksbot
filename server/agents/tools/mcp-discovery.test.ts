@@ -107,7 +107,9 @@ describe('McpDiscoveryService', () => {
         const services = url.includes('main.default') ? (granted[auth] ?? []) : [];
         return Promise.resolve(
           new Response(
-            JSON.stringify({ mcp_services: services.map((full_name) => ({ name: full_name.split('.')[2], full_name })) }),
+            JSON.stringify({
+              mcp_services: services.map((full_name) => ({ name: full_name.split('.')[2], full_name })),
+            }),
             { status: 200 }
           )
         );
@@ -130,8 +132,7 @@ describe('McpDiscoveryService', () => {
       fetchImpl: mockFetch,
       cacheTtlMs: 60_000,
     });
-    const services = async (userId: string) =>
-      (await discovery.listViableMcps({ userId })).map((m) => m.service);
+    const services = async (userId: string) => (await discovery.listViableMcps({ userId })).map((m) => m.service);
 
     expect(await services('alice')).toContain('main.default.alice_only');
     token = 'bob';
