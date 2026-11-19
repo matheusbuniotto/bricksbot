@@ -72,7 +72,7 @@ import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { annotate, traced } from '../observability/tracing.js';
 import { MemoryRunStore } from '../runs/memory-store.js';
-import { abortable, RunService, RunStoppedError } from '../runs/run-service.js';
+import { abortable, RunService, RunStoppedError, stoppedBy } from '../runs/run-service.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
 import type { ArtifactSyncService } from '../sandbox/artifact-sync.js';
 import type { SandboxSessionService } from '../sandbox/session-service.js';
@@ -397,7 +397,7 @@ export class ChatService {
   async sendUserMessage(
     chatId: string,
     content: string,
-    options?: { requestId?: string; routine?: boolean }
+    options?: { requestId?: string; routine?: boolean; systemNote?: string }
   ): Promise<SendMessageResult> {
     const trimmed = content.trim();
     if (!trimmed) {
@@ -408,6 +408,7 @@ export class ChatService {
     const stored = await this.storedResult(chatId, requestId);
     if (stored) return stored;
 
+    await this.refuseWhilePaused(chatId);
     const { run, ctx } = await this.openRun(chatId, 'send', { requestId, routine: options?.routine });
     if (!ctx) {
       // Same requestId as a run that is still going (or whose result was never stored).
@@ -418,6 +419,8 @@ export class ChatService {
 
     this.denyPauseByChat.delete(chatId);
     const result = await this.inRun(ctx, async () => {
+      // Written inside the run so a refused send (409) leaves no stray note in the transcript.
+      if (options?.systemNote) await this.options.store.addMessage(chatId, 'system', options.systemNote);
       const user = await this.options.store.addMessage(chatId, 'user', trimmed, { runId: ctx.runId });
       return this.continueTurn(chatId, user, 0, { run: ctx });
     });
@@ -440,6 +443,7 @@ export class ChatService {
     }
 
     const requestId = options?.requestId?.trim();
+    await this.refuseWhilePaused(chatId);
     const { run, ctx } = await this.openRun(chatId, 'send', { requestId });
     if (!ctx) {
       const user = (await this.options.store.listMessages(chatId)).find(
@@ -461,6 +465,20 @@ export class ChatService {
     return { run, user };
   }
 
+  /**
+   * A turn paused on an approval or choice still owns the chat: a new message (user, cron, webhook) would land
+   * between the assistant's tool_calls and their results and make the history invalid for the LLM.
+   */
+  private async refuseWhilePaused(chatId: string): Promise<void> {
+    const [approvals, choices] = await Promise.all([
+      this.approvals.listPending(chatId),
+      this.choices.listPending(chatId),
+    ]);
+    if (approvals.length === 0 && choices.length === 0) return;
+    const latest = await this.runs.store.latest(chatId);
+    throw new ActiveRunError(latest?.id ?? '', 'This chat is waiting for an approval or an answer');
+  }
+
   /** A result stored under `requestId`, so a retried send does not run twice. */
   private async storedResult(chatId: string, requestId?: string): Promise<SendMessageResult | null> {
     const existing = requestId && this.options.idempotency ? await this.options.idempotency.get(requestId) : null;
@@ -479,10 +497,10 @@ export class ChatService {
     return this.runs.start({ chatId, kind, routine: routine === true, requestId, payerUserId: chat?.userId });
   }
 
-  /** A run that continues the turn after an approval or choice; `ctx.turnId` stays the turn's. */
+  /** A run that continues the turn after an approval or choice; `ctx.turnId` and the routine flag stay the turn's. */
   private async openResume(chatId: string): Promise<RunContext> {
-    const chat = await this.options.store.getChat(chatId);
-    return this.runs.open({ chatId, kind: 'resume', routine: false, payerUserId: chat?.userId });
+    const [chat, turnRun] = await Promise.all([this.options.store.getChat(chatId), this.runs.store.latest(chatId)]);
+    return this.runs.open({ chatId, kind: 'resume', routine: turnRun?.routine === true, payerUserId: chat?.userId });
   }
 
   /** Runs `work` as the body of `ctx`'s run and records how it ended. */
@@ -864,7 +882,7 @@ export class ChatService {
       let history = await this.options.store.listMessages(chatId);
       const turnUserId = opts.callerUserId ?? chat?.userId;
       // Checked every step: unsharing or removal cuts off a run that is already going.
-      if (run.signal.aborted) throw new RunStoppedError();
+      if (run.signal.aborted) throw stoppedBy(run.signal);
       if (bot && turnUserId && !(await canUseBot(this.options.store, bot, turnUserId))) {
         throw new AccessRevokedError();
       }
@@ -948,7 +966,7 @@ export class ChatService {
               partial ? `${partial}\n\n(stopped)` : '(stopped)',
               { runId: run.runId }
             );
-            throw new RunStoppedError();
+            throw stoppedBy(run.signal);
           }
         }
       );
@@ -1014,7 +1032,7 @@ export class ChatService {
         }
 
         for (const toolCall of toAutoExecute) {
-          if (run.signal.aborted) throw new RunStoppedError();
+          if (run.signal.aborted) throw stoppedBy(run.signal);
           const toolResult = await this.executeTool(toolCall, turnCtx, 'auto');
           await this.options.store.addMessage(chatId, 'tool', toolResult, {
             toolCallId: toolCall.id,
@@ -1070,7 +1088,14 @@ export class ChatService {
     } catch (err) {
       // Stop, lost access, or a crash can land between an assistant's tool_calls and their results.
       if (err instanceof RunStoppedError || err instanceof AccessRevokedError) {
-        await this.closeOrphanToolCalls(chatId, err instanceof RunStoppedError ? 'Stopped by user' : err.message);
+        await this.closeOrphanToolCalls(
+          chatId,
+          err instanceof AccessRevokedError
+            ? err.message
+            : err.reason === 'stop'
+              ? 'Stopped by user'
+              : 'Interrupted: the run lost its lease'
+        );
       }
       throw err;
     } finally {
