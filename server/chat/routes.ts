@@ -583,12 +583,25 @@ export function registerChatRoutes(
     return { chat, messages, pendingApprovals, pendingChoices, autoApprovedTools, sandboxStatus };
   }
 
-  // Alias for the caller's latest chat with the bot.
+  // Alias for the caller's latest chat with the bot. Routine and handoff chats have no screen of their own,
+  // so their pending approvals and choices ride along here; each card carries its own chatId to decide against.
   app.get('/api/bots/:botId/chat', async (req: Request, res: Response) => {
     try {
       const chat = await accessibleBotChat(req, res);
       if (!chat) return;
-      res.json(await chatPayload(chat));
+      const payload = await chatPayload(chat);
+      const systemChats = (await store.listChats(chat.botId, chat.userId ?? '')).filter(
+        (other) => (other.kind ?? 'user') !== 'user'
+      );
+      const [approvals, choices] = await Promise.all([
+        Promise.all(systemChats.map((other) => service.getApprovals().listPending(other.id))),
+        Promise.all(systemChats.map((other) => service.getChoices().listPending(other.id))),
+      ]);
+      res.json({
+        ...payload,
+        pendingApprovals: [...payload.pendingApprovals, ...approvals.flat()],
+        pendingChoices: [...payload.pendingChoices, ...choices.flat()],
+      });
     } catch (err) {
       sendError(res, err);
     }
@@ -712,6 +725,11 @@ export function registerChatRoutes(
     try {
       const chat = await assertChatUse(String(req.params.chatId), req, res);
       if (!chat) return;
+      // Routines and handoffs keep using their chat, so hiding it would only strand its approvals.
+      if ((chat.kind ?? 'user') !== 'user') {
+        res.status(400).json({ error: 'Cannot archive a routine or handoff chat' });
+        return;
+      }
       res.json({ chat: await store.archiveChat(chat.id) });
     } catch (err) {
       sendError(res, err);

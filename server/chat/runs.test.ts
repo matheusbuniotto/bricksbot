@@ -523,7 +523,7 @@ describe('run routes', () => {
         await ctx.store.ensureBootstrap('bob');
         await ctx.store.addSpaceMember(space.id, 'bob', 'member');
         const bot = await ctx.store.createBot({ name: 'Shared', spaceId: space.id, ownerId: 'alice', isShared: true });
-        const chat = await ctx.store.getOrCreateChatForBot(bot.id, 'bob');
+        const chat = await ctx.store.getDefaultChat(bot.id, 'bob');
         const run = await ctx.service.getRuns().open({ chatId: chat.id, kind: 'send', routine: false });
         const asBob = { 'x-forwarded-email': 'bob' };
         const url = `/api/chats/${chat.id}/runs/${run.runId}/events`;

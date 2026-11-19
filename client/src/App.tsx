@@ -477,15 +477,17 @@ export default function App() {
   }
 
   async function handleSelectChoice(choiceId: string, selectedOption: string) {
-    if (!chat) return;
+    // A choice from a routine or handoff chat is answered in that chat, not the open one.
+    const chatId = pendingChoices.find((item) => item.id === choiceId)?.chatId ?? chat?.id;
+    if (!chatId) return;
     setChoiceBusyId(choiceId);
     setError(null);
     try {
       const outcome = await submitChoice(
-        chat.id,
+        chatId,
         choiceId,
         selectedOption,
-        (update) => selectedBotId && showRunUpdate(chat.id, selectedBotId, update)
+        (update) => selectedBotId && showRunUpdate(chatId, selectedBotId, update)
       );
       if (selectedBotId) await settleRun(selectedBotId, outcome);
     } catch (err) {

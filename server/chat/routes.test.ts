@@ -579,6 +579,33 @@ describe('chat HTTP API', () => {
       });
     });
 
+    test('routine and handoff chats surface their approvals on the bot chat and cannot be archived', async () => {
+      await withChatApp(async (baseUrl, { store, service }) => {
+        const bot = await store.createBot({ name: 'Analyst', ownerId: 'alice' });
+        const open = await chatOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, as('alice')));
+        const routineChat = await store.getRoutineChat({ id: 'r1', botId: bot.id, ownerId: 'alice', name: 'Nightly' });
+        const handoffChat = await store.getHandoffChat(bot.id, 'alice');
+        const toolCall = (id: string) => ({ id, name: 'sql_query', arguments: { statement: 'SELECT 1' } });
+        const meta = { botId: bot.id, userId: 'alice' };
+        await service.getApprovals().create(routineChat.id, toolCall('c1'), meta);
+        await service.getApprovals().create(handoffChat.id, toolCall('c2'), meta);
+
+        const payload = (await (await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, as('alice'))).json()) as {
+          chat: ChatRef;
+          pendingApprovals: Array<{ chatId: string }>;
+        };
+        expect(payload.chat.id).toBe(open.id);
+        expect(payload.pendingApprovals.map((approval) => approval.chatId).sort()).toEqual(
+          [routineChat.id, handoffChat.id].sort()
+        );
+
+        for (const chat of [routineChat, handoffChat]) {
+          expect((await fetch(`${baseUrl}/api/chats/${chat.id}/archive`, as('alice', {}))).status).toBe(400);
+        }
+        expect((await store.getChat(routineChat.id))?.archivedAt).toBeFalsy();
+      });
+    });
+
     test('only the caller sees their chats, and losing access to the bot cuts them off', async () => {
       await withChatApp(async (baseUrl, { store }) => {
         const space = await store.createSpace({ name: 'Team', ownerId: 'alice' });
