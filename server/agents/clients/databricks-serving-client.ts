@@ -1,6 +1,11 @@
-import type { ChatClient, ChatCompletionRequest, ChatCompletionResult } from '../../../shared/agents/types.js';
+import type {
+  ChatClient,
+  ChatCompletionOptions,
+  ChatCompletionRequest,
+  ChatCompletionResult,
+} from '../../../shared/agents/types.js';
 import { normalizeHostUrl } from '../../chat/databricks-auth.js';
-import { chatCompletionBody, parseToolCalls } from './openai-wire.js';
+import { chatCompletionBody, parseCompletion, type WireCompletion } from './openai-wire.js';
 
 export interface DatabricksServingConfig {
   host: string;
@@ -20,9 +25,9 @@ export class DatabricksServingChatClient implements ChatClient {
     this.model = config.endpointName;
   }
 
-  async complete(request: ChatCompletionRequest): Promise<ChatCompletionResult> {
+  async complete(request: ChatCompletionRequest, options?: ChatCompletionOptions): Promise<ChatCompletionResult> {
     const host = normalizeHostUrl(this.config.host);
-    const url = `${host}/serving-endpoints/${encodeURIComponent(this.config.endpointName)}/invocations`;
+    const url = `${host}/serving-endpoints/${encodeURIComponent(request.model ?? this.config.endpointName)}/invocations`;
     const token = await this.config.getToken();
 
     const response = await this.fetchImpl(url, {
@@ -32,6 +37,7 @@ export class DatabricksServingChatClient implements ChatClient {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(chatCompletionBody(request)),
+      signal: options?.signal,
     });
 
     if (!response.ok) {
@@ -39,20 +45,13 @@ export class DatabricksServingChatClient implements ChatClient {
       throw new Error(`Databricks Serving error (${response.status}): ${text || response.statusText}`);
     }
 
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string | null; tool_calls?: unknown } }>;
+    const payload = (await response.json()) as WireCompletion & {
       // Some endpoints return predictions / candidates instead of choices.
       candidates?: Array<{ content?: string }>;
     };
-
-    const message = payload.choices?.[0]?.message;
-    if (message) {
-      return {
-        content: message.content ?? null,
-        toolCalls: parseToolCalls(message.tool_calls),
-      };
-    }
-
-    return { content: payload.candidates?.[0]?.content ?? null, toolCalls: [] };
+    const result = parseCompletion(payload);
+    return result.content === null && !result.toolCalls.length
+      ? { ...result, content: payload.candidates?.[0]?.content ?? null }
+      : result;
   }
 }

@@ -116,6 +116,69 @@ describe('routine turns', () => {
   });
 });
 
+describe('app purpose', () => {
+  test('uses the App SP even when the request carries an OBO token', async () => {
+    const m2mGetToken = vi.fn(() => Promise.resolve('m2m-tok'));
+    const getToken = createDatabricksTokenProvider({ env: {}, purpose: 'app', m2mGetToken });
+    await runWithDatabricksRequestAuth(fakeReq({ 'x-forwarded-access-token': 'obo' }), async () => {
+      await expect(getToken()).resolves.toBe('m2m-tok');
+    });
+  });
+
+  test('is unaffected by the deployed-App guard', async () => {
+    const m2mGetToken = vi.fn(() => Promise.resolve('m2m-tok'));
+    const getToken = createDatabricksTokenProvider({
+      env: { DATABRICKS_APP_NAME: 'bricksbot' },
+      purpose: 'app',
+      m2mGetToken,
+    });
+    await runWithDatabricksRequestAuth(fakeReq({}), async () => {
+      await expect(getToken()).resolves.toBe('m2m-tok');
+    });
+  });
+});
+
+describe('viewer purpose', () => {
+  const appEnv = { DATABRICKS_APP_NAME: 'bricksbot', DATABRICKS_TOKEN: 'pat' };
+
+  test('returns the request OBO token', async () => {
+    const getToken = createDatabricksTokenProvider({ env: appEnv, purpose: 'viewer' });
+    await runWithDatabricksRequestAuth(fakeReq({ 'x-forwarded-access-token': 'obo' }), async () => {
+      await expect(getToken()).resolves.toBe('obo');
+    });
+  });
+
+  test('refuses routine turns, even runAs app', async () => {
+    const getToken = createDatabricksTokenProvider({ env: { DATABRICKS_TOKEN: 'pat' }, purpose: 'viewer' });
+    await runWithRoutineAuth('app', async () => {
+      await expect(getToken()).rejects.toBeInstanceOf(RoutineIdentityRequiredError);
+    });
+  });
+
+  test('has no SP fallback in a deployed App, even with the interactive escape hatch', async () => {
+    const m2mGetToken = vi.fn(() => Promise.resolve('m2m-tok'));
+    const getToken = createDatabricksTokenProvider({
+      env: { ...appEnv, BRICKSBOT_INTERACTIVE_SP_FALLBACK: 'allow' },
+      purpose: 'viewer',
+      m2mGetToken,
+    });
+    await runWithDatabricksRequestAuth(fakeReq({}), async () => {
+      await expect(getToken()).rejects.toBeInstanceOf(UserTokenRequiredError);
+    });
+    await expect(getToken()).rejects.toBeInstanceOf(UserTokenRequiredError);
+    expect(m2mGetToken).not.toHaveBeenCalled();
+  });
+
+  test('local development may use the PAT but never M2M', async () => {
+    const m2mGetToken = vi.fn(() => Promise.resolve('m2m-tok'));
+    const withPat = createDatabricksTokenProvider({ env: { DATABRICKS_TOKEN: 'pat' }, purpose: 'viewer', m2mGetToken });
+    await expect(withPat()).resolves.toBe('pat');
+    const m2mOnly = createDatabricksTokenProvider({ env: {}, purpose: 'viewer', m2mGetToken });
+    await expect(m2mOnly()).rejects.toBeInstanceOf(UserTokenRequiredError);
+    expect(m2mGetToken).not.toHaveBeenCalled();
+  });
+});
+
 describe('interactive turns in a deployed App', () => {
   const appEnv = { DATABRICKS_APP_NAME: 'bricksbot', DATABRICKS_TOKEN: 'pat' };
 

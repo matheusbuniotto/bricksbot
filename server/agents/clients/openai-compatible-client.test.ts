@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { OpenAICompatibleChatClient } from './openai-compatible-client.js';
+import { stubFetchJson, stubFetchUntilAborted } from './test-fetch.js';
 
 describe('OpenAICompatibleChatClient', () => {
   afterEach(() => {
@@ -140,5 +141,65 @@ describe('OpenAICompatibleChatClient', () => {
     });
     await client.complete({ messages: [{ role: 'user', content: 'x' }] });
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://api.x.ai/v1/chat/completions');
+  });
+
+  test('parses usage, model and finish reason (OpenRouter shape with cost)', async () => {
+    stubFetchJson({
+      model: 'openai/answering-model',
+      choices: [{ message: { content: 'hi' }, finish_reason: 'stop' }],
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 20,
+        total_tokens: 120,
+        cost: 0.0042,
+        prompt_tokens_details: { cached_tokens: 64 },
+        completion_tokens_details: { reasoning_tokens: 8 },
+      },
+    });
+    const client = new OpenAICompatibleChatClient({ baseUrl: 'https://x/v1', apiKey: 'k', model: 'm' });
+    const result = await client.complete({ messages: [{ role: 'user', content: 'hi' }] });
+    expect(result.usage).toEqual({
+      promptTokens: 100,
+      completionTokens: 20,
+      totalTokens: 120,
+      cachedTokens: 64,
+      reasoningTokens: 8,
+      cost: 0.0042,
+    });
+    expect(result.model).toBe('openai/answering-model');
+    expect(result.finishReason).toBe('stop');
+  });
+
+  test('leaves usage undefined when the provider omits it', async () => {
+    stubFetchJson({ choices: [{ message: { content: 'hi' } }] });
+    const client = new OpenAICompatibleChatClient({ baseUrl: 'https://x/v1', apiKey: 'k', model: 'm' });
+    const result = await client.complete({ messages: [{ role: 'user', content: 'hi' }] });
+    expect(result.usage).toBeUndefined();
+  });
+
+  test('sends the per-request model and end user on the wire', async () => {
+    const fetchMock = stubFetchJson({ choices: [{ message: { content: 'ok' } }] });
+    const client = new OpenAICompatibleChatClient({ baseUrl: 'https://x/v1', apiKey: 'k', model: 'default-model' });
+    await client.complete({
+      messages: [{ role: 'user', content: 'hi' }],
+      model: 'override-model',
+      meta: { endUser: 'u-1' },
+    });
+    await client.complete({ messages: [{ role: 'user', content: 'hi' }] });
+    const [first, second] = fetchMock.mock.calls.map(
+      ([, init]) => JSON.parse(init.body as string) as Record<string, unknown>
+    );
+    expect(first).toMatchObject({ model: 'override-model', user: 'u-1' });
+    expect(second.model).toBe('default-model');
+    expect(second).not.toHaveProperty('user');
+  });
+
+  test('rejects when the signal aborts', async () => {
+    stubFetchUntilAborted();
+    const client = new OpenAICompatibleChatClient({ baseUrl: 'https://x/v1', apiKey: 'k', model: 'm' });
+    const controller = new AbortController();
+    const pending = client.complete({ messages: [{ role: 'user', content: 'hi' }] }, { signal: controller.signal });
+    controller.abort();
+    await expect(pending).rejects.toThrow();
   });
 });

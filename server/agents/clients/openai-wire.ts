@@ -1,4 +1,10 @@
-import type { ChatCompletionRequest, LlmMessage, ToolCall } from '../../../shared/agents/types.js';
+import type {
+  ChatCompletionRequest,
+  ChatCompletionResult,
+  LlmMessage,
+  LlmUsage,
+  ToolCall,
+} from '../../../shared/agents/types.js';
 
 /** Map internal LlmMessage[] to OpenAI chat-completions message objects. */
 export function serializeOpenAiMessages(messages: LlmMessage[]): Record<string, unknown>[] {
@@ -65,4 +71,47 @@ export function parseToolCalls(raw: unknown): ToolCall[] {
     calls.push({ id: row.id, name: row.function.name, arguments: args });
   }
   return calls;
+}
+
+interface WireUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  cost?: number;
+  prompt_tokens_details?: { cached_tokens?: number };
+  completion_tokens_details?: { reasoning_tokens?: number };
+}
+
+export interface WireCompletion {
+  model?: string;
+  choices?: Array<{ message?: { content?: string | null; tool_calls?: unknown }; finish_reason?: string | null }>;
+  usage?: WireUsage;
+}
+
+function parseUsage(raw: WireUsage | undefined): LlmUsage | undefined {
+  if (!raw) return undefined;
+  const promptTokens = raw.prompt_tokens ?? 0;
+  const completionTokens = raw.completion_tokens ?? 0;
+  const cachedTokens = raw.prompt_tokens_details?.cached_tokens;
+  const reasoningTokens = raw.completion_tokens_details?.reasoning_tokens;
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: raw.total_tokens ?? promptTokens + completionTokens,
+    ...(cachedTokens !== undefined ? { cachedTokens } : {}),
+    ...(reasoningTokens !== undefined ? { reasoningTokens } : {}),
+    ...(typeof raw.cost === 'number' ? { cost: raw.cost } : {}),
+  };
+}
+
+/** Map a chat-completions response to a ChatCompletionResult (shared by OpenAI-compatible and Serving). */
+export function parseCompletion(payload: WireCompletion): ChatCompletionResult {
+  const choice = payload.choices?.[0];
+  return {
+    content: choice?.message?.content ?? null,
+    toolCalls: parseToolCalls(choice?.message?.tool_calls),
+    usage: parseUsage(payload.usage),
+    model: payload.model,
+    finishReason: choice?.finish_reason ?? undefined,
+  };
 }

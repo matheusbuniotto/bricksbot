@@ -1,4 +1,6 @@
-import { describe, expect, test } from 'vitest';
+import type { Request } from 'express';
+import { describe, expect, test, vi } from 'vitest';
+import { runWithDatabricksRequestAuth } from '../../chat/databricks-auth.js';
 import { createChatClientFromEnv } from './create-chat-client.js';
 
 describe('createChatClientFromEnv', () => {
@@ -34,5 +36,31 @@ describe('createChatClientFromEnv', () => {
       LLM_MODEL: '__UNSET__',
     });
     expect(client.provider).toBe('stub');
+  });
+
+  test('serving authenticates as the App service principal, never the caller OBO token', async () => {
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(
+        url.endsWith('/oidc/v1/token')
+          ? Response.json({ access_token: 'sp-token', expires_in: 3600 })
+          : Response.json({ choices: [{ message: { content: 'ok' } }] })
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createChatClientFromEnv({
+      LLM_PROVIDER: 'databricks',
+      DATABRICKS_HOST: 'https://dbc.example.cloud.databricks.com',
+      DATABRICKS_SERVING_ENDPOINT_NAME: 'my-endpoint',
+      DATABRICKS_CLIENT_ID: 'cid',
+      DATABRICKS_CLIENT_SECRET: 'sec',
+    });
+    const req = {
+      header: () => 'obo-token',
+      headers: { 'x-forwarded-access-token': 'obo-token' },
+    } as unknown as Request;
+    await runWithDatabricksRequestAuth(req, () => client.complete({ messages: [{ role: 'user', content: 'hi' }] }));
+    const invocation = fetchMock.mock.calls.find(([url]) => url.includes('/invocations'));
+    expect((invocation?.[1] as RequestInit).headers).toMatchObject({ Authorization: 'Bearer sp-token' });
+    vi.unstubAllGlobals();
   });
 });

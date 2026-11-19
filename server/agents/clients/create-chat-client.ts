@@ -1,4 +1,5 @@
 import type { ChatClient } from '../../../shared/agents/types.js';
+import { createDatabricksTokenProvider } from '../../chat/databricks-auth.js';
 import { presentEnv } from '../../lib/env.js';
 import { DatabricksServingChatClient } from './databricks-serving-client.js';
 import { OpenAICompatibleChatClient } from './openai-compatible-client.js';
@@ -33,14 +34,11 @@ export function createChatClientFromEnv(env: ChatClientEnv = process.env): ChatC
     if (!host) {
       throw new Error('Databricks Serving client requires DATABRICKS_HOST');
     }
-    const staticToken = presentEnv(resolved.DATABRICKS_TOKEN);
+    // The LLM is App infrastructure, not the viewer's data: PAT locally, App SP (M2M) when deployed.
     return new DatabricksServingChatClient({
       host,
       endpointName,
-      getToken: async () => {
-        if (staticToken) return staticToken;
-        throw new Error('DATABRICKS_TOKEN is required for Serving outside the App runtime');
-      },
+      getToken: createDatabricksTokenProvider({ env: resolved, purpose: 'app' }),
     });
   }
 

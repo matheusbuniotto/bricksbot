@@ -26,18 +26,43 @@ export interface ToolDefinition {
 export interface ChatCompletionRequest {
   messages: LlmMessage[];
   tools?: ToolDefinition[];
+  /** Overrides the client's default model (or Serving endpoint) for this call. */
+  model?: string;
+  /** Opaque end-user id for provider abuse isolation. Never an email. */
+  meta?: { endUser?: string };
+}
+
+/** Token counts as reported by the provider. `cost` is the provider's own figure when present (OpenRouter, USD). */
+export interface LlmUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cachedTokens?: number;
+  reasoningTokens?: number;
+  cost?: number;
 }
 
 export interface ChatCompletionResult {
   content: string | null;
   toolCalls: ToolCall[];
+  usage?: LlmUsage;
+  /** Model that answered, when the provider reports it. */
+  model?: string;
+  finishReason?: string;
+}
+
+export interface ChatCompletionOptions {
+  /** Aborting rejects `complete` with an AbortError. */
+  signal?: AbortSignal;
+  /** Token streaming hook. Accepted now, honored once streaming lands (clients ignore it today). */
+  onDelta?: (text: string) => void;
 }
 
 export interface ChatClient {
   readonly provider: 'openai-compatible' | 'databricks-serving' | 'stub';
-  /** Model or endpoint name, for traces. */
+  /** Default model or endpoint name, for traces. */
   readonly model?: string;
-  complete(request: ChatCompletionRequest): Promise<ChatCompletionResult>;
+  complete(request: ChatCompletionRequest, options?: ChatCompletionOptions): Promise<ChatCompletionResult>;
 }
 
 export type ApprovalStatus = 'pending' | 'approved' | 'denied';

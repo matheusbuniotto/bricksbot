@@ -314,6 +314,8 @@ describe('SystemAiMcp Tools', () => {
     expect(enabled).toBeDefined();
     expect(enabled?.host).toBe('https://w.cloud.databricks.com');
     expect(enabled?.workspaceId).toBe('987');
+    // The static PAT must not leak in: server.ts supplies the guarded `data` provider.
+    expect(enabled?.getToken).toBeUndefined();
 
     const oneEnabled = systemAiMcpConfigFromEnv({
       DATABRICKS_ONE_ENABLED: 'true',
