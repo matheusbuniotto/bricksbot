@@ -21,7 +21,7 @@ import { isDatabricksProxyEnvironment } from './identity.js';
  * OBO only, refused on every routine turn, never the App SP. A PAT works only in local dev.
  *
  * `app` (Serving LLM, workspace-user lookup) is always the App identity: PAT → app SP M2M,
- * never the caller's OBO token.
+ * never the caller's OBO token. In a deployed App the PAT is skipped: app SP M2M only.
  */
 
 export type DatabricksTokenPurpose = 'data' | 'viewer' | 'app';
@@ -172,7 +172,9 @@ export function createDatabricksTokenProvider(options: DatabricksTokenProviderOp
   return async () => {
     const store = authAls.getStore();
     if (purpose === 'app') {
-      if (staticToken) return staticToken;
+      // A PAT is somebody's identity, not the App's: only trust it outside a deployed App.
+      const deployed = isDatabricksProxyEnvironment(env) && env.NODE_ENV !== 'development';
+      if (staticToken && !deployed) return staticToken;
       if (m2mGetToken) return m2mGetToken();
       throw noCredentials();
     }

@@ -71,6 +71,8 @@ export interface RunStore {
    */
   start(input: StartRunInput): Promise<{ run: Run; duplicate: boolean }>;
   get(runId: string): Promise<Run | null>;
+  /** The run a `requestId` opened, if any. */
+  findByRequestId(requestId: string): Promise<Run | null>;
   /** The chat's most recently started run. */
   latest(chatId: string): Promise<Run | null>;
   listRunning(): Promise<Run[]>;

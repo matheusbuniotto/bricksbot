@@ -277,6 +277,36 @@ describe('OpenAICompatibleChatClient', () => {
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
+    test('the refusal is forgotten after a while, so streaming is tried again', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        let streamingWorks = false;
+        const fetchMock = vi.fn((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            (JSON.parse(init.body as string) as { stream?: boolean }).stream
+              ? streamingWorks
+                ? sseResponse(fragmented)
+                : new Response('blip', { status: 400 })
+              : Response.json({ choices: [{ message: { content: 'plain answer' } }] })
+          )
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        const client = new OpenAICompatibleChatClient({ baseUrl: 'https://blip.test/v1', apiKey: 'k', model: 'm' });
+
+        await client.complete({ messages }, { onDelta: () => {} });
+        streamingWorks = true;
+        await client.complete({ messages }, { onDelta: () => {} });
+        expect(fetchMock).toHaveBeenCalledTimes(3); // still plain
+
+        vi.setSystemTime(Date.now() + 11 * 60_000);
+        const deltas: string[] = [];
+        await client.complete({ messages }, { onDelta: (text) => deltas.push(text) });
+        expect(deltas).toEqual(['Hel', 'lo']);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     test('a genuine 400 is not remembered as "no streaming"', async () => {
       const fetchMock = vi.fn(() => Promise.resolve(new Response('bad tool schema', { status: 400 })));
       vi.stubGlobal('fetch', fetchMock);

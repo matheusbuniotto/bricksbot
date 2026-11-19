@@ -169,6 +169,29 @@ describe('run cap', () => {
     for (const ctx of ctxs.slice(1)) await runs.settle(ctx, 'completed');
   });
 
+  test('concurrent starts cannot slip past the cap', async () => {
+    const runs = new RunService(new MemoryRunStore());
+    const outcomes = await Promise.allSettled(
+      Array.from({ length: MAX_RUNS_PER_USER + 3 }, (_, i) => runs.open(input(`c${i}`, 'ana')))
+    );
+
+    const opened = outcomes.flatMap((outcome) => (outcome.status === 'fulfilled' ? [outcome.value] : []));
+    expect(opened).toHaveLength(MAX_RUNS_PER_USER);
+    expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(3);
+    for (const ctx of opened) await runs.settle(ctx, 'completed');
+  });
+
+  test('a repeated requestId at the cap returns its run instead of a refusal', async () => {
+    const runs = new RunService(new MemoryRunStore());
+    const first = await runs.start({ ...input('c0', 'ana'), requestId: 'req-1' });
+    const ctxs = [first.ctx!];
+    for (let i = 1; i < MAX_RUNS_PER_USER; i += 1) ctxs.push(await runs.open(input(`c${i}`, 'ana')));
+
+    const again = await runs.start({ ...input('c0', 'ana'), requestId: 'req-1' });
+    expect(again).toMatchObject({ ctx: null, run: { id: first.run.id } });
+    for (const ctx of ctxs) await runs.settle(ctx, 'completed');
+  });
+
   test('routine runs neither count nor are refused', async () => {
     const runs = new RunService(new MemoryRunStore());
     const ctxs = [];
