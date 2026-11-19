@@ -14,6 +14,9 @@ variables:
     description: Lakebase branch resource name (projects/<project>/branches/<branch>)
   lakebase_database:
     description: Lakebase database resource name (…/databases/<database>)
+  genie_space_id:
+    description: Optional Genie space id for ask_genie_space (see the genie-space resource below). Unused while that resource is commented out
+    default: ''
   sql_warehouse_id:
     description: SQL warehouse id for sql_query / lakehouse_catalog (user OBO + SP CAN_USE)
   provider_secret_scope:
@@ -63,6 +66,8 @@ resources:
         - sql:restricted-query
         - files.files
         - ai-gateway
+        # Optional Genie space (ask_genie_space): uncomment with the genie-space resource below.
+        # - genie
 
       resources:
         - name: postgres
@@ -86,6 +91,14 @@ resources:
         #     scope: ${var.app_secret_scope}
         #     key: web-fetch-allowlist
         #     permission: READ
+        # Optional single Genie space for ask_genie_space. Set genie_space_id, then uncomment this,
+        # the `genie` scope above and BRICKSBOT_GENIE_SPACE_ID in app.yaml. The tool stays
+        # unregistered while unset. It runs as the user (CAN_RUN on the space); Genie bills compute.
+        # - name: genie-space
+        #   genie_space:
+        #     name: BricksBot Genie space
+        #     space_id: ${var.genie_space_id}
+        #     permission: CAN_RUN
 
 targets:
   # Workspace-specific host, Lakebase paths, and warehouse id live in a

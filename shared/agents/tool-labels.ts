@@ -29,6 +29,7 @@ const TOOL_LABELS: Record<string, string> = {
   sandbox_stop: 'Stop sandbox',
   sandbox_delete: 'Delete sandbox',
   genie_ask: 'Ask Genie',
+  ask_genie_space: 'Ask the Genie space',
   genie_poll_response: 'Poll Genie response',
   genie_get_query_result: 'Get Genie query result',
   genie_cancel_response: 'Cancel Genie response',
@@ -102,6 +103,8 @@ export function approvalTitle(toolName: string): string {
       return 'Allow this bot to permanently delete the sandbox?';
     case 'genie_ask':
       return 'Allow this bot to ask Genie a question? (incurs AI warehouse compute)';
+    case 'ask_genie_space':
+      return 'Allow this bot to ask the Genie space a question? (runs as you, incurs Genie and warehouse compute)';
     case 'genie_poll_response':
       return 'Allow this bot to poll a Genie response?';
     case 'genie_get_query_result':

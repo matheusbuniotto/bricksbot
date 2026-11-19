@@ -60,6 +60,11 @@ import {
   GENIE_GET_QUERY_RESULT_TOOL_NAME,
   GENIE_POLL_TOOL_NAME,
 } from '../agents/tools/system-ai-mcp.js';
+import {
+  createGenieSpaceTool,
+  GENIE_SPACE_TOOL_NAME,
+  type GenieSpaceToolOptions,
+} from '../agents/tools/genie-space.js';
 import { isConnectedMcpTool } from '../agents/tools/mcp-tools.js';
 import type { SystemAiMcpOptions } from '../../shared/agents/mcp-types.js';
 import { formatBotContext } from '../agents/memory/context.js';
@@ -93,6 +98,7 @@ const CREDENTIALED_TOOL_NAMES = new Set([
   GENIE_POLL_TOOL_NAME,
   GENIE_GET_QUERY_RESULT_TOOL_NAME,
   GENIE_CANCEL_TOOL_NAME,
+  GENIE_SPACE_TOOL_NAME,
 ]);
 
 /** Tools that reach lakehouse data with a Databricks token; routine turns gate them on the owner. */
@@ -112,7 +118,8 @@ function requiresAlwaysAsk(toolName: string): boolean {
     toolName === ASK_CHOICE_TOOL_NAME ||
     toolName === DELETE_ROUTINE_TOOL_NAME ||
     toolName === SANDBOX_DELETE_TOOL_NAME ||
-    toolName === GENIE_ASK_TOOL_NAME
+    toolName === GENIE_ASK_TOOL_NAME ||
+    toolName === GENIE_SPACE_TOOL_NAME
   );
 }
 
@@ -141,6 +148,8 @@ export interface ChatServiceOptions {
   sandboxArtifactSync?: ArtifactSyncService;
   /** Optional Databricks One (Genie) and system.ai MCP tools offered to every user. */
   systemAiMcp?: SystemAiMcpOptions | RegisteredTool[];
+  /** Registers ask_genie_space for one Genie space; absent means no Genie tool and no prompt text. */
+  genieSpace?: GenieSpaceToolOptions;
   /** Loads a user's connected MCP tools (connectors are user-level). Cached per user. */
   resolveMcpTools?: (userId: string) => Promise<RegisteredTool[]>;
   /** Optional PluginHost for dynamically loaded plugins and extensions. */
@@ -286,6 +295,9 @@ export class ChatService {
     tools.push(createPinChartTool(options.store));
     tools.push(createAskChoiceTool());
     tools.push(...createRoutineTools(options.routines ?? new MemoryRoutineStore(), options.store));
+    if (options.genieSpace) {
+      tools.push(createGenieSpaceTool(options.genieSpace));
+    }
     if (options.sandbox?.isEnabled()) {
       tools.push(
         ...createSandboxTools({
@@ -762,7 +774,7 @@ export class ChatService {
           }
           const isPluginTool = Boolean(this.pluginHost?.hasTool(toolCall.name));
           const isPluginAskFirst = isPluginTool && (this.pluginHost?.isAskFirst(toolCall.name) ?? true);
-          // create_bot / sandbox_delete / ask_choice / genie_ask always Ask-first.
+          // create_bot / sandbox_delete / ask_choice / genie_ask / ask_genie_space always Ask-first.
           // Default meta + sandbox_stop never Ask-first.
           // Handoff autoApproveAll still requires Ask-first for sandbox, volume_write, MCP tools, and plugin tools.
           const handoffAuto =
