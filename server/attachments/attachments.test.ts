@@ -6,6 +6,7 @@ import { ATTACHMENT_MAX_BYTES, ATTACHMENTS_PER_CHAT } from '../../shared/chat/at
 import { UserTokenRequiredError } from '../chat/databricks-auth.js';
 import type { LakebaseQuery } from '../chat/lakebase-store.js';
 import { MemoryChatStore } from '../chat/memory-store.js';
+import { MemoryIdempotencyStore } from '../durable/idempotency-store.js';
 import { ChatService } from '../chat/service.js';
 import { MemoryVolumeUsageStore } from '../volumes/usage-store.js';
 import { LakebaseAttachmentStore } from './lakebase-store.js';
@@ -48,7 +49,7 @@ class CapturingClient implements ChatClient {
   }
 }
 
-async function setup(options: { files?: AttachmentFiles; enabled?: boolean } = {}) {
+async function setup(options: { files?: AttachmentFiles; enabled?: boolean; quotaBytes?: number } = {}) {
   const chats = new MemoryChatStore();
   const attachmentStore = new MemoryAttachmentStore();
   const files = options.files ?? new FakeFiles();
@@ -58,7 +59,7 @@ async function setup(options: { files?: AttachmentFiles; enabled?: boolean } = {
     store: attachmentStore,
     files,
     usage,
-    limits: { maxWriteBytes: 1, userQuotaBytes: 100 * 1024 * 1024 },
+    limits: { maxWriteBytes: 1, userQuotaBytes: options.quotaBytes ?? 100 * 1024 * 1024 },
   });
   const client = new CapturingClient();
   const service = new ChatService({ store: chats, client, attachments: attachmentStore });
@@ -396,6 +397,55 @@ describe('routes', () => {
   });
 });
 
+describe('parallel requests', () => {
+  const send = (ctx: Awaited<ReturnType<typeof setup>>, name = 'a.csv') =>
+    ctx.attachments.upload(ctx.chat, { name, length: CSV.length, body: Readable.from([Buffer.from(CSV)]) });
+
+  test('uploads cannot slip past the user quota together', async () => {
+    const ctx = await setup({ quotaBytes: CSV.length * 2 });
+    try {
+      const results = await Promise.allSettled(Array.from({ length: 5 }, () => send(ctx)));
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(2);
+      expect(await ctx.usage.getUsage('alice@co.com', ctx.chat.botId)).toEqual({
+        userBytes: CSV.length * 2,
+        botBytes: CSV.length * 2,
+      });
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('uploads cannot slip past the per-chat count together, and the losers leave nothing behind', async () => {
+    const ctx = await setup();
+    try {
+      const results = await Promise.allSettled(Array.from({ length: ATTACHMENTS_PER_CHAT + 5 }, () => send(ctx)));
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(ATTACHMENTS_PER_CHAT);
+      expect(await ctx.attachmentStore.list(ctx.chat.id, 'alice@co.com')).toHaveLength(ATTACHMENTS_PER_CHAT);
+      expect(ctx.files.files.size).toBe(ATTACHMENTS_PER_CHAT);
+      expect((await ctx.usage.getUsage('alice@co.com', ctx.chat.botId)).userBytes).toBe(
+        CSV.length * ATTACHMENTS_PER_CHAT
+      );
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('deleting one file twice at once gives its bytes back once', async () => {
+    const ctx = await setup();
+    try {
+      const first = await send(ctx);
+      await send(ctx, 'b.csv');
+      await Promise.all([ctx.attachments.remove(ctx.chat, first), ctx.attachments.remove(ctx.chat, first)]);
+      expect(await ctx.usage.getUsage('alice@co.com', ctx.chat.botId)).toEqual({
+        userBytes: CSV.length,
+        botBytes: CSV.length,
+      });
+    } finally {
+      await ctx.close();
+    }
+  });
+});
+
 describe('messages with attachments', () => {
   async function uploaded(ctx: Awaited<ReturnType<typeof setup>>, name = 'sales.csv', body = CSV) {
     const { attachment } = (await (await ctx.upload(name, body)).json()) as { attachment: { id: string } };
@@ -457,6 +507,54 @@ describe('messages with attachments', () => {
       await expect(ctx.service.sendUserMessage(ctx.chat.id, 'again', { attachmentIds: [id] })).rejects.toThrow(
         /already sent/
       );
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('a retry of a completed send with the same requestId returns the stored result', async () => {
+    const chats = new MemoryChatStore();
+    const attachmentStore = new MemoryAttachmentStore();
+    const idempotency = new MemoryIdempotencyStore();
+    const service = new ChatService({ store: chats, client: new CapturingClient(), attachments: attachmentStore, idempotency });
+    const { primary } = await chats.ensureBootstrap('alice@co.com');
+    const chat = await chats.getDefaultChat(primary.id, 'alice@co.com');
+    const file = await attachmentStore.create({
+      id: crypto.randomUUID(),
+      chatId: chat.id,
+      userId: 'alice@co.com',
+      name: 'a.csv',
+      kind: 'csv',
+      sizeBytes: 5,
+      volumePath: '/Volumes/x',
+    });
+    const first = await service.sendUserMessage(chat.id, 'hi', { requestId: 'req-1', attachmentIds: [file.id] });
+    const retry = await service.sendUserMessage(chat.id, 'hi', { requestId: 'req-1', attachmentIds: [file.id] });
+    expect(retry.user?.id).toBe(first.user?.id);
+    expect((await chats.listMessages(chat.id)).filter((m) => m.role === 'user')).toHaveLength(1);
+  });
+
+  test('a file claimed by another send between the check and the save is refused, not shared', async () => {
+    const ctx = await setup();
+    try {
+      const id = await uploaded(ctx);
+      // The first send gets past the early check, then the file goes out with a second message.
+      const early = ctx.attachmentStore.get.bind(ctx.attachmentStore);
+      let first = true;
+      ctx.attachmentStore.get = async (...args) => {
+        const found = await early(...args);
+        if (first && found) {
+          first = false;
+          const copy = { ...found };
+          await ctx.attachmentStore.attach(ctx.chat.id, 'alice@co.com', [id], 'other-message');
+          return copy;
+        }
+        return found;
+      };
+      await expect(ctx.service.sendUserMessage(ctx.chat.id, 'x', { attachmentIds: [id] })).rejects.toThrow(
+        /already sent/
+      );
+      expect(await ctx.chats.listMessages(ctx.chat.id)).toEqual([]);
     } finally {
       await ctx.close();
     }

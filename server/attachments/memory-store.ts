@@ -34,9 +34,11 @@ export class MemoryAttachmentStore implements AttachmentStore {
     return attached;
   }
 
-  async delete(chatId: string, userId: string, id: string): Promise<Attachment | null> {
-    const row = await this.get(chatId, userId, id);
-    if (row) this.rows.delete(id);
-    return row;
+  // No await between the lookup and the delete: like the SQL DELETE ... RETURNING, only one of two parallel calls gets the row.
+  delete(chatId: string, userId: string, id: string): Promise<Attachment | null> {
+    const row = this.rows.get(id);
+    const mine = row && row.chatId === chatId && row.userId === userId ? row : null;
+    if (mine) this.rows.delete(id);
+    return Promise.resolve(mine);
   }
 }

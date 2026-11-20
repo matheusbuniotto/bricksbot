@@ -427,11 +427,10 @@ export class ChatService {
     if (!trimmed) {
       throw new Error('Message content is required');
     }
-    const files = await this.unsentAttachments(chatId, options?.attachmentIds, options?.routine);
-
     const requestId = options?.requestId?.trim();
     const stored = await this.storedResult(chatId, requestId);
     if (stored) return stored;
+    await this.checkAttachments(chatId, requestId, options?.attachmentIds, options?.routine);
 
     await this.refuseWhilePaused(chatId, requestId);
     const { run, ctx } = await this.openRun(chatId, 'send', { requestId, routine: options?.routine });
@@ -448,7 +447,7 @@ export class ChatService {
     const result = await this.inRun(ctx, async () => {
       // Written inside the run so a refused send (409) leaves no stray note in the transcript.
       if (options?.systemNote) await this.options.store.addMessage(chatId, 'system', options.systemNote);
-      const user = await this.saveUserMessage(chatId, trimmed, ctx.runId, files);
+      const user = await this.saveUserMessage(chatId, trimmed, ctx.runId, options?.attachmentIds);
       return this.continueTurn(chatId, user, 0, { run: ctx });
     });
 
@@ -468,9 +467,8 @@ export class ChatService {
     if (!trimmed) {
       throw new Error('Message content is required');
     }
-    const files = await this.unsentAttachments(chatId, options?.attachmentIds);
-
     const requestId = options?.requestId?.trim();
+    await this.checkAttachments(chatId, requestId, options?.attachmentIds);
     await this.refuseWhilePaused(chatId, requestId);
     const { run, ctx } = await this.openRun(chatId, 'send', { requestId });
     if (!ctx) {
@@ -484,7 +482,7 @@ export class ChatService {
     this.denyPauseByChat.delete(chatId);
     let user: Message;
     try {
-      user = await this.saveUserMessage(chatId, trimmed, ctx.runId, files);
+      user = await this.saveUserMessage(chatId, trimmed, ctx.runId, options?.attachmentIds);
     } catch (err) {
       await this.runs.settle(ctx, 'failed', errorText(err));
       throw err;
@@ -494,7 +492,22 @@ export class ChatService {
   }
 
   /**
-   * The caller's files that this message will carry. Checked before a run opens, so a bad id leaves no trace.
+   * Refuses a bad attachment list before a run opens, so it leaves no trace. A retry of a request that already
+   * ran skips this: its files went out with the first attempt and it gets that attempt's result back.
+   */
+  private async checkAttachments(
+    chatId: string,
+    requestId: string | undefined,
+    ids: string[] | undefined,
+    routine?: boolean
+  ): Promise<void> {
+    if (!ids?.length) return;
+    if (requestId && (await this.runs.store.findByRequestId(requestId))) return;
+    await this.unsentAttachments(chatId, ids, routine);
+  }
+
+  /**
+   * The caller's files that this message will carry.
    * Routine turns have no person to attach for, and the feature is off without an attachment store.
    */
   private async unsentAttachments(chatId: string, ids: string[] | undefined, routine?: boolean): Promise<Attachment[]> {
@@ -523,7 +536,14 @@ export class ChatService {
   }
 
   /** Saves the user's message; the first one in an untitled chat also names it. */
-  private async saveUserMessage(chatId: string, text: string, runId: string, files: Attachment[]): Promise<Message> {
+  private async saveUserMessage(
+    chatId: string,
+    text: string,
+    runId: string,
+    attachmentIds?: string[]
+  ): Promise<Message> {
+    // Looked up again inside the run: it holds the chat, so no other send can claim these files before the attach below.
+    const files = await this.unsentAttachments(chatId, attachmentIds);
     const message = await this.options.store.addMessage(chatId, 'user', text, {
       runId,
       attachments: files.map(attachmentRef),

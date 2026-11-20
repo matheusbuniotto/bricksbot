@@ -89,6 +89,22 @@ export function filesApiClient(options: {
   };
 }
 
+/**
+ * Runs `work` after every earlier call with the same key. One App process serves all requests, so this keeps
+ * "read the usage or count, then write" from interleaving between parallel uploads.
+ */
+const queues = new Map<string, Promise<unknown>>();
+async function exclusive<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const run = (queues.get(key) ?? Promise.resolve()).then(work, work);
+  const tail = run.catch(() => undefined);
+  queues.set(key, tail);
+  try {
+    return await run;
+  } finally {
+    if (queues.get(key) === tail) queues.delete(key);
+  }
+}
+
 function displayName(raw: string): string {
   const printable = [...(raw.split(/[\\/]/).pop() ?? '')].filter((char) => char.charCodeAt(0) >= 32);
   return printable.join('').trim().slice(0, 200);
@@ -126,9 +142,9 @@ export class AttachmentService {
     if (input.length > ATTACHMENT_MAX_BYTES) {
       throw new AttachmentError(413, `The file is too large (limit ${ATTACHMENT_MAX_BYTES / 1024 / 1024} MiB)`);
     }
-    if ((await store.list(chat.id, userId)).length >= ATTACHMENTS_PER_CHAT) {
-      throw new AttachmentError(400, `A chat holds at most ${ATTACHMENTS_PER_CHAT} attachments`);
-    }
+    const chatIsFull = async () => (await store.list(chat.id, userId)).length >= ATTACHMENTS_PER_CHAT;
+    const fullError = () => new AttachmentError(400, `A chat holds at most ${ATTACHMENTS_PER_CHAT} attachments`);
+    if (await chatIsFull()) throw fullError();
 
     const id = randomUUID();
     const safeName = name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(-80);
@@ -139,15 +155,16 @@ export class AttachmentService {
     if (!target.ok) throw new AttachmentError(400, target.error);
 
     const { userSegment, botSegment } = target;
-    const usageNow = await usage.getUsage(userSegment, botSegment);
-    const quota = assessVolumeQuota({
-      ...usageNow,
-      incomingBytes: input.length,
-      limits: { ...limits, maxWriteBytes: ATTACHMENT_MAX_BYTES },
+    await exclusive(`quota:${userSegment}`, async () => {
+      const usageNow = await usage.getUsage(userSegment, botSegment);
+      const quota = assessVolumeQuota({
+        ...usageNow,
+        incomingBytes: input.length,
+        limits: { ...limits, maxWriteBytes: ATTACHMENT_MAX_BYTES },
+      });
+      if (!quota.ok) throw new AttachmentError(413, quota.error.replace(/^volume_write/, 'Upload'));
+      await usage.addBytes(userSegment, botSegment, input.length);
     });
-    if (!quota.ok) throw new AttachmentError(413, quota.error.replace(/^volume_write/, 'Upload'));
-
-    await usage.addBytes(userSegment, botSegment, input.length);
     let wrote = false;
     try {
       const rest = input.body[Symbol.asyncIterator]();
@@ -165,15 +182,19 @@ export class AttachmentService {
       await files.ensureDirectory(path.posix.dirname(target.path));
       wrote = true;
       await files.put(target.path, checkedBody(head, rest, input.length), input.length);
-      return await store.create({
-        id,
-        chatId: chat.id,
-        userId,
-        name,
-        kind: checked.kind,
-        sizeBytes: input.length,
-        volumePath: target.path,
-        preview: buildPreview(checked.kind, head),
+      // The streaming above takes a while; the count is checked again where it cannot interleave.
+      return await exclusive(`chat:${chat.id}`, async () => {
+        if (await chatIsFull()) throw fullError();
+        return store.create({
+          id,
+          chatId: chat.id,
+          userId,
+          name,
+          kind: checked.kind,
+          sizeBytes: input.length,
+          volumePath: target.path,
+          preview: buildPreview(checked.kind, head),
+        });
       });
     } catch (err) {
       await usage.releaseBytes(userSegment, botSegment, input.length).catch(() => undefined);
@@ -188,7 +209,9 @@ export class AttachmentService {
 
   async remove(chat: Chat, attachment: Attachment): Promise<void> {
     await this.options.files.remove(attachment.volumePath);
-    await this.options.store.delete(attachment.chatId, attachment.userId, attachment.id);
+    // Only the call that actually deleted the row gives the bytes back; a parallel delete finds nothing.
+    const deleted = await this.options.store.delete(attachment.chatId, attachment.userId, attachment.id);
+    if (!deleted) return;
     const userSegment = sanitizeVolumeUserId(attachment.userId);
     const botSegment = sanitizeVolumeBotId(chat.botId);
     if (userSegment && botSegment) await this.options.usage.releaseBytes(userSegment, botSegment, attachment.sizeBytes);
