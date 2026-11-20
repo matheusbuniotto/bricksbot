@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
+import { MIN_SEARCH_LENGTH } from '../../shared/chat/search.js';
 import type { Bot, Chat, ChatStore, MarketplaceBot } from '../../shared/chat/types.js';
 import type { SandboxUiStatus } from '../../shared/sandbox/types.js';
 import { AVAILABLE_DATABRICKS_MCPS, BUILTIN_PLUGIN_MCPS } from '../../shared/agents/mcp-types.js';
@@ -8,10 +9,11 @@ import { buildConnectedMcpTools } from '../agents/tools/mcp-tools.js';
 import { ActiveRunError, TooManyRunsError } from '../../shared/runs/types.js';
 import { streamRunEvents, type SseTiming } from '../runs/sse.js';
 import { createErrorResponder } from '../lib/http.js';
-import { canManageSpaceMembers, canViewBot, canViewerAccessSpace } from './access-policy.js';
+import { canManageSpaceMembers, canUseBot, canViewBot, canViewerAccessSpace } from './access-policy.js';
 import { runWithDatabricksRequestAuth } from './databricks-auth.js';
 import { resolveOwnerId } from './identity.js';
 import { requireBotAccess, requireBotUse, requireSpaceAccess } from './route-guards.js';
+import { SEARCH_LIMIT } from './search.js';
 import type { ChatService } from './service.js';
 
 async function syncConnectedMcpTools(
@@ -383,7 +385,34 @@ export function registerChatRoutes(
         spaceId: spaceId === 'null' ? null : spaceId,
         archived,
       });
-      res.json({ bots });
+      const presence = await service.presenceByBot(ownerId);
+      res.json({ bots: bots.map((bot) => ({ ...bot, presence: presence.get(bot.id) ?? 'online' })) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/search', async (req: Request, res: Response) => {
+    const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (query.length < MIN_SEARCH_LENGTH) {
+      res.json({ hits: [] });
+      return;
+    }
+    try {
+      const callerId = resolveOwnerId(req);
+      const botId = typeof req.query.botId === 'string' ? req.query.botId : undefined;
+      const hits = await store.searchMessages(callerId, query, { botId, limit: SEARCH_LIMIT });
+      // Unsharing or removal cuts off search the way it cuts off chatting.
+      const usable = new Map<string, Promise<boolean>>();
+      for (const hit of hits) {
+        if (usable.has(hit.botId)) continue;
+        usable.set(
+          hit.botId,
+          store.getBot(hit.botId).then((bot) => (bot ? canUseBot(store, bot, callerId) : false))
+        );
+      }
+      const allowed = await Promise.all(hits.map((hit) => usable.get(hit.botId)));
+      res.json({ hits: hits.filter((_, index) => allowed[index]) });
     } catch (err) {
       sendError(res, err);
     }
@@ -580,34 +609,30 @@ export function registerChatRoutes(
     }
   });
 
+  // The bot's routine and handoff chats are opened from history, but their pending approvals and choices also
+  // ride along on the user's own chats so nothing waits unseen; each card carries its own chatId to decide against.
   async function chatPayload(chat: Chat) {
-    const [messages, pendingApprovals, pendingChoices, autoApprovedTools, sandboxStatus] = await Promise.all([
+    const askedIn = [chat];
+    if ((chat.kind ?? 'user') === 'user') {
+      const others = await store.listChats(chat.botId, chat.userId ?? '');
+      askedIn.push(...others.filter((other) => (other.kind ?? 'user') !== 'user'));
+    }
+    const [messages, autoApprovedTools, sandboxStatus, approvals] = await Promise.all([
       store.listMessages(chat.id),
-      service.getApprovals().listPending(chat.id),
-      service.getChoices().listPending(chat.id),
       service.getApprovals().listAutoApproved(chat.id),
       sandboxStatusFor(chat.id),
+      Promise.all(askedIn.map((asked) => service.getApprovals().listPending(asked.id))),
     ]);
-    return { chat, messages, pendingApprovals, pendingChoices, autoApprovedTools, sandboxStatus };
+    const pendingChoices = askedIn.flatMap((asked) => service.getChoices().listPending(asked.id));
+    return { chat, messages, pendingApprovals: approvals.flat(), pendingChoices, autoApprovedTools, sandboxStatus };
   }
 
-  // Alias for the caller's latest chat with the bot. Routine and handoff chats have no screen of their own,
-  // so their pending approvals and choices ride along here; each card carries its own chatId to decide against.
+  // Alias for the caller's latest chat with the bot.
   app.get('/api/bots/:botId/chat', async (req: Request, res: Response) => {
     try {
       const chat = await accessibleBotChat(req, res);
       if (!chat) return;
-      const payload = await chatPayload(chat);
-      const systemChats = (await store.listChats(chat.botId, chat.userId ?? '')).filter(
-        (other) => (other.kind ?? 'user') !== 'user'
-      );
-      const approvals = await Promise.all(systemChats.map((other) => service.getApprovals().listPending(other.id)));
-      const choices = systemChats.flatMap((other) => service.getChoices().listPending(other.id));
-      res.json({
-        ...payload,
-        pendingApprovals: [...payload.pendingApprovals, ...approvals.flat()],
-        pendingChoices: [...payload.pendingChoices, ...choices],
-      });
+      res.json(await chatPayload(chat));
     } catch (err) {
       sendError(res, err);
     }

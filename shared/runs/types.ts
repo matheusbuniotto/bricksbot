@@ -75,6 +75,8 @@ export interface RunStore {
   findByRequestId(requestId: string): Promise<Run | null>;
   /** The chat's most recently started run. */
   latest(chatId: string): Promise<Run | null>;
+  /** The most recently started run of each of the given chats (chats without runs are absent). */
+  latestByChat(chatIds: string[]): Promise<Run[]>;
   listRunning(): Promise<Run[]>;
   /** Moves a running run to its final status. False when it was no longer running. */
   finish(runId: string, status: Exclude<RunStatus, 'running'>, error?: string): Promise<boolean>;

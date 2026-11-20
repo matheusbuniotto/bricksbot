@@ -10,6 +10,7 @@ import type {
   Message,
   MessageRole,
   MoveBotInput,
+  SearchHit,
   Presence,
   Space,
   SpaceMember,
@@ -28,6 +29,7 @@ import {
   updatedAvatarLabel,
 } from './bot-defaults.js';
 import { asBool, asString } from '../lib/coerce.js';
+import { SEARCH_LIMIT, searchTerms, snippetAround } from './search.js';
 
 const BOT_COLUMNS =
   'id, name, avatar_label, presence, space_id, is_primary, is_shared, description, source_bot_id, owner_id, sort_order, archived_at, created_at, last_message_preview';
@@ -551,22 +553,6 @@ export class LakebaseChatStore implements ChatStore {
     return bot;
   }
 
-  async setBotPresence(botId: string, presence: Presence): Promise<Bot> {
-    const cached = this.botsCache.get(botId);
-    if (cached?.presence === presence) {
-      return cached;
-    }
-    const result = await this.query(
-      `UPDATE bricksbot.bots SET presence = $2 WHERE id = $1
-       RETURNING ${BOT_COLUMNS}`,
-      [botId, presence]
-    );
-    if (!result.rows[0]) throw new Error('Bot not found');
-    const updated = mapBot(result.rows[0]);
-    this.cacheSet(this.botsCache, updated.id, updated);
-    return updated;
-  }
-
   private remember(chat: Chat): Chat {
     this.cacheSet(this.chatByIdCache, chat.id, chat);
     this.cacheSet(this.chatToBotCache, chat.id, chat.botId);
@@ -621,6 +607,16 @@ export class LakebaseChatStore implements ChatStore {
        WHERE bot_id = $1 AND user_id = $2 AND archived_at IS NULL
        ORDER BY updated_at DESC, created_at DESC`,
       [botId, userId]
+    );
+    return result.rows.map((row) => this.remember(mapChat(row)));
+  }
+
+  async listUserChats(userId: string): Promise<Chat[]> {
+    const result = await this.query(
+      `SELECT ${CHAT_COLUMNS} FROM bricksbot.chats
+       WHERE user_id = $1 AND archived_at IS NULL
+       ORDER BY updated_at DESC, created_at DESC`,
+      [userId]
     );
     return result.rows.map((row) => this.remember(mapChat(row)));
   }
@@ -710,6 +706,41 @@ export class LakebaseChatStore implements ChatStore {
       [chatId]
     );
     return result.rows.map(mapMessage);
+  }
+
+  async searchMessages(
+    userId: string,
+    query: string,
+    { botId, limit = SEARCH_LIMIT }: { botId?: string; limit?: number } = {}
+  ): Promise<SearchHit[]> {
+    if (searchTerms(query).length === 0) return [];
+    const params: unknown[] = [userId, query, limit];
+    if (botId) params.push(botId);
+    // One row per chat: its latest matching message.
+    const result = await this.query(
+      `SELECT * FROM (
+         SELECT DISTINCT ON (m.chat_id) m.id, m.chat_id, m.role, left(m.content, 20000) AS content, m.created_at,
+           c.bot_id, c.title
+         FROM bricksbot.messages m
+         JOIN bricksbot.chats c ON c.id = m.chat_id
+         WHERE c.user_id = $1 AND c.archived_at IS NULL
+           AND m.search_tsv @@ websearch_to_tsquery('simple', $2)
+           ${botId ? 'AND c.bot_id = $4' : ''}
+         ORDER BY m.chat_id, m.created_at DESC
+       ) latest
+       ORDER BY created_at DESC
+       LIMIT $3`,
+      params
+    );
+    return result.rows.map((row) => ({
+      chatId: asString(row.chat_id),
+      botId: asString(row.bot_id),
+      chatTitle: asString(row.title),
+      messageId: asString(row.id),
+      role: asString(row.role) as SearchHit['role'],
+      snippet: snippetAround(asString(row.content), query),
+      createdAt: asString(row.created_at),
+    }));
   }
 
   async addMessage(

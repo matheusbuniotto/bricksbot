@@ -644,6 +644,17 @@ describe('chat HTTP API', () => {
           [routineChat.id, handoffChat.id].sort()
         );
 
+        // Any of the user's own chats carries them; a routine chat opened from history shows only its own.
+        const approvalChats = async (chatId: string) =>
+          (
+            (await (await fetch(`${baseUrl}/api/chats/${chatId}`, as('alice'))).json()) as {
+              pendingApprovals: Array<{ chatId: string }>;
+            }
+          ).pendingApprovals.map((approval) => approval.chatId);
+        const older = await store.createChat(bot.id, 'alice');
+        expect((await approvalChats(older.id)).sort()).toEqual([routineChat.id, handoffChat.id].sort());
+        expect(await approvalChats(routineChat.id)).toEqual([routineChat.id]);
+
         for (const chat of [routineChat, handoffChat]) {
           expect((await fetch(`${baseUrl}/api/chats/${chat.id}/archive`, as('alice', {}))).status).toBe(400);
         }
@@ -669,6 +680,71 @@ describe('chat HTTP API', () => {
         expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}/update`, as('bob', { title: 'x' }))).status).toBe(403);
         expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('bob'))).status).toBe(403);
         expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('bob', {}))).status).toBe(403);
+      });
+    });
+
+    test("search finds only the caller's own chats, by user and assistant text, and honors archive and access", async () => {
+      await withChatApp(async (baseUrl, { store }) => {
+        const space = await store.createSpace({ name: 'Team', ownerId: 'alice' });
+        await store.addSpaceMember(space.id, 'bob', 'member');
+        const bot = await store.createBot({ name: 'Shared', ownerId: 'alice', spaceId: space.id, isShared: true });
+        const aliceOne = await store.createChat(bot.id, 'alice', 'Revenue');
+        const aliceTwo = await store.createChat(bot.id, 'alice', 'Churn');
+        const bobChat = await store.createChat(bot.id, 'bob', 'Bob');
+        await store.addMessage(aliceOne.id, 'user', 'What was quarterly REVENUE in Q3?');
+        await store.addMessage(aliceOne.id, 'tool', '{"revenue": 1}', { toolCallId: 't1' });
+        await store.addMessage(aliceTwo.id, 'assistant', 'Revenue dipped because of churn');
+        await store.addMessage(bobChat.id, 'user', 'bob secret revenue plan');
+        const search = async (user: string, query: string) =>
+          (
+            (await (await fetch(`${baseUrl}/api/search?${query}`, as(user))).json()) as {
+              hits: Array<{ chatId: string; role: string; snippet: string }>;
+            }
+          ).hits;
+
+        const hits = await search('alice', 'q=revenue');
+        expect(hits.map((hit) => hit.chatId)).toEqual([aliceTwo.id, aliceOne.id]);
+        expect(hits.map((hit) => hit.role)).toEqual(['assistant', 'user']);
+        expect(hits[1].snippet).toContain('REVENUE');
+        expect(await search('alice', 'q=revenue&botId=nope')).toEqual([]);
+        expect(await search('alice', 'q=r')).toEqual([]);
+        expect((await search('bob', 'q=revenue')).map((hit) => hit.chatId)).toEqual([bobChat.id]);
+
+        await store.archiveChat(aliceTwo.id);
+        expect((await search('alice', 'q=revenue')).map((hit) => hit.chatId)).toEqual([aliceOne.id]);
+
+        await store.removeSpaceMember(space.id, 'bob');
+        expect(await search('bob', 'q=revenue')).toEqual([]);
+      });
+    });
+
+    test('the roster shows a bot as busy or waiting only to the user whose run it is', async () => {
+      await withChatApp(async (baseUrl, { store, service }) => {
+        const space = await store.createSpace({ name: 'Team', ownerId: 'alice' });
+        await store.addSpaceMember(space.id, 'bob', 'member');
+        const bot = await store.createBot({ name: 'Shared', ownerId: 'alice', spaceId: space.id, isShared: true });
+        const aliceChat = await store.createChat(bot.id, 'alice');
+        const presenceFor = async (user: string) =>
+          (
+            (await (await fetch(`${baseUrl}/api/bots`, as(user))).json()) as {
+              bots: Array<{ id: string; presence: string }>;
+            }
+          ).bots.find((candidate) => candidate.id === bot.id)?.presence;
+
+        const run = await service.getRuns().open({ chatId: aliceChat.id, kind: 'send', routine: false });
+        expect(await presenceFor('alice')).toBe('thinking');
+        expect(await presenceFor('bob')).toBe('online');
+
+        await service
+          .getApprovals()
+          .create(
+            aliceChat.id,
+            { id: 'c1', name: 'sql_query', arguments: { statement: 'SELECT 1' } },
+            { botId: bot.id, userId: 'alice' }
+          );
+        await service.getRuns().settle(run, 'waiting');
+        expect(await presenceFor('alice')).toBe('waiting');
+        expect(await presenceFor('bob')).toBe('online');
       });
     });
 

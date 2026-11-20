@@ -58,6 +58,14 @@ export class MemoryRunStore implements RunStore {
     return Promise.resolve(run ? { ...run } : null);
   }
 
+  latestByChat(chatIds: string[]): Promise<Run[]> {
+    const latest = new Map<string, Run>();
+    for (const run of this.runs.values()) {
+      if (chatIds.includes(run.chatId)) latest.set(run.chatId, run); // insertion order is start order
+    }
+    return Promise.resolve([...latest.values()].map((run) => ({ ...run })));
+  }
+
   async listRunning(): Promise<Run[]> {
     return [...this.runs.values()].filter((run) => run.status === 'running').map((run) => ({ ...run }));
   }

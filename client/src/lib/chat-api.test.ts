@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { followRun, newRequestId, sendChatMessage } from './chat-api';
+import {
+  archiveChat,
+  createChat,
+  fetchChats,
+  followRun,
+  newRequestId,
+  renameChat,
+  searchChats,
+  sendChatMessage,
+} from './chat-api';
 
 /** Records EventSource instances so a test can play the server's side. */
 class FakeEventSource {
@@ -145,5 +154,47 @@ describe('newRequestId', () => {
     const id = newRequestId();
     expect(id).toMatch(/^[0-9a-f]{32}$/);
     expect(newRequestId()).not.toBe(id);
+  });
+});
+
+describe('chat history calls', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("read and change a bot's chats through the chat endpoints", async () => {
+    const calls: Array<{ url: string; method?: string; body?: string }> = [];
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method, body: init?.body as string | undefined });
+      return json({ chats: [{ id: 'c1' }], chat: { id: 'c1' } });
+    });
+
+    expect(await fetchChats('b1')).toEqual([{ id: 'c1' }]);
+    expect(await createChat('b1')).toEqual({ id: 'c1' });
+    await renameChat('c1', 'New name');
+    await archiveChat('c1');
+
+    expect(calls.map((call) => `${call.method ?? 'GET'} ${call.url}`)).toEqual([
+      'GET /api/bots/b1/chats',
+      'POST /api/bots/b1/chats',
+      'POST /api/chats/c1/update',
+      'POST /api/chats/c1/archive',
+    ]);
+    expect(JSON.parse(calls[2].body!)).toEqual({ title: 'New name' });
+  });
+
+  test('searchChats sends the query encoded and returns the hits', async () => {
+    let requested = '';
+    vi.stubGlobal('fetch', (url: string) => {
+      requested = url;
+      return json({ hits: [{ chatId: 'c1' }] });
+    });
+    expect(await searchChats('q3 & more')).toEqual([{ chatId: 'c1' }]);
+    expect(requested).toBe('/api/search?q=q3+%26+more');
+  });
+
+  test('a failed call throws the server message', async () => {
+    vi.stubGlobal('fetch', () => json({ error: 'Forbidden' }, 403));
+    await expect(archiveChat('c1')).rejects.toThrow('Forbidden');
   });
 });

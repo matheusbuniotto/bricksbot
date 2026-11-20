@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, History, Search, SquarePen } from 'lucide-react';
 import type { PendingChoice } from '../../shared/chat/choice-notice';
-import type { Bot, Chat, MarketplaceBot, Message, Space } from '../../shared/chat/types';
+import type { Bot, Chat, MarketplaceBot, Message, SearchHit, Space } from '../../shared/chat/types';
 import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/types';
 import { ApprovalCards } from './components/ApprovalCards';
 import { ChoiceCards } from './components/ChoiceCards';
@@ -10,20 +10,27 @@ import { botColor, markBotFresh, registerBotLooks } from './components/BotFace';
 import { useMouseFollow } from './components/BotPicker';
 import { BotRoster } from './components/BotRoster';
 import { ChatComposer } from './components/ChatComposer';
+import { ChatHistory } from './components/ChatHistory';
+import { ChatSearch } from './components/ChatSearch';
 import { ChatTranscript } from './components/ChatTranscript';
 import {
   archiveBot,
+  archiveChat,
   createBot,
+  createChat,
   createSpace,
   decideApproval,
   deleteBot,
   deleteBotSandbox,
   fetchBotChat,
   fetchBots,
+  fetchChat,
+  fetchChats,
   fetchMarketplaceBots,
   fetchSpaces,
   installMarketplaceBot,
   moveBot,
+  renameChat,
   revokeAutoApproval,
   sendChatMessage,
   stopActiveRun,
@@ -37,7 +44,9 @@ import {
 import type { SandboxUiStatus } from '../../shared/sandbox/types';
 import { createRoutine, deleteRoutine, fetchRoutines, runRoutine, updateRoutine } from './lib/routines-api';
 import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
+import { chatRoute, parseChatRoute } from './lib/chat-route';
 import { newestTicket } from './lib/newest-ticket';
+import { isWaitingOnYou } from './lib/waiting-on-you';
 import { lastUserFacingPreview, toolLabel } from './lib/user-facing';
 import type { Routine } from '../../shared/routines/types';
 
@@ -60,6 +69,11 @@ export default function App() {
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [chat, setChat] = useState<Chat | null>(null);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  // The chat on screen, readable from async work that started before the user moved to another one.
+  const chatRef = useRef<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([]);
   const [pendingChoices, setPendingChoices] = useState<PendingChoice[]>([]);
@@ -165,21 +179,88 @@ export default function App() {
   // Loads overlap (a run's commits, its end, switching bots); only the newest may touch the screen.
   const nextLoad = useRef(newestTicket()).current;
   const loadChat = useCallback(
-    async (botId: string) => {
+    async (botId: string, chatId?: string) => {
       const isNewest = nextLoad();
-      const data = await fetchBotChat(botId);
+      const data = chatId ? await fetchChat(chatId) : await fetchBotChat(botId);
       if (!isNewest()) return false;
+      chatRef.current = data.chat;
       setChat(data.chat);
       setMessages(data.messages);
       setPendingApprovals(data.pendingApprovals);
       setPendingChoices(data.pendingChoices ?? []);
       setAutoApprovedTools(data.autoApprovedTools ?? []);
       setSandboxStatus(data.sandboxStatus ?? null);
-      setPreviews((prev) => ({ ...prev, [botId]: lastUserFacingPreview(data.messages) }));
+      if ((data.chat.kind ?? 'user') === 'user') {
+        setPreviews((prev) => ({ ...prev, [botId]: lastUserFacingPreview(data.messages) }));
+      }
+      // Every chat has a link of its own; the first load replaces the empty address instead of adding a history step.
+      const route = chatRoute(data.chat.botId, data.chat.id);
+      if (!window.location.hash) window.history.replaceState(null, '', route);
+      else if (window.location.hash !== route) window.location.hash = route;
       return true;
     },
     [nextLoad]
   );
+
+  /** Shows the bot's latest chat, or the one named. */
+  const openChat = useCallback(
+    async (botId: string, chatId?: string) => {
+      setSelectedBotId(botId);
+      setError(null);
+      setHistoryOpen(false);
+      setSearchOpen(false);
+      try {
+        await loadChat(botId, chatId);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to open chat');
+      }
+    },
+    [loadChat]
+  );
+
+  /** Refreshes the chat on screen after something changed it, unless the user has moved on. */
+  const reloadShownChat = useCallback(async () => {
+    const shown = chatRef.current;
+    if (shown) await loadChat(shown.botId, shown.id);
+  }, [loadChat]);
+
+  // Back and forward, or a pasted link, move between chats.
+  useEffect(() => {
+    const onHashChange = () => {
+      const route = parseChatRoute(window.location.hash);
+      const shown = chatRef.current;
+      if (route && (route.chatId ? route.chatId !== shown?.id : route.botId !== shown?.botId)) {
+        void openChat(route.botId, route.chatId);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [openChat]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  // The list is read when history opens, and again when the open chat changes (a new title, a new message).
+  useEffect(() => {
+    if (!historyOpen || !selectedBotId) return;
+    let cancelled = false;
+    setChats((prev) => prev.filter((other) => other.botId === selectedBotId));
+    fetchChats(selectedBotId).then(
+      (list) => !cancelled && setChats(list),
+      () => undefined
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [historyOpen, selectedBotId, chat?.id, chat?.title, chat?.updatedAt]);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,9 +278,16 @@ export default function App() {
         setArchivedBots(nextArchived);
         setRoutines(nextRoutines);
         syncPreviewsFromBots([...nextBots, ...nextArchived]);
-        const nextSelected = nextBots.find((bot) => bot.isPrimary)?.id ?? nextBots[0]?.id ?? null;
+        // A link to a chat opens it; one that no longer works falls back to the bot's latest chat.
+        const linked = parseChatRoute(window.location.hash);
+        const linkedBot = linked && [...nextBots, ...nextArchived].find((bot) => bot.id === linked.botId);
+        const nextSelected = linkedBot?.id ?? nextBots.find((bot) => bot.isPrimary)?.id ?? nextBots[0]?.id ?? null;
         setSelectedBotId(nextSelected);
-        if (nextSelected) await loadChat(nextSelected);
+        if (nextSelected) {
+          const linkedChatId = linkedBot ? linked?.chatId : undefined;
+          const opened = linkedChatId ? await loadChat(nextSelected, linkedChatId).catch(() => false) : false;
+          if (!opened) await loadChat(nextSelected);
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load');
       } finally {
@@ -211,13 +299,39 @@ export default function App() {
     };
   }, [loadChat, syncPreviewsFromBots]);
 
-  async function handleSelectBot(botId: string) {
-    setSelectedBotId(botId);
-    setError(null);
+  function handleSelectBot(botId: string) {
+    return openChat(botId);
+  }
+
+  async function handleNewChat() {
+    if (!selectedBotId) return;
+    setHistoryOpen(false);
+    // A chat with nothing said yet already is a new chat.
+    if (chat && (chat.kind ?? 'user') === 'user' && messages.length === 0) return;
     try {
-      await loadChat(botId);
+      await openChat(selectedBotId, (await createChat(selectedBotId)).id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to open chat');
+      setError(err instanceof Error ? err.message : 'Unable to start a new chat');
+    }
+  }
+
+  async function handleRenameChat(target: Chat, title: string) {
+    try {
+      const renamed = await renameChat(target.id, title);
+      setChats((prev) => prev.map((other) => (other.id === renamed.id ? renamed : other)));
+      if (chat?.id === renamed.id) setChat(renamed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to rename chat');
+    }
+  }
+
+  async function handleArchiveChat(target: Chat) {
+    try {
+      await archiveChat(target.id);
+      setChats((prev) => prev.filter((other) => other.id !== target.id));
+      if (chat?.id === target.id) await openChat(target.botId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to archive chat');
     }
   }
 
@@ -380,7 +494,7 @@ export default function App() {
     }
   }
 
-  function showRunUpdate(chatId: string, botId: string, update: RunUpdate) {
+  function showRunUpdate(chatId: string, update: RunUpdate) {
     const { type, payload } = update;
     const change = (patch: (current: NonNullable<typeof live>) => NonNullable<typeof live>) =>
       setLive((prev) => patch(prev?.chatId === chatId ? prev : { chatId, text: '', tools: [] }));
@@ -394,17 +508,17 @@ export default function App() {
         ...current,
         tools: current.tools.map((tool) => (tool.id === payload.toolCallId ? { ...tool, done: true } : tool)),
       }));
-    } else if (type === 'assistant.committed') {
+    } else if (type === 'assistant.committed' && chatRef.current?.id === chatId) {
       // Swap the streamed text for the saved message in one step, so it does not blink out.
-      void loadChat(botId).then((shown) => shown && change((current) => ({ ...current, text: '' })));
+      void reloadShownChat().then(() => change((current) => ({ ...current, text: '' })));
     }
   }
 
   /** A run ended: show what it left behind, and why when it failed (detached runs report only through the run). */
-  async function settleRun(botId: string, outcome: RunOutcome) {
+  async function settleRun(outcome: RunOutcome) {
     setLive(null);
     if (outcome.status === 'failed') setError(outcome.error ?? 'The run failed');
-    await loadChat(botId);
+    await reloadShownChat();
     await refreshRoster();
   }
 
@@ -422,10 +536,8 @@ export default function App() {
     setMessages((prev) => [...prev, optimisticMessage]);
     setBots((prev) => prev.map((bot) => (bot.id === selectedBotId ? { ...bot, presence: 'thinking' } : bot)));
     try {
-      const outcome = await sendChatMessage(chat.id, content, (update) =>
-        showRunUpdate(chat.id, selectedBotId, update)
-      );
-      await settleRun(selectedBotId, outcome);
+      const outcome = await sendChatMessage(chat.id, content, (update) => showRunUpdate(chat.id, update));
+      await settleRun(outcome);
     } catch (err) {
       setLive(null);
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
@@ -469,10 +581,8 @@ export default function App() {
     }
 
     try {
-      const outcome = await decideApproval(chatId, id, decision, (update) => {
-        if (selectedBotId) showRunUpdate(chatId, selectedBotId, update);
-      });
-      if (selectedBotId) await settleRun(selectedBotId, outcome);
+      const outcome = await decideApproval(chatId, id, decision, (update) => showRunUpdate(chatId, update));
+      await settleRun(outcome);
     } catch (err) {
       setLive(null);
       if (accepted && approval) {
@@ -492,13 +602,8 @@ export default function App() {
     setChoiceBusyId(choiceId);
     setError(null);
     try {
-      const outcome = await submitChoice(
-        chatId,
-        choiceId,
-        selectedOption,
-        (update) => selectedBotId && showRunUpdate(chatId, selectedBotId, update)
-      );
-      if (selectedBotId) await settleRun(selectedBotId, outcome);
+      const outcome = await submitChoice(chatId, choiceId, selectedOption, (update) => showRunUpdate(chatId, update));
+      await settleRun(outcome);
     } catch (err) {
       setLive(null);
       setError(err instanceof Error ? err.message : 'Choice failed');
@@ -547,7 +652,7 @@ export default function App() {
     try {
       await runRoutine(id);
       await refreshRoutines();
-      if (selectedBotId) await loadChat(selectedBotId);
+      await reloadShownChat();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Routine run failed');
     } finally {
@@ -597,6 +702,7 @@ export default function App() {
   }
 
   const visibleMessages = messages;
+  const waitingOnYou = isWaitingOnYou(chat?.id, pendingApprovals, pendingChoices);
 
   return (
     <div className="app-shell">
@@ -653,7 +759,46 @@ export default function App() {
                 <ChevronRight className="chat-pill-chevron" size={14} strokeWidth={2} aria-hidden />
               )}
             </button>
+            <button
+              type="button"
+              className={historyOpen ? 'chat-pill chat-pill-history is-open' : 'chat-pill chat-pill-history'}
+              aria-expanded={historyOpen}
+              aria-label="Chat history"
+              onClick={() => setHistoryOpen((open) => !open)}
+            >
+              <History size={14} strokeWidth={1.75} aria-hidden />
+              <span className="chat-pill-name">{chat?.title ?? 'Chats'}</span>
+            </button>
+            <button
+              type="button"
+              className="chat-heading-button"
+              aria-label="New chat"
+              title="New chat"
+              onClick={() => void handleNewChat()}
+            >
+              <SquarePen size={16} strokeWidth={1.75} />
+            </button>
+            <button
+              type="button"
+              className="chat-heading-button"
+              aria-label="Search conversations"
+              title="Search conversations (Ctrl or Cmd + K)"
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search size={16} strokeWidth={1.75} />
+            </button>
           </div>
+        ) : null}
+
+        {historyOpen && selectedBot ? (
+          <ChatHistory
+            chats={chats}
+            currentChatId={chat?.id ?? null}
+            onOpen={(other) => void openChat(other.botId, other.id)}
+            onRename={(other, title) => void handleRenameChat(other, title)}
+            onArchive={(other) => void handleArchiveChat(other)}
+            onClose={() => setHistoryOpen(false)}
+          />
         ) : null}
 
         {error ? <p className="chat-error">{error}</p> : null}
@@ -692,7 +837,8 @@ export default function App() {
             />
             <div className="composer-wrap">
               <ChatComposer
-                disabled={!chat || pendingApprovals.length > 0 || pendingChoices.length > 0 || Boolean(runningTool)}
+                key={chat?.id}
+                disabled={!chat || waitingOnYou || Boolean(runningTool)}
                 placeholder={
                   runningTool
                     ? `Running ${runningTool.label}…`
@@ -709,6 +855,14 @@ export default function App() {
           </>
         )}
       </section>
+
+      {searchOpen ? (
+        <ChatSearch
+          bots={rosterBots}
+          onOpen={(hit: SearchHit) => void openChat(hit.botId, hit.chatId)}
+          onClose={() => setSearchOpen(false)}
+        />
+      ) : null}
 
       {selectedBot && detailsOpen ? (
         <BotDetailsSheet

@@ -9,7 +9,7 @@ import type {
   Message,
   MessageRole,
   MoveBotInput,
-  Presence,
+  SearchHit,
   Space,
   SpaceMember,
   SpaceRole,
@@ -26,6 +26,7 @@ import {
   updatedAvatarLabel,
 } from './bot-defaults.js';
 import { nowIso } from '../lib/coerce.js';
+import { SEARCH_LIMIT, searchTerms, snippetAround } from './search.js';
 
 function sortBots(a: Bot, b: Bot): number {
   if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
@@ -314,20 +315,17 @@ export class MemoryChatStore implements ChatStore {
     return this.bots.get(botId) ?? null;
   }
 
-  async setBotPresence(botId: string, presence: Presence): Promise<Bot> {
-    const bot = this.bots.get(botId);
-    if (!bot) throw new Error('Bot not found');
-    const updated = { ...bot, presence };
-    this.bots.set(botId, updated);
-    return updated;
+  /** The user's active chats, most recently active first. */
+  private chatsOf(userId: string): Chat[] {
+    return [...this.chatById.values()]
+      .filter((chat) => chat.userId === userId && !chat.archivedAt)
+      .reverse() // newest insert wins an updatedAt tie
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
   /** The user's active chats with the bot, most recently active first. */
   private chatsFor(botId: string, userId: string): Chat[] {
-    return [...this.chatById.values()]
-      .filter((chat) => chat.botId === botId && chat.userId === userId && !chat.archivedAt)
-      .reverse() // newest insert wins an updatedAt tie
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return this.chatsOf(userId).filter((chat) => chat.botId === botId);
   }
 
   private insertChat(botId: string, userId: string, fields: Partial<Chat> & { title: string }): Chat {
@@ -362,6 +360,10 @@ export class MemoryChatStore implements ChatStore {
 
   async listChats(botId: string, userId: string): Promise<Chat[]> {
     return this.chatsFor(botId, userId);
+  }
+
+  listUserChats(userId: string): Promise<Chat[]> {
+    return Promise.resolve(this.chatsOf(userId));
   }
 
   async createChat(botId: string, userId: string, title?: string): Promise<Chat> {
@@ -424,6 +426,37 @@ export class MemoryChatStore implements ChatStore {
       throw new Error('Chat not found');
     }
     return [...messages];
+  }
+
+  searchMessages(
+    userId: string,
+    query: string,
+    { botId, limit = SEARCH_LIMIT }: { botId?: string; limit?: number } = {}
+  ): Promise<SearchHit[]> {
+    const terms = searchTerms(query);
+    if (terms.length === 0) return Promise.resolve([]);
+    const hits: SearchHit[] = [];
+    for (const chat of this.chatsOf(userId)) {
+      if (botId && chat.botId !== botId) continue;
+      const match = [...(this.messagesByChat.get(chat.id) ?? [])]
+        .reverse()
+        .find(
+          (message) =>
+            (message.role === 'user' || message.role === 'assistant') &&
+            terms.every((term) => message.content.toLowerCase().includes(term))
+        );
+      if (!match) continue;
+      hits.push({
+        chatId: chat.id,
+        botId: chat.botId,
+        chatTitle: chat.title,
+        messageId: match.id,
+        role: match.role as SearchHit['role'],
+        snippet: snippetAround(match.content, query),
+        createdAt: match.createdAt,
+      });
+    }
+    return Promise.resolve(hits.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit));
   }
 
   async addMessage(
