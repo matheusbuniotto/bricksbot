@@ -52,9 +52,9 @@ describe('LakebaseUsageStore', () => {
     const calls: Array<{ sql: string; params: unknown[] }> = [];
     const store = new LakebaseUsageStore((sql, params = []) => {
       calls.push({ sql, params });
-      return Promise.resolve({ rows: [{ spent: 1.5 }] });
+      return Promise.resolve({ rows: [{ usd: 1.5, unpricedCalls: 2 }] });
     });
-    expect(await store.spent({ kind: 'bot', id: 'bot-1' }, '2026-11-01')).toBe(1.5);
+    expect(await store.spent({ kind: 'bot', id: 'bot-1' }, '2026-11-01')).toEqual({ usd: 1.5, unpricedCalls: 2 });
     await store.daily({ kind: 'user', id: 'bob' }, 7);
     expect(calls.map((c) => c.params.slice(0, 2))).toEqual([
       ['bot', 'bot-1'],

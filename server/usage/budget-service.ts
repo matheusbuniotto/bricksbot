@@ -115,7 +115,7 @@ export class BudgetService {
 
   /** Every limit that applies to the user or bot, with what is spent so far. Empty when nothing is set. */
   async statuses(scope: 'user' | 'bot', id: string): Promise<BudgetStatus[]> {
-    const limits: Array<Omit<BudgetStatus, 'spentUsd' | 'exceeded'>> = [];
+    const limits: Array<Omit<BudgetStatus, 'spentUsd' | 'unpricedCalls' | 'exceeded'>> = [];
     for (const period of ['day', 'month'] as const) {
       const limitUsd = this.caps[scope][period];
       if (limitUsd !== undefined) limits.push({ scope, period, limitUsd, action: this.caps.action, source: 'app' });
@@ -127,8 +127,8 @@ export class BudgetService {
     }
     return Promise.all(
       limits.map(async (limit) => {
-        const spentUsd = await this.usage.spent({ kind: scope, id }, periodStart(limit.period));
-        return { ...limit, spentUsd, exceeded: spentUsd >= limit.limitUsd };
+        const { usd: spentUsd, unpricedCalls } = await this.usage.spent({ kind: scope, id }, periodStart(limit.period));
+        return { ...limit, spentUsd, unpricedCalls, exceeded: spentUsd >= limit.limitUsd };
       })
     );
   }
@@ -140,7 +140,8 @@ export class BudgetService {
         ...(payerUserId ? await this.statuses('user', payerUserId) : []),
         ...(botId ? await this.statuses('bot', botId) : []),
       ];
-      const hit = statuses.find((status) => status.exceeded && status.action === 'block');
+      // Unpriced calls count as $0, so once one has run the spend is unknown and a block limit cannot be trusted.
+      const hit = statuses.find((status) => status.action === 'block' && (status.exceeded || status.unpricedCalls > 0));
       return hit && blockedNotice(hit);
     } catch (err) {
       this.warn('[bricksbot] Budget check failed', err);
@@ -152,9 +153,19 @@ export class BudgetService {
 
 function blockedNotice(status: BudgetStatus): string {
   const whose = status.scope === 'bot' ? "This bot's" : status.source === 'you' ? 'Your' : "Your workspace's";
+  const period = status.period === 'day' ? 'daily' : 'monthly';
   const resets = status.period === 'day' ? 'tomorrow' : 'next month';
+  if (!status.exceeded) {
+    return (
+      `${whose} ${period} budget of ${usd(status.limitUsd)} cannot be enforced: ${status.unpricedCalls} call(s) this ` +
+      `${status.period} had no price, so spend is unknown and no model call was made. Add prices to BRICKSBOT_MODELS ` +
+      `or use a warning limit instead. It resets ${resets} at 00:00 UTC.`
+    );
+  }
+  // The bot's total is everyone's spend and only its owner sees usage, so members get the cap but not the figure.
+  const spent = status.scope === 'bot' ? '' : ` (${usd(status.spentUsd)} spent)`;
   return (
-    `${whose} ${status.period === 'day' ? 'daily' : 'monthly'} budget of ${usd(status.limitUsd)} (estimated) is used up ` +
-    `(${usd(status.spentUsd)} spent), so no model call was made. It resets ${resets} at 00:00 UTC.`
+    `${whose} ${period} budget of ${usd(status.limitUsd)} (estimated) is used up${spent}, ` +
+    `so no model call was made. It resets ${resets} at 00:00 UTC.`
   );
 }
