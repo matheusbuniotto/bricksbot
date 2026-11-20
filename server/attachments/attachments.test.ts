@@ -516,7 +516,12 @@ describe('messages with attachments', () => {
     const chats = new MemoryChatStore();
     const attachmentStore = new MemoryAttachmentStore();
     const idempotency = new MemoryIdempotencyStore();
-    const service = new ChatService({ store: chats, client: new CapturingClient(), attachments: attachmentStore, idempotency });
+    const service = new ChatService({
+      store: chats,
+      client: new CapturingClient(),
+      attachments: attachmentStore,
+      idempotency,
+    });
     const { primary } = await chats.ensureBootstrap('alice@co.com');
     const chat = await chats.getDefaultChat(primary.id, 'alice@co.com');
     const file = await attachmentStore.create({
