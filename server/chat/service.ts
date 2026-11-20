@@ -27,6 +27,7 @@ import type { MemorySkillStore } from '../../shared/agents/memory/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
 import { ActiveRunError, type Run, type RunContext, type RunStore } from '../../shared/runs/types.js';
 import { ModelCatalog } from '../agents/models.js';
+import type { BudgetService } from '../usage/budget-service.js';
 import { createHandoffTool, HANDOFF_TOOL_NAME, planHandoff, type HandoffTurnContext } from '../agents/handoff.js';
 import { applyCompactionToHistory, runCompaction, shouldCompact } from '../durable/compaction.js';
 import { CREATE_BOT_TOOL_NAME, createCreateBotTool } from '../agents/tools/create-bot.js';
@@ -156,6 +157,8 @@ export interface ChatServiceOptions {
   compactionSettings?: CompactionSettings;
   /** Models owners may pick; a routine's, then its bot's, choice is sent as the request model. Defaults to none (client default only). */
   models?: ModelCatalog;
+  /** Checked before every model call; absent means spend is never limited. */
+  budgets?: BudgetService;
   idempotency?: IdempotencyStore;
   /** Defaults to in-memory so runs, Stop and events work in tests/local without Lakebase. */
   runs?: RunStore;
@@ -936,6 +939,18 @@ export class ChatService {
         routineId: chat?.routineId,
         routine: run.routine,
       });
+
+      // Before compaction and the completion: a blocked turn makes no model call and leaves the history valid.
+      const budgetNotice = await this.options.budgets?.check({
+        payerUserId: run.payerUserId ?? turnUserId,
+        botId: botId ?? undefined,
+        routine: run.routine,
+      });
+      if (budgetNotice) {
+        const notice = await this.options.store.addMessage(chatId, 'assistant', budgetNotice, { runId: run.runId });
+        await run.emit('assistant.committed', { messageId: notice.id, toolCalls: 0 });
+        return this.turnResult(chatId, user ?? latestOfRole(history, 'user'), notice);
+      }
 
       if (this.options.compaction && shouldCompact(history, systemPrompt, compactionSettings)) {
         await runCompaction({

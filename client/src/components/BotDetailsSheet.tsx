@@ -11,6 +11,7 @@ import { BotPicker } from './BotPicker';
 import type { ModelCatalogView } from '../lib/chat-api';
 import { RoutinesPanel, type RoutineUpdatePatch } from './RoutinesPanel';
 import { Select } from './Select';
+import { UsageSummary } from './UsagePanel';
 
 export type BotDetailsTab = 'details' | 'library' | 'computer' | 'permissions';
 
@@ -374,6 +375,16 @@ export function BotDetailsSheet({
                     ]}
                   />
                   <p className="marketplace-privacy-note">Only you can change this. Routines may override it.</p>
+                </div>
+              </section>
+            ) : null}
+
+            {bot.isOwner ? (
+              <section className="bot-details-section">
+                <h3 className="bot-details-section-label">Usage</h3>
+                <div className="bot-details-card p-3">
+                  <UsageSummary url={`/api/bots/${bot.id}/usage`} />
+                  <p className="marketplace-privacy-note">Totals for everyone who uses this bot. No names or chats.</p>
                 </div>
               </section>
             ) : null}

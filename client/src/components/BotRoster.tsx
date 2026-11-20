@@ -5,6 +5,7 @@ import {
   Copy,
   EyeOff,
   FolderInput,
+  Gauge,
   Grid2x2Plus,
   MoreHorizontal,
   Moon,
@@ -24,6 +25,7 @@ import type { Bot, MarketplaceBot, Space } from '../../../shared/chat/types';
 import type { Theme } from '../lib/theme';
 import { presenceTooltip, rosterPreviewForPresence } from '../lib/user-facing';
 import { ConnectorsDialog } from './ConnectorsDialog';
+import { UsageDialog } from './UsagePanel';
 import { SpaceMembersDialog } from './SpaceMembersDialog';
 import { BotFace, botColor, botLook, decodeLook, encodeLook, COLORS, DEFAULT_BOT, type BotConfig } from './BotFace';
 import { BotPicker } from './BotPicker';
@@ -127,6 +129,7 @@ export function BotRoster({
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [pendingDropBotId, setPendingDropBotId] = useState<string | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
   const [connectorsOpenLocal, setConnectorsOpenLocal] = useState(false);
   const connectorsOpen = connectorsOpenControlled ?? connectorsOpenLocal;
   const setConnectorsOpen = onConnectorsOpenChange ?? setConnectorsOpenLocal;
@@ -637,17 +640,30 @@ export function BotRoster({
           </div>
           <span className="roster-user-name">Matheus Buniotto</span>
         </div>
-        <button
-          type="button"
-          className="roster-connectors-btn"
-          aria-label="Connect apps"
-          title="Connect apps"
-          aria-haspopup="dialog"
-          aria-expanded={connectorsOpen}
-          onClick={() => setConnectorsOpen(true)}
-        >
-          <Grid2x2Plus size={19} strokeWidth={1.9} />
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="roster-connectors-btn"
+            aria-label="Usage and budgets"
+            title="Usage and budgets"
+            aria-haspopup="dialog"
+            aria-expanded={usageOpen}
+            onClick={() => setUsageOpen(true)}
+          >
+            <Gauge size={19} strokeWidth={1.9} />
+          </button>
+          <button
+            type="button"
+            className="roster-connectors-btn"
+            aria-label="Connect apps"
+            title="Connect apps"
+            aria-haspopup="dialog"
+            aria-expanded={connectorsOpen}
+            onClick={() => setConnectorsOpen(true)}
+          >
+            <Grid2x2Plus size={19} strokeWidth={1.9} />
+          </button>
+        </div>
       </div>
 
       {menu && menuBot ? (
@@ -1023,6 +1039,8 @@ export function BotRoster({
           </div>
         </div>
       ) : null}
+
+      <UsageDialog isOpen={usageOpen} onClose={() => setUsageOpen(false)} />
 
       <ConnectorsDialog
         isOpen={connectorsOpen}
