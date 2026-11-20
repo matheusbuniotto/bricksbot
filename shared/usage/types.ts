@@ -29,6 +29,8 @@ export interface BudgetStatus {
   /** `app` is the operator's cap; `you` is one the person set on themselves. */
   source: 'app' | 'you';
   spentUsd: number;
+  /** Calls this period with no known price: `spentUsd` is a floor, and a `block` limit cannot be enforced. */
+  unpricedCalls: number;
   exceeded: boolean;
 }
 

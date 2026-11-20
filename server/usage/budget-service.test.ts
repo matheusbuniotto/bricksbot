@@ -66,12 +66,24 @@ describe('BudgetService', () => {
     expect(await block.check({ payerUserId: 'alice' })).toBeUndefined();
   });
 
+  test('a block limit fails closed once an unpriced call has made the spend unknown; warn only reports', async () => {
+    const usage = new MemoryUsageStore();
+    await usage.record(call('bob', null));
+    const block = new BudgetService(usage, new MemoryBudgetStore(), caps({ user: { day: 5 } }));
+    expect(await block.check({ payerUserId: 'bob' })).toMatch(/cannot be enforced: 1 call\(s\) this day had no price/);
+    expect(await block.check({ payerUserId: 'alice' })).toBeUndefined();
+    const warn = new BudgetService(usage, new MemoryBudgetStore(), caps({ user: { day: 5 }, action: 'warn' }));
+    expect(await warn.check({ payerUserId: 'bob' })).toBeUndefined();
+    expect(await warn.statuses('user', 'bob')).toMatchObject([{ exceeded: false, unpricedCalls: 1 }]);
+  });
+
   test('the bot cap counts everyone who used the bot', async () => {
     const usage = new MemoryUsageStore();
     await usage.record(call('bob', 0.3));
     await usage.record(call('carol', 0.3));
     const budgets = new BudgetService(usage, new MemoryBudgetStore(), caps({ bot: { month: 0.5 } }));
     expect(await budgets.check({ payerUserId: 'dave', botId: 'bot-1' })).toMatch(/This bot's monthly budget/);
+    expect(await budgets.check({ payerUserId: 'dave', botId: 'bot-1' })).not.toMatch(/spent/);
     expect(await budgets.check({ payerUserId: 'dave', botId: 'bot-2' })).toBeUndefined();
   });
 

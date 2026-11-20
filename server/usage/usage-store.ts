@@ -26,8 +26,8 @@ export interface LlmUsageRecord extends Omit<UsageAttribution, 'routine'> {
 
 export interface UsageStore {
   record(entry: LlmUsageRecord): Promise<void>;
-  /** Estimated USD spent by the scope from `sinceDay` (YYYY-MM-DD, UTC) through today. */
-  spent(scope: UsageScope, sinceDay: string): Promise<number>;
+  /** Estimated USD spent by the scope from `sinceDay` (YYYY-MM-DD, UTC) through today, and the calls that had no price. */
+  spent(scope: UsageScope, sinceDay: string): Promise<{ usd: number; unpricedCalls: number }>;
   /** The last `days` UTC days (today included) that have any usage, oldest first. */
   daily(scope: UsageScope, days: number): Promise<UsageDay[]>;
   /** Counts one Genie call for the user today unless they already made `cap`; false means refused. */
@@ -84,9 +84,12 @@ export class MemoryUsageStore implements UsageStore {
     return Promise.resolve(rows);
   }
 
-  async spent(scope: UsageScope, sinceDay: string): Promise<number> {
-    const rows = await this.daily(scope, 366);
-    return rows.filter((row) => row.day >= sinceDay).reduce((sum, row) => sum + row.costUsd, 0);
+  async spent(scope: UsageScope, sinceDay: string): Promise<{ usd: number; unpricedCalls: number }> {
+    const rows = (await this.daily(scope, 366)).filter((row) => row.day >= sinceDay);
+    return {
+      usd: rows.reduce((sum, row) => sum + row.costUsd, 0),
+      unpricedCalls: rows.reduce((sum, row) => sum + row.unpricedCalls, 0),
+    };
   }
 
   claimGenieCall(userId: string, cap: number): Promise<boolean> {
@@ -157,13 +160,14 @@ export class LakebaseUsageStore implements UsageStore {
     return rows as unknown as UsageDay[];
   }
 
-  async spent(scope: UsageScope, sinceDay: string): Promise<number> {
+  async spent(scope: UsageScope, sinceDay: string): Promise<{ usd: number; unpricedCalls: number }> {
     const { rows } = await this.query(
-      `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS spent
+      `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS usd, COALESCE(SUM(unpriced_calls), 0)::int AS "unpricedCalls"
        FROM bricksbot.usage_daily WHERE scope_kind = $1 AND scope_id = $2 AND day >= $3::date`,
       [scope.kind, scope.id, sinceDay]
     );
-    return Number((rows[0] as { spent?: number } | undefined)?.spent ?? 0);
+    const row = rows[0] as { usd?: number; unpricedCalls?: number } | undefined;
+    return { usd: Number(row?.usd ?? 0), unpricedCalls: Number(row?.unpricedCalls ?? 0) };
   }
 
   /** One atomic upsert: the WHERE stops the increment at the cap, so concurrent calls cannot slip past it. */

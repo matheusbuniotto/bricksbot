@@ -136,11 +136,12 @@ export function createGenieSpaceTool(options: GenieSpaceToolOptions): Registered
       if (!question) return `${GENIE_SPACE_TOOL_NAME} error: question is required`;
       const followUp = readText(args.conversation_id);
       if (followUp && !ID_PATTERN.test(followUp)) return `${GENIE_SPACE_TOOL_NAME} error: invalid conversation_id`;
-      if (options.claimCall && !(await options.claimCall(ctx.userId))) {
-        return `${GENIE_SPACE_TOOL_NAME} error: the daily Genie limit is used up. It resets at 00:00 UTC.`;
-      }
 
+      // Inside the try: a ledger error must come back as a tool result, not leave the model's tool call unanswered.
       try {
+        if (options.claimCall && !(await options.claimCall(ctx.userId))) {
+          return `${GENIE_SPACE_TOOL_NAME} error: the daily Genie limit is used up. It resets at 00:00 UTC.`;
+        }
         const started = await genie<{ conversation_id?: string; message_id?: string; id?: string }>(
           'POST',
           followUp ? `/conversations/${encodeURIComponent(followUp)}/messages` : '/start-conversation',

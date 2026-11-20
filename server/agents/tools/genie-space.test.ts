@@ -85,6 +85,21 @@ describe('Genie kill switch and daily cap', () => {
     expect(claimed).toEqual(['bob']);
     expect(calls).toHaveLength(0);
   });
+
+  test('a failing claim comes back as a tool result, not a throw', async () => {
+    const { calls, fetchImpl } = fakeGenie({});
+    const tool = createGenieSpaceTool({
+      spaceId: SPACE,
+      host: HOST,
+      getToken,
+      fetchImpl,
+      claimCall: () => Promise.reject(new Error('lakebase down')),
+    });
+    await expect(tool.execute({ question: 'How many orders?' }, { userId: 'bob' } as never)).resolves.toMatch(
+      /error: lakebase down/
+    );
+    expect(calls).toHaveLength(0);
+  });
 });
 
 describe('ask_genie_space', () => {
