@@ -14,6 +14,7 @@ export function normalizeNewRoutine(input: CreateRoutineInput) {
     prompt: input.prompt?.trim() || `Scheduled routine: ${name}`,
     enabled: input.enabled ?? true,
     runAs: input.runAs ?? 'owner_approval',
+    model: input.model ?? null,
   };
 }
 

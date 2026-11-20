@@ -32,7 +32,7 @@ import { asBool, asString } from '../lib/coerce.js';
 import { SEARCH_LIMIT, searchTerms, snippetAround } from './search.js';
 
 const BOT_COLUMNS =
-  'id, name, avatar_label, presence, space_id, is_primary, is_shared, description, source_bot_id, owner_id, sort_order, archived_at, created_at, last_message_preview';
+  'id, name, avatar_label, presence, space_id, is_primary, is_shared, description, source_bot_id, owner_id, model, sort_order, archived_at, created_at, last_message_preview';
 
 export type LakebaseQuery = (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
 
@@ -57,6 +57,7 @@ function mapBot(row: Record<string, unknown>): Bot {
     description: row.description ? asString(row.description) : '',
     sourceBotId: row.source_bot_id ? asString(row.source_bot_id) : null,
     ownerId: asString(row.owner_id) || 'workspace-user',
+    model: row.model ? asString(row.model) : null,
     sortOrder: Number(row.sort_order ?? 0),
     archivedAt: row.archived_at ? asString(row.archived_at) : null,
     createdAt: asString(row.created_at),
@@ -428,12 +429,13 @@ export class LakebaseChatStore implements ChatStore {
     }
     const isShared = input.isShared !== undefined ? Boolean(input.isShared) : Boolean(bot.isShared);
     const description = input.description !== undefined ? input.description.trim() : (bot.description ?? '');
+    const model = input.model !== undefined ? input.model : (bot.model ?? null);
     const result = await this.query(
       `UPDATE bricksbot.bots
-       SET name = $2, avatar_label = $3, space_id = $4, sort_order = $5, is_shared = $6, description = $7
+       SET name = $2, avatar_label = $3, space_id = $4, sort_order = $5, is_shared = $6, description = $7, model = $8
        WHERE id = $1
        RETURNING ${BOT_COLUMNS}`,
-      [botId, name, avatarLabel, spaceId, sortOrder, isShared, description]
+      [botId, name, avatarLabel, spaceId, sortOrder, isShared, description, model]
     );
     const updated = mapBot(result.rows[0]);
     this.cacheSet(this.botsCache, updated.id, updated);

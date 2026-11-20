@@ -1,7 +1,7 @@
 import type { Message } from '../../shared/chat/types.js';
 import type { CompactionRecord, CompactionSettings, CompactionStore } from '../../shared/durable/types.js';
 import { DEFAULT_COMPACTION_SETTINGS } from '../../shared/durable/types.js';
-import type { ChatClient, LlmMessage } from '../../shared/agents/types.js';
+import type { ChatClient, LlmMessage, UsageAttribution } from '../../shared/agents/types.js';
 import { estimateMessageTokens, estimateTokensFromText } from './tokens.js';
 
 /** Marker prefix for optional UI system notes (full history stays in messages). */
@@ -60,6 +60,10 @@ export async function runCompaction(options: {
   store: CompactionStore;
   settings?: CompactionSettings;
   instructions?: string;
+  /** Summarize with this model instead of the client's default. */
+  model?: string;
+  /** Lets the usage ledger charge the summary to the chat's payer. */
+  attribution?: UsageAttribution;
 }): Promise<CompactionRecord | null> {
   const settings = options.settings ?? DEFAULT_COMPACTION_SETTINGS;
   const keepMessage = pickKeepFromMessage(options.history, settings.keepRecentMessages);
@@ -94,7 +98,10 @@ export async function runCompaction(options: {
     },
   ];
 
-  const completion = await options.client.complete({ messages: prompt });
+  const completion = await options.client.complete(
+    { messages: prompt, model: options.model },
+    { attribution: options.attribution }
+  );
   const summary = completion.content?.trim();
   if (!summary) return null;
 

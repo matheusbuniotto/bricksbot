@@ -28,6 +28,7 @@ export async function createRoutine(input: {
   name: string;
   cron: string;
   prompt?: string;
+  model?: string | null;
 }): Promise<{ routine: Routine; webhookSecret: string }> {
   return readJson(
     await fetch('/api/routines', {
@@ -40,7 +41,7 @@ export async function createRoutine(input: {
 
 export async function updateRoutine(
   id: string,
-  patch: { enabled?: boolean; name?: string; cron?: string; prompt?: string }
+  patch: { enabled?: boolean; name?: string; cron?: string; prompt?: string; model?: string | null }
 ): Promise<Routine> {
   const data = await readJson<{ routine: Routine }>(
     await fetch(`/api/routines/${id}/update`, {

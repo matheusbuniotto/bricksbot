@@ -4,6 +4,7 @@ import { getRequestUserAccessToken } from '../chat/databricks-auth.js';
 import { MemoryChatStore } from '../chat/memory-store.js';
 import { ChatService } from '../chat/service.js';
 import { StubChatClient } from '../agents/clients/stub-client.js';
+import { ModelCatalog } from '../agents/models.js';
 import { MemoryRoutineStore } from './memory-store.js';
 import { registerRoutineRoutes } from './routes.js';
 import { RoutineService } from './service.js';
@@ -21,6 +22,10 @@ async function withRoutineApp(run: (ctx: { baseUrl: string; botId: string; chats
     provider: 'stub',
     chats,
     env: {},
+    models: new ModelCatalog([
+      { id: 'a/one', label: 'one' },
+      { id: 'b/two', label: 'two' },
+    ]),
   });
 
   const server = await new Promise<import('node:http').Server>((resolve) => {
@@ -50,6 +55,29 @@ describe('routines HTTP API', () => {
         body: JSON.stringify({ botId, name: 'Snoop', cron: '0 * * * *' }),
       });
       expect(res.status).toBe(403);
+    });
+  });
+
+  test('a routine owner may override the model within the catalog, and nothing outside it', async () => {
+    await withRoutineApp(async ({ baseUrl, botId }) => {
+      const post = (path: string, body: unknown) =>
+        fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      const unknown = await post('/api/routines', { botId, name: 'Nope', cron: '0 * * * *', model: 'x/unlisted' });
+      expect(unknown.status).toBe(400);
+      expect(((await unknown.json()) as { error: string }).error).toMatch(/Unknown model/);
+
+      const created = (await (
+        await post('/api/routines', { botId, name: 'Picky', cron: '0 * * * *', model: 'b/two' })
+      ).json()) as { routine: { id: string; model: string | null } };
+      expect(created.routine.model).toBe('b/two');
+
+      expect((await post(`/api/routines/${created.routine.id}/update`, { model: 'x/unlisted' })).status).toBe(400);
+      const cleared = await post(`/api/routines/${created.routine.id}/update`, { model: null });
+      expect(((await cleared.json()) as { routine: { model: string | null } }).routine.model).toBeNull();
     });
   });
 

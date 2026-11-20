@@ -23,6 +23,7 @@ import { ChatService } from './chat/service.js';
 import { LakebaseCompactionStore, MemoryCompactionStore } from './durable/compaction-store.js';
 import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idempotency-store.js';
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
+import { modelCatalogFromEnv } from './agents/models.js';
 import { parseVolumeQuotaLimits, resolveVolumeRoot } from './agents/tools/volume-namespace.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
 import { genieSpaceConfigFromEnv } from './agents/tools/genie-space.js';
@@ -47,6 +48,8 @@ import { MemorySandboxStore } from './sandbox/memory-store.js';
 import { SandboxReaper } from './sandbox/reaper.js';
 import { createSandboxRegistryFromEnv } from './sandbox/registry.js';
 import { SandboxSessionService } from './sandbox/session-service.js';
+import { MeteredChatClient } from './usage/metered-client.js';
+import { LakebaseUsageStore, MemoryUsageStore, type UsageStore } from './usage/usage-store.js';
 import { LakebaseVolumeUsageStore, MemoryVolumeUsageStore } from './volumes/usage-store.js';
 
 function lakebaseConfigured(): boolean {
@@ -65,6 +68,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   volumeUsage: VolumeUsageStore;
   plugins: PluginRegistryStore;
   mcpConnectors: McpConnectorStore;
+  usage: UsageStore;
 }> {
   const ownerId = process.env.BRICKSBOT_USER_ID?.trim() || 'workspace-user';
   if (lakebaseConfigured() && query) {
@@ -83,6 +87,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       volumeUsage: new LakebaseVolumeUsageStore(query),
       plugins: new LakebasePluginRegistryStore(query),
       mcpConnectors: new LakebaseMcpConnectorStore(query),
+      usage: new LakebaseUsageStore(query),
     };
   }
 
@@ -101,6 +106,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     volumeUsage: new MemoryVolumeUsageStore(),
     plugins: new MemoryPluginRegistryStore(),
     mcpConnectors: new MemoryMcpConnectorStore(),
+    usage: new MemoryUsageStore(),
   };
 }
 
@@ -125,10 +131,15 @@ createApp({
       volumeUsage,
       plugins: pluginRegistry,
       mcpConnectors,
+      usage,
     } = await createStores(query);
     const volumeRoot = resolveVolumeRoot(process.env);
-    const client = createChatClientFromEnv(process.env);
-    console.info(`[bricksbot] ChatClient provider=${client.provider}`);
+    const baseClient = createChatClientFromEnv(process.env);
+    const models = modelCatalogFromEnv(process.env, baseClient.model);
+    const client = new MeteredChatClient(baseClient, usage, models);
+    console.info(
+      `[bricksbot] ChatClient provider=${client.provider} models=${models.models.map((m) => m.id).join(',')}`
+    );
     await initTracing(process.env);
     const sqlQuery = sqlQueryConfigFromEnv(process.env);
     if (sqlQuery.warehouseId) {
@@ -211,6 +222,7 @@ createApp({
     const chatService = new ChatService({
       store: chats,
       client,
+      models,
       memory,
       routines,
       compaction,
@@ -244,7 +256,7 @@ createApp({
     setInterval(() => void sweepRuns(), 30_000).unref();
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {
-      registerChatRoutes(app, chats, chatService, { mcpDiscovery });
+      registerChatRoutes(app, chats, chatService, { mcpDiscovery, models });
       registerMemoryRoutes(app, chats, memory);
       if (diagRoutesEnabled()) {
         console.warn('[bricksbot] BRICKSBOT_DIAG=1: /api/_diag/* gateway probes are enabled');
@@ -253,6 +265,7 @@ createApp({
       registerRoutineRoutes(app, routines, routineService, {
         provider: client.provider,
         chats,
+        models,
       });
       registerPluginRoutes(app, {
         pluginHost,

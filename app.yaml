@@ -20,6 +20,10 @@ env:
   - name: LLM_SECRET_KEY
     value: openrouter-api-key
 
+  # Optional: models owners may pick per bot / routine (JSON array). Unset = LLM_MODEL only.
+  # - name: BRICKSBOT_MODELS
+  #   value: '["openai/gpt-6-luna"]'
+
   # Optional: web_fetch host allowlist (bind the web-fetch-allowlist secret in databricks.yml first)
   # - name: WEB_FETCH_ALLOWLIST
   #   valueFrom: web-fetch-allowlist

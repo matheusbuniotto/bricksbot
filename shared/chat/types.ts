@@ -44,6 +44,10 @@ export interface Bot {
   description?: string;
   sourceBotId?: string | null;
   ownerId: string;
+  /** Catalog model id the owner picked; null or absent means the operator's default. */
+  model?: string | null;
+  /** Set by `GET /api/bots`: the caller owns this bot (and so may pick its model). */
+  isOwner?: boolean;
   /** Lower sorts first within a section (and after Primary). */
   sortOrder: number;
   /** Soft-hide from roster (Grok “Hide from sidebar”); null when active. */
@@ -122,6 +126,8 @@ export interface UpdateBotInput {
   spaceId?: string | null;
   description?: string;
   isShared?: boolean;
+  /** Catalog model id, or null for the default. */
+  model?: string | null;
 }
 
 export interface MoveBotInput {

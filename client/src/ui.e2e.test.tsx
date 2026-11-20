@@ -195,6 +195,34 @@ describe('UI End-to-End Tests', () => {
     );
   });
 
+  it('shows the model picker to the bot owner only', () => {
+    const models = { models: [{ id: 'a/one', label: 'One' }], default: 'a/one' };
+    const sheet = (bot: Bot) =>
+      renderToString(
+        <BotDetailsSheet
+          bot={bot}
+          messages={[]}
+          routines={[]}
+          models={models}
+          routineBusyId={null}
+          lastWebhookSecret={null}
+          width={360}
+          minWidth={280}
+          maxWidth={720}
+          onWidthChange={() => {}}
+          onCreateRoutine={async () => {}}
+          onUpdateRoutine={async () => {}}
+          onRunRoutine={async () => {}}
+          onDeleteRoutine={async () => {}}
+          onClose={() => {}}
+          onChangeLook={() => {}}
+          onUpdateBotConfig={async () => {}}
+        />
+      );
+    expect(sheet({ ...dummyBot, isOwner: true })).toContain('Default (a/one)');
+    expect(sheet({ ...dummyBot, isOwner: false })).not.toContain('Default (a/one)');
+  });
+
   it('verifies BotDetailsSheet E2E: English tabs, library empty/recent/older sections, and change look', () => {
     const noticeRecent: ArtifactPinNotice = {
       kind: 'artifact_pin',

@@ -51,9 +51,32 @@ export interface ChatCompletionResult {
   finishReason?: string;
 }
 
+/** Who a call is for, so the usage ledger can charge it. Ids only, never content. */
+export interface UsageAttribution {
+  kind: 'turn' | 'compaction';
+  /** The signed-in human the spend is charged to: the caller of a shared bot, not its owner. */
+  payerUserId?: string;
+  botId?: string;
+  chatId?: string;
+  runId?: string;
+  routineId?: string;
+  /** Routine turns fail closed when the ledger is down; interactive turns fail open. */
+  routine: boolean;
+}
+
+/** A model the operator allows (`BRICKSBOT_MODELS`). */
+export interface ModelOption {
+  id: string;
+  label: string;
+  /** Tokens; compaction triggers against this instead of the default window. */
+  contextWindow?: number;
+}
+
 export interface ChatCompletionOptions {
   /** Aborting rejects `complete` with an AbortError. */
   signal?: AbortSignal;
+  /** Present on calls the usage ledger should record. */
+  attribution?: UsageAttribution;
   /** Token streaming hook. Accepted now, honored once streaming lands (clients ignore it today). */
   onDelta?: (text: string) => void;
 }

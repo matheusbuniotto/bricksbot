@@ -70,6 +70,8 @@ This picks (or creates) a Lakebase project and a SQL warehouse, stores your Open
 | Option | How |
 | --- | --- |
 | Model | Default `openai/gpt-6-luna`. Change `LLM_MODEL` in `app.yaml`. |
+| Model choice | Set `BRICKSBOT_MODELS` to a JSON array of ids (or `{ "id", "label", "contextWindow", "inputUsdPerMTok", "outputUsdPerMTok" }`). Bot owners pick from it in Bot details; a routine owner may override it per routine. Unset means just `LLM_MODEL` (or the Serving endpoint). Ids containing `fast` are never offered. With Model Serving, an id is an endpoint name. Prices are only used to estimate cost when the provider reports none. |
+| Usage ledger | Every LLM call (turns and compaction) is recorded in `bricksbot_audit.llm_usage` and rolled up per day in `bricksbot.usage_daily`, charged to the person chatting, not the bot owner. Costs are estimates. If the ledger is down, chats continue and routine runs fail. |
 | Model Serving instead of OpenRouter | Bind a `serving-endpoint` resource and set `LLM_PROVIDER=databricks` (see `app.yaml`). |
 | `web_fetch` | Store comma-separated hosts in secret `bricksbot/web-fetch-allowlist`, then uncomment it in `databricks.yml` and `app.yaml`. |
 | `volume_write` | Create a Volume and set `BRICKSBOT_VOLUME_ROOT` in `app.yaml`. Files go under `users/{user}/bots/{bot}/`. |

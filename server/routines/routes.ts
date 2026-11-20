@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ChatStore } from '../../shared/chat/types.js';
 import type { ChatClient } from '../../shared/agents/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
+import { ModelCatalog } from '../agents/models.js';
 import { resolveOwnerId } from '../chat/identity.js';
 import { routineAppIdentityAllowed, runWithDatabricksRequestAuth } from '../chat/databricks-auth.js';
 import { requireBotUse } from '../chat/route-guards.js';
@@ -19,6 +20,7 @@ const createRoutineSchema = z.object({
   prompt: z.string().trim().min(1).max(4000).optional(),
   enabled: z.boolean().optional(),
   runAs: z.enum(['owner_approval', 'app']).optional(),
+  model: z.string().trim().min(1).max(200).nullable().optional(),
 });
 
 const patchRoutineSchema = z.object({
@@ -27,6 +29,7 @@ const patchRoutineSchema = z.object({
   cron: z.string().trim().min(1).max(128).optional(),
   prompt: z.string().trim().min(1).max(4000).optional(),
   runAs: z.enum(['owner_approval', 'app']).optional(),
+  model: z.string().trim().min(1).max(200).nullable().optional(),
 });
 
 const APP_IDENTITY_REQUIRED =
@@ -55,9 +58,13 @@ export function registerRoutineRoutes(
     provider: ChatClient['provider'];
     chats: ChatStore;
     env?: Record<string, string | undefined>;
+    /** Models a routine owner may override with. Absent means none. */
+    models?: ModelCatalog;
   }
 ): void {
   const env = options.env ?? process.env;
+  const models = options.models ?? new ModelCatalog();
+  const UNKNOWN_MODEL = 'Unknown model';
 
   app.get('/api/setup/status', (_req: Request, res: Response) => {
     res.json(buildSetupStatus(env, options.provider));
@@ -82,6 +89,10 @@ export function registerRoutineRoutes(
       res.status(403).json({ error: APP_IDENTITY_REQUIRED });
       return;
     }
+    if (parsed.data.model && !models.has(parsed.data.model)) {
+      res.status(400).json({ error: UNKNOWN_MODEL });
+      return;
+    }
     try {
       const access = await requireBotUse(options.chats, parsed.data.botId, req, res);
       if (!access) return;
@@ -103,6 +114,10 @@ export function registerRoutineRoutes(
     }
     if (parsed.data.runAs === 'app' && !routineAppIdentityAllowed(env)) {
       res.status(403).json({ error: APP_IDENTITY_REQUIRED });
+      return;
+    }
+    if (parsed.data.model && !models.has(parsed.data.model)) {
+      res.status(400).json({ error: UNKNOWN_MODEL });
       return;
     }
     try {

@@ -10,7 +10,7 @@ import type { LakebaseQuery } from '../chat/lakebase-store.js';
 import { assertValidRoutinePatch, normalizeNewRoutine } from './input.js';
 import { generateWebhookSecret, hashWebhookSecret } from './webhook-auth.js';
 
-const ROUTINE_COLUMNS = 'id, bot_id, owner_id, name, cron, prompt, enabled, run_as, last_run_at, created_at';
+const ROUTINE_COLUMNS = 'id, bot_id, owner_id, name, cron, prompt, enabled, run_as, model, last_run_at, created_at';
 import { asBool, asString } from '../lib/coerce.js';
 
 function mapRoutine(row: Record<string, unknown>): Routine {
@@ -23,6 +23,7 @@ function mapRoutine(row: Record<string, unknown>): Routine {
     prompt: asString(row.prompt),
     enabled: asBool(row.enabled),
     runAs: asString(row.run_as) === 'app' ? 'app' : 'owner_approval',
+    model: row.model ? asString(row.model) : null,
     lastRunAt: row.last_run_at ? asString(row.last_run_at) : null,
     createdAt: asString(row.created_at),
   };
@@ -66,7 +67,7 @@ export class LakebaseRoutineStore implements RoutineStore {
   }
 
   async createRoutine(input: CreateRoutineInput): Promise<CreateRoutineResult> {
-    const { name, cron, prompt, enabled, runAs } = normalizeNewRoutine(input);
+    const { name, cron, prompt, enabled, runAs, model } = normalizeNewRoutine(input);
     const bot = await this.query(`SELECT id FROM bricksbot.bots WHERE id = $1`, [input.botId]);
     if (!bot.rows[0]) throw new Error('Bot not found');
 
@@ -74,10 +75,10 @@ export class LakebaseRoutineStore implements RoutineStore {
     const id = randomUUID();
     const inserted = await this.query(
       `INSERT INTO bricksbot.routines
-         (id, bot_id, owner_id, name, cron, prompt, webhook_key_hash, enabled, run_as)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (id, bot_id, owner_id, name, cron, prompt, webhook_key_hash, enabled, run_as, model)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING ${ROUTINE_COLUMNS}`,
-      [id, input.botId, input.ownerId, name, cron, prompt, hashWebhookSecret(webhookSecret), enabled, runAs]
+      [id, input.botId, input.ownerId, name, cron, prompt, hashWebhookSecret(webhookSecret), enabled, runAs, model]
     );
     return { routine: mapRoutine(inserted.rows[0]), webhookSecret };
   }
@@ -94,13 +95,14 @@ export class LakebaseRoutineStore implements RoutineStore {
     const prompt = patch.prompt?.trim() || existing.prompt;
     const enabled = patch.enabled ?? existing.enabled;
     const runAs = patch.runAs ?? existing.runAs;
+    const model = patch.model !== undefined ? patch.model : existing.model;
 
     const result = await this.query(
       `UPDATE bricksbot.routines
-       SET name = $3, cron = $4, prompt = $5, enabled = $6, run_as = $7
+       SET name = $3, cron = $4, prompt = $5, enabled = $6, run_as = $7, model = $8
        WHERE id = $1 AND owner_id = $2
        RETURNING ${ROUTINE_COLUMNS}`,
-      [routineId, ownerId, name, cron, prompt, enabled, runAs]
+      [routineId, ownerId, name, cron, prompt, enabled, runAs, model]
     );
     if (!result.rows[0]) throw new Error('Routine not found');
     return mapRoutine(result.rows[0]);

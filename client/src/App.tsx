@@ -6,6 +6,7 @@ import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/type
 import { ApprovalCards } from './components/ApprovalCards';
 import { ChoiceCards } from './components/ChoiceCards';
 import { BotDetailsSheet } from './components/BotDetailsSheet';
+import type { RoutineUpdatePatch } from './components/RoutinesPanel';
 import { botColor, markBotFresh, registerBotLooks } from './components/BotFace';
 import { useMouseFollow } from './components/BotPicker';
 import { BotRoster } from './components/BotRoster';
@@ -38,6 +39,8 @@ import {
   submitChoice,
   unarchiveBot,
   updateBot,
+  fetchModels,
+  type ModelCatalogView,
   type RunOutcome,
   type RunUpdate,
 } from './lib/chat-api';
@@ -97,6 +100,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [modelCatalog, setModelCatalog] = useState<ModelCatalogView | null>(null);
   const [routineBusyId, setRoutineBusyId] = useState<string | null>(null);
   const [lastWebhookSecret, setLastWebhookSecret] = useState<string | null>(null);
   const [sandboxStatus, setSandboxStatus] = useState<SandboxUiStatus | null>(null);
@@ -265,13 +269,15 @@ export default function App() {
     let cancelled = false;
     void (async () => {
       try {
-        const [nextSpaces, nextBots, nextArchived, nextRoutines] = await Promise.all([
+        const [nextSpaces, nextBots, nextArchived, nextRoutines, nextModels] = await Promise.all([
           fetchSpaces(),
           fetchBots(undefined, 'active'),
           fetchBots(undefined, 'archived'),
           fetchRoutines().catch(() => [] as Routine[]),
+          fetchModels().catch(() => null),
         ]);
         if (cancelled) return;
+        setModelCatalog(nextModels);
         setSpaces(nextSpaces);
         setBots(nextBots);
         setArchivedBots(nextArchived);
@@ -372,7 +378,10 @@ export default function App() {
     }
   }
 
-  async function handleUpdateBotConfig(botId: string, patch: { description?: string; isShared?: boolean }) {
+  async function handleUpdateBotConfig(
+    botId: string,
+    patch: { description?: string; isShared?: boolean; model?: string | null }
+  ) {
     setError(null);
     try {
       await updateBot(botId, patch);
@@ -621,7 +630,13 @@ export default function App() {
     }
   }
 
-  async function handleCreateRoutine(input: { botId: string; name: string; cron: string; prompt: string }) {
+  async function handleCreateRoutine(input: {
+    botId: string;
+    name: string;
+    cron: string;
+    prompt: string;
+    model?: string | null;
+  }) {
     setError(null);
     try {
       const result = await createRoutine(input);
@@ -632,10 +647,7 @@ export default function App() {
     }
   }
 
-  async function handleUpdateRoutine(
-    id: string,
-    patch: { name?: string; cron?: string; prompt?: string; enabled?: boolean }
-  ) {
+  async function handleUpdateRoutine(id: string, patch: RoutineUpdatePatch) {
     setError(null);
     try {
       await updateRoutine(id, patch);
@@ -867,6 +879,7 @@ export default function App() {
           bot={selectedBot}
           messages={visibleMessages}
           routines={botRoutines}
+          models={modelCatalog}
           routineBusyId={routineBusyId}
           lastWebhookSecret={lastWebhookSecret}
           sandboxStatus={sandboxStatus}

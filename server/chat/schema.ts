@@ -273,4 +273,41 @@ export const CHAT_SCHEMA_STATEMENTS = [
   `ALTER TABLE bricksbot.messages ADD COLUMN IF NOT EXISTS search_tsv tsvector
   GENERATED ALWAYS AS (CASE WHEN role IN ('user', 'assistant') THEN to_tsvector('simple', left(content, 20000)) END) STORED`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_messages_search ON bricksbot.messages USING GIN (search_tsv)`,
+  // Usage ledger. The audit schema is append-only and carries no foreign keys, so CDF can export it and bot deletes keep history.
+  `CREATE SCHEMA IF NOT EXISTS bricksbot_audit`,
+  `CREATE TABLE IF NOT EXISTS bricksbot_audit.llm_usage (
+  id UUID PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  kind TEXT NOT NULL,
+  payer_user_id TEXT,
+  bot_id TEXT,
+  chat_id TEXT,
+  run_id TEXT,
+  routine_id TEXT,
+  routine_run_id TEXT,
+  model TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  prompt_tokens BIGINT NOT NULL DEFAULT 0,
+  completion_tokens BIGINT NOT NULL DEFAULT 0,
+  cached_tokens BIGINT NOT NULL DEFAULT 0,
+  reasoning_tokens BIGINT NOT NULL DEFAULT 0,
+  cost_usd NUMERIC(14, 6),
+  cost_source TEXT NOT NULL
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_audit_llm_usage_payer
+  ON bricksbot_audit.llm_usage(payer_user_id, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.usage_daily (
+  day DATE NOT NULL,
+  scope_kind TEXT NOT NULL CHECK (scope_kind IN ('user', 'bot', 'routine')),
+  scope_id TEXT NOT NULL,
+  cost_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+  prompt_tokens BIGINT NOT NULL DEFAULT 0,
+  completion_tokens BIGINT NOT NULL DEFAULT 0,
+  llm_calls INTEGER NOT NULL DEFAULT 0,
+  genie_calls INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, scope_kind, scope_id)
+)`,
+  // NULL means the operator's default model.
+  `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS model TEXT`,
+  `ALTER TABLE bricksbot.routines ADD COLUMN IF NOT EXISTS model TEXT`,
 ] as const;
