@@ -21,4 +21,6 @@ export interface VolumeUsageSnapshot {
 export interface VolumeUsageStore {
   getUsage(userId: string, botId: string): Promise<VolumeUsageSnapshot>;
   addBytes(userId: string, botId: string, bytes: number): Promise<void>;
+  /** Gives bytes back (a failed upload, a deleted file). Never goes below zero. */
+  releaseBytes(userId: string, botId: string, bytes: number): Promise<void>;
 }

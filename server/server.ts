@@ -4,6 +4,7 @@ import type { CompactionStore, IdempotencyStore } from '../shared/durable/types.
 import type { RunStore } from '../shared/runs/types.js';
 import type { MemorySkillStore } from '../shared/agents/memory/types.js';
 import type { RoutineStore } from '../shared/routines/types.js';
+import type { AttachmentStore } from '../shared/chat/attachments.js';
 import type { VolumeUsageStore } from '../shared/agents/volume-namespace.js';
 import type { SandboxStore } from '../shared/sandbox/types.js';
 import type { PluginRegistryStore } from '../shared/plugins/types.js';
@@ -13,12 +14,16 @@ import { VolumePluginLoader } from './plugins/loaders/volume-loader.js';
 import { LakebasePluginRegistryStore } from './plugins/registry/lakebase-store.js';
 import { MemoryPluginRegistryStore } from './plugins/registry/memory-store.js';
 import { registerPluginRoutes } from './plugins/routes.js';
+import { LakebaseAttachmentStore } from './attachments/lakebase-store.js';
+import { MemoryAttachmentStore } from './attachments/memory-store.js';
+import { registerAttachmentRoutes } from './attachments/routes.js';
+import { AttachmentService, filesApiClient, resolveAttachmentRoot } from './attachments/upload.js';
 import { ApprovalStore } from './chat/approvals.js';
 import { LakebaseChatStore, type LakebaseQuery } from './chat/lakebase-store.js';
 import { MemoryChatStore } from './chat/memory-store.js';
 import { registerChatRoutes } from './chat/routes.js';
 import { diagRoutesEnabled, registerDiagRoutes } from './diag/routes.js';
-import { interactiveSpFallbackAllowed } from './chat/databricks-auth.js';
+import { createDatabricksTokenProvider, interactiveSpFallbackAllowed } from './chat/databricks-auth.js';
 import { ChatService } from './chat/service.js';
 import { LakebaseCompactionStore, MemoryCompactionStore } from './durable/compaction-store.js';
 import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idempotency-store.js';
@@ -75,6 +80,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   approvals: ApprovalStore;
   sandbox: SandboxStore;
   volumeUsage: VolumeUsageStore;
+  attachments: AttachmentStore;
   plugins: PluginRegistryStore;
   mcpConnectors: McpConnectorStore;
   usage: UsageStore;
@@ -95,6 +101,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       approvals: new ApprovalStore(query),
       sandbox: new LakebaseSandboxStore(query),
       volumeUsage: new LakebaseVolumeUsageStore(query),
+      attachments: new LakebaseAttachmentStore(query),
       plugins: new LakebasePluginRegistryStore(query),
       mcpConnectors: new LakebaseMcpConnectorStore(query),
       usage: new LakebaseUsageStore(query),
@@ -115,6 +122,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     approvals: new ApprovalStore(),
     sandbox: new MemorySandboxStore(),
     volumeUsage: new MemoryVolumeUsageStore(),
+    attachments: new MemoryAttachmentStore(),
     plugins: new MemoryPluginRegistryStore(),
     mcpConnectors: new MemoryMcpConnectorStore(),
     usage: new MemoryUsageStore(),
@@ -141,6 +149,7 @@ createApp({
       approvals,
       sandbox,
       volumeUsage,
+      attachments,
       plugins: pluginRegistry,
       mcpConnectors,
       usage,
@@ -182,6 +191,24 @@ createApp({
       const reaper = new SandboxReaper({ sessionService: sandboxService });
       await reaper.reconcileAtStartup();
       reaper.start();
+    }
+    // Uploads go to the Volume as the signed-in person (`viewer`): never the App service principal.
+    const attachmentRoot = resolveAttachmentRoot(process.env);
+    const attachmentService =
+      attachmentRoot && sqlQuery.host
+        ? new AttachmentService({
+            root: attachmentRoot,
+            store: attachments,
+            files: filesApiClient({
+              host: sqlQuery.host,
+              getToken: createDatabricksTokenProvider({ purpose: 'viewer' }),
+            }),
+            usage: volumeUsage,
+            limits: parseVolumeQuotaLimits(process.env),
+          })
+        : undefined;
+    if (attachmentRoot && !attachmentService) {
+      console.warn('[bricksbot] Attachments are off: a Volume root is set but DATABRICKS_HOST is not');
     }
     const budgets = new BudgetService(usage, budgetStore, budgetCapsFromEnv(process.env));
     const { user: userCaps, bot: botCaps } = budgets.caps;
@@ -248,6 +275,7 @@ createApp({
       client,
       models,
       budgets,
+      attachments: attachmentService ? attachments : undefined,
       memory,
       routines,
       compaction,
@@ -282,6 +310,7 @@ createApp({
     const routineService = new RoutineService(routines, chats, chatService);
     appkit.server.extend((app) => {
       registerChatRoutes(app, chats, chatService, { mcpDiscovery, models });
+      registerAttachmentRoutes(app, chats, attachmentService);
       registerMemoryRoutes(app, chats, memory);
       if (diagRoutesEnabled()) {
         console.warn('[bricksbot] BRICKSBOT_DIAG=1: /api/_diag/* gateway probes are enabled');

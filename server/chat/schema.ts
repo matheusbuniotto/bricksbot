@@ -321,4 +321,20 @@ export const CHAT_SCHEMA_STATEMENTS = [
   // NULL means the operator's default model.
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS model TEXT`,
   `ALTER TABLE bricksbot.routines ADD COLUMN IF NOT EXISTS model TEXT`,
+  // Files attached to chat messages; the bytes live on a Unity Catalog Volume.
+  `CREATE TABLE IF NOT EXISTS bricksbot.chat_attachments (
+  id UUID PRIMARY KEY,
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  message_id UUID,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('csv', 'excel', 'pdf')),
+  size_bytes BIGINT NOT NULL,
+  volume_path TEXT NOT NULL,
+  preview TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_chat_attachments_chat
+  ON bricksbot.chat_attachments(chat_id, user_id, created_at)`,
+  `ALTER TABLE bricksbot.messages ADD COLUMN IF NOT EXISTS attachments JSONB`,
 ] as const;

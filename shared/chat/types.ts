@@ -1,6 +1,7 @@
 /** Domain types for durable chat, Spaces, and multi-bot roster. */
 
 import type { ToolCall } from '../agents/types.js';
+import type { AttachmentRef } from './attachments.js';
 
 export type Presence = 'online' | 'away' | 'offline' | 'thinking' | 'working' | 'waiting' | 'blocked';
 
@@ -95,6 +96,8 @@ export interface Message {
   toolCalls?: ToolCall[];
   /** The run that wrote this message, when it came from agent work. */
   runId?: string;
+  /** Files the person attached to this (user) message. */
+  attachments?: AttachmentRef[];
 }
 
 /** A conversation that matches a search, shown by its latest matching message. */
@@ -192,6 +195,6 @@ export interface ChatStore {
     chatId: string,
     role: MessageRole,
     content: string,
-    options?: { toolCallId?: string; toolCalls?: ToolCall[]; runId?: string }
+    options?: { toolCallId?: string; toolCalls?: ToolCall[]; runId?: string; attachments?: AttachmentRef[] }
   ): Promise<Message>;
 }

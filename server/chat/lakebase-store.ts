@@ -18,6 +18,7 @@ import type {
   UpdateBotInput,
 } from '../../shared/chat/types.js';
 import type { ToolCall } from '../../shared/agents/types.js';
+import type { AttachmentRef } from '../../shared/chat/attachments.js';
 import { messagePreviewLine } from '../../shared/chat/preview.js';
 import { buildBotVisibilitySqlClause } from './access-policy.js';
 import { CHAT_SCHEMA_STATEMENTS } from './schema.js';
@@ -101,6 +102,11 @@ function parseToolCalls(raw: unknown): ToolCall[] | undefined {
   }
 }
 
+function parseAttachments(raw: unknown): AttachmentRef[] | undefined {
+  const parsed: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  return Array.isArray(parsed) && parsed.length > 0 ? (parsed as AttachmentRef[]) : undefined;
+}
+
 function mapMessage(row: Record<string, unknown>): Message {
   return {
     id: asString(row.id),
@@ -111,6 +117,7 @@ function mapMessage(row: Record<string, unknown>): Message {
     toolCallId: row.tool_call_id ? asString(row.tool_call_id) : undefined,
     toolCalls: parseToolCalls(row.tool_calls),
     runId: row.run_id ? asString(row.run_id) : undefined,
+    attachments: parseAttachments(row.attachments),
   };
 }
 
@@ -701,7 +708,7 @@ export class LakebaseChatStore implements ChatStore {
       if (!chat.rows[0]) throw new Error('Chat not found');
     }
     const result = await this.query(
-      `SELECT id, chat_id, role, content, created_at, tool_call_id, tool_calls, run_id
+      `SELECT id, chat_id, role, content, created_at, tool_call_id, tool_calls, run_id, attachments
        FROM bricksbot.messages
        WHERE chat_id = $1
        ORDER BY created_at ASC`,
@@ -749,7 +756,7 @@ export class LakebaseChatStore implements ChatStore {
     chatId: string,
     role: MessageRole,
     content: string,
-    options?: { toolCallId?: string; toolCalls?: ToolCall[]; runId?: string }
+    options?: { toolCallId?: string; toolCalls?: ToolCall[]; runId?: string; attachments?: AttachmentRef[] }
   ): Promise<Message> {
     const trimmed = content.trim();
     if (!trimmed && role !== 'assistant') {
@@ -762,11 +769,12 @@ export class LakebaseChatStore implements ChatStore {
 
     const id = randomUUID();
     const toolCallsJson = options?.toolCalls?.length ? JSON.stringify(options.toolCalls) : null;
+    const attachmentsJson = options?.attachments?.length ? JSON.stringify(options.attachments) : null;
     const result = await this.query(
-      `INSERT INTO bricksbot.messages (id, chat_id, role, content, tool_call_id, tool_calls, run_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, chat_id, role, content, created_at, tool_call_id, tool_calls, run_id`,
-      [id, chatId, role, trimmed, options?.toolCallId ?? null, toolCallsJson, options?.runId ?? null]
+      `INSERT INTO bricksbot.messages (id, chat_id, role, content, tool_call_id, tool_calls, run_id, attachments)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, chat_id, role, content, created_at, tool_call_id, tool_calls, run_id, attachments`,
+      [id, chatId, role, trimmed, options?.toolCallId ?? null, toolCallsJson, options?.runId ?? null, attachmentsJson]
     );
     const preview = messagePreviewLine({ role, content: trimmed });
     if (preview !== null) {

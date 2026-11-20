@@ -69,4 +69,14 @@ describe('volume usage quotas', () => {
   test('schema creates bricksbot.volume_usage', () => {
     expect(CHAT_SCHEMA_STATEMENTS.some((statement) => statement.includes('bricksbot.volume_usage'))).toBe(true);
   });
+
+  test('released bytes come off one row and never go below zero', async () => {
+    const store = new MemoryVolumeUsageStore();
+    await store.addBytes('alice', 'bot-a', 100);
+    await store.addBytes('alice', 'bot-b', 10);
+    await store.releaseBytes('alice', 'bot-a', 30);
+    expect(await store.getUsage('alice', 'bot-a')).toEqual({ userBytes: 80, botBytes: 70 });
+    await store.releaseBytes('alice', 'bot-a', 500);
+    expect(await store.getUsage('alice', 'bot-a')).toEqual({ userBytes: 10, botBytes: 0 });
+  });
 });

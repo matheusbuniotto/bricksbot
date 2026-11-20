@@ -32,6 +32,12 @@ export class MemoryVolumeUsageStore implements VolumeUsageStore {
     const key = this.key(userId, botId);
     this.bytes.set(key, (this.bytes.get(key) ?? 0) + bytes);
   }
+
+  releaseBytes(userId: string, botId: string, bytes: number): Promise<void> {
+    const key = this.key(userId, botId);
+    this.bytes.set(key, Math.max(0, (this.bytes.get(key) ?? 0) - bytes));
+    return Promise.resolve();
+  }
 }
 
 export class LakebaseVolumeUsageStore implements VolumeUsageStore {
@@ -66,6 +72,16 @@ export class LakebaseVolumeUsageStore implements VolumeUsageStore {
        ON CONFLICT (user_id, bot_id) DO UPDATE
        SET bytes_used = bricksbot.volume_usage.bytes_used + EXCLUDED.bytes_used,
            updated_at = NOW()`,
+      [userId, botId, bytes]
+    );
+  }
+
+  async releaseBytes(userId: string, botId: string, bytes: number): Promise<void> {
+    if (bytes <= 0) return;
+    await this.query(
+      `UPDATE bricksbot.volume_usage
+       SET bytes_used = GREATEST(bytes_used - $3, 0), updated_at = NOW()
+       WHERE user_id = $1 AND bot_id = $2`,
       [userId, botId, bytes]
     );
   }
