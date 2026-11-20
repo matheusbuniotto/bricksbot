@@ -15,7 +15,7 @@
 | Checkpointed turns | Resume mid-tool after crash | Soft: durable approvals + presence; full task graph later | Partial |
 | Documents (todos/plans) | App state co-committed with transcript | Defer | Later |
 | Conversation fork | Branch from a message | Defer | Later |
-| Multiplayer SSE | Many clients on one run | Defer (poll for now) | Later |
+| Multiplayer SSE | Many clients on one run | Per-run SSE feed shipped (`server/runs/sse.ts`); live deltas are same-instance only | Partial |
 | Computer / sandbox | Persistent desktop | Phase 5 | Out |
 | Pi CodingTools / browser | `read` / `write` / `edit` / `bash` / browser | Phase 5 | Out |
 | Full Pi Harness embed | `@earendil-works/pi-durable` runtime | Needs Lakebase/Postgres storage adapter first | Deferred |

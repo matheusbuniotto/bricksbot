@@ -115,3 +115,135 @@ export function parseCompletion(payload: WireCompletion): ChatCompletionResult {
     finishReason: choice?.finish_reason ?? undefined,
   };
 }
+
+interface StreamChunk {
+  model?: string;
+  error?: { message?: string };
+  usage?: WireUsage;
+  choices?: Array<{
+    finish_reason?: string | null;
+    delta?: {
+      content?: string | null;
+      tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }>;
+    };
+  }>;
+}
+
+/**
+ * Read an SSE chat-completions body into the same result a plain response gives.
+ * Tool calls arrive in fragments keyed by `index`; usage comes with the final chunk (`include_usage`).
+ */
+async function readStreamedCompletion(
+  response: Response,
+  onDelta: (text: string) => void
+): Promise<ChatCompletionResult> {
+  let content = '';
+  let model: string | undefined;
+  let finishReason: string | undefined;
+  let usage: WireUsage | undefined;
+  const calls: Array<{ id: string; function: { name: string; arguments: string } }> = [];
+
+  const take = (line: string) => {
+    const data = line.startsWith('data:') ? line.slice(5).trim() : '';
+    if (!data || data === '[DONE]') return;
+    let chunk: StreamChunk;
+    try {
+      chunk = JSON.parse(data) as StreamChunk;
+    } catch {
+      return;
+    }
+    if (chunk.error) throw new Error(`stream error: ${chunk.error.message ?? 'unknown'}`);
+    model = chunk.model ?? model;
+    usage = chunk.usage ?? usage;
+    const choice = chunk.choices?.[0];
+    finishReason = choice?.finish_reason ?? finishReason;
+    const text = choice?.delta?.content;
+    if (text) {
+      content += text;
+      onDelta(text);
+    }
+    for (const fragment of choice?.delta?.tool_calls ?? []) {
+      const call = (calls[fragment.index ?? 0] ??= { id: '', function: { name: '', arguments: '' } });
+      call.id = fragment.id ?? call.id;
+      call.function.name = fragment.function?.name ?? call.function.name;
+      call.function.arguments += fragment.function?.arguments ?? '';
+    }
+  };
+
+  const reader = (response.body as ReadableStream<Uint8Array>).getReader();
+  const decoder = new TextDecoder();
+  let buffered = '';
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffered += decoder.decode(chunk.value, { stream: true });
+    const lines = buffered.split('\n');
+    buffered = lines.pop() ?? '';
+    lines.forEach(take);
+  }
+  take(buffered);
+
+  return {
+    content: content || null,
+    toolCalls: parseToolCalls(
+      calls
+        .filter(Boolean)
+        .map((call) => ({ ...call, function: { ...call.function, arguments: call.function.arguments || '{}' } }))
+    ),
+    usage: parseUsage(usage),
+    model,
+    finishReason,
+  };
+}
+
+/**
+ * Endpoints (url + model) that refused `stream: true`, with when to ask again. They are called without it
+ * meanwhile; the memory expires so a one-off error cannot switch streaming off for the life of the process.
+ */
+const streamRefused = new Map<string, number>();
+const STREAM_REFUSED_FOR_MS = 10 * 60_000;
+const STREAM_REFUSED_STATUSES = new Set([400, 404, 405, 415, 422, 501]);
+
+/**
+ * POST a chat completion. With `onDelta` it asks for a stream and feeds text as it arrives;
+ * an endpoint that rejects streaming, or answers with plain JSON anyway, still works.
+ */
+export async function postChatCompletion(input: {
+  fetchImpl: typeof fetch;
+  url: string;
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+  signal?: AbortSignal;
+  onDelta?: (text: string) => void;
+  /** Names the provider in errors. */
+  label: string;
+  parse?: (payload: WireCompletion) => ChatCompletionResult;
+}): Promise<ChatCompletionResult> {
+  const { fetchImpl, url, headers, body, signal, onDelta, label } = input;
+  const key = `${url} ${(body.model as string | undefined) ?? ''}`;
+  const post = (stream: boolean) =>
+    fetchImpl(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(stream ? { ...body, stream: true, stream_options: { include_usage: true } } : body),
+      signal,
+    });
+
+  const streaming = Boolean(onDelta) && (streamRefused.get(key) ?? 0) <= Date.now();
+  let response = await post(streaming);
+  if (streaming && STREAM_REFUSED_STATUSES.has(response.status)) {
+    // Only a retry that works proves the endpoint refuses streaming rather than the request.
+    const retry = await post(false);
+    if (retry.ok) streamRefused.set(key, Date.now() + STREAM_REFUSED_FOR_MS);
+    response = retry;
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`${label} error (${response.status}): ${text || response.statusText}`);
+  }
+  if (streaming && onDelta && response.headers.get('content-type')?.includes('text/event-stream')) {
+    return readStreamedCompletion(response, onDelta);
+  }
+  return (input.parse ?? parseCompletion)((await response.json()) as WireCompletion);
+}

@@ -25,7 +25,7 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 | `server/chat/` | `ChatService`, approvals, Lakebase/memory stores, schema |
 | `server/durable/` | Compaction, idempotency (Pi-compatible thin harness) |
 | `server/agents/` | Agent domain: `clients/` (LLM chat clients), `tools/` (lakehouse + Pi meta tools), `memory/` (per-bot memories & skills), `handoff.ts` (Primary → teammate) |
-| `server/runs/` | Run model: run store (Lakebase/memory), leases, sweeper, Stop |
+| `server/runs/` | Run model: run store (Lakebase/memory), leases, sweeper, Stop, SSE feed (`sse.ts`) |
 | `server/routines/` | Cron/webhook routines |
 | `server/sandbox/` | Phase 5 execution backends, session service, reaper, artifact sync |
 | `shared/` | Domain types shared by client + server (`chat`, `agents` incl. `agents/memory`, `routines`, `durable`, `sandbox`) |
@@ -41,7 +41,7 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 - **Chat.** One chat per bot; messages: `user` \| `assistant` \| `system` \| `tool`.
 - **Tool call replay.** Assistant rows must store `toolCalls`; tool rows need matching `toolCallId`. Never send orphan tool results to the LLM.
 - **Handoff.** Primary `handoff_to_bot` runs the teammate one turn (most tools auto-approved; sandbox Ask-first tools still need approval), relays the reply, and posts a tight "N messages with …" chip on both chats (click → peek).
-- **Run.** One stretch of agent work (a send, or a resume after an approval/choice); one running run per chat (409 `{activeRunId}` otherwise), events in `run_events`, Stop via `POST /api/chats/:chatId/runs/:runId/stop`. `RunContext` replaces the old routine flag. Lives in `server/runs/`.
+- **Run.** One stretch of agent work (a send, or a resume after an approval/choice); one running run per chat (409 `{activeRunId}` otherwise), events in `run_events`, Stop via `POST /api/chats/:chatId/runs/:runId/stop`, live feed via `GET .../runs/:runId/events` (SSE; the UI sends `async:true` and follows it). `RunContext` replaces the old routine flag. Lives in `server/runs/`.
 - **Approval.** `all_the_time` / `once` / `not_approved`; auto-approve is per chat+tool name.
 - **ChatClient.** `openai-compatible` (primary) → `databricks-serving` → `stub` if no key.
 - **Routine.** Scheduled/webhook prompt into a bot chat. Data tools run as the owner: `run_as='owner_approval'` (default) makes them Ask-first so the owner's approval supplies OBO; App SP only with `run_as='app'` and `BRICKSBOT_ROUTINE_APP_IDENTITY=allow`. Interactive data calls never fall back to the SP in a deployed App unless `BRICKSBOT_INTERACTIVE_SP_FALLBACK=allow`.

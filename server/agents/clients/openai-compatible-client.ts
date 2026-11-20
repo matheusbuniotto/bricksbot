@@ -4,7 +4,7 @@ import type {
   ChatCompletionRequest,
   ChatCompletionResult,
 } from '../../../shared/agents/types.js';
-import { chatCompletionBody, parseCompletion, type WireCompletion } from './openai-wire.js';
+import { chatCompletionBody, postChatCompletion } from './openai-wire.js';
 
 export interface OpenAICompatibleConfig {
   baseUrl: string;
@@ -32,25 +32,21 @@ export class OpenAICompatibleChatClient implements ChatClient {
   }
 
   async complete(request: ChatCompletionRequest, options?: ChatCompletionOptions): Promise<ChatCompletionResult> {
-    const response = await this.fetchImpl(chatCompletionsUrl(this.config.baseUrl), {
-      method: 'POST',
+    return postChatCompletion({
+      fetchImpl: this.fetchImpl,
+      url: chatCompletionsUrl(this.config.baseUrl),
       headers: {
         Authorization: `Bearer ${this.config.apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: {
         model: request.model ?? this.config.model,
         ...(request.meta?.endUser ? { user: request.meta.endUser } : {}),
         ...chatCompletionBody(request),
-      }),
+      },
       signal: options?.signal,
+      onDelta: options?.onDelta,
+      label: 'OpenAI-compatible LLM',
     });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`OpenAI-compatible LLM error (${response.status}): ${text || response.statusText}`);
-    }
-
-    return parseCompletion((await response.json()) as WireCompletion);
   }
 }

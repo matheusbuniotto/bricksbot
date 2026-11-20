@@ -91,8 +91,8 @@ export class MemoryRunStore implements RunStore {
     return event;
   }
 
-  async listEvents(chatId: string, afterSeq: number): Promise<RunEvent[]> {
-    return (this.events.get(chatId) ?? []).filter((event) => event.seq > afterSeq);
+  async listEvents(chatId: string, afterSeq: number, runId?: string): Promise<RunEvent[]> {
+    return (this.events.get(chatId) ?? []).filter((event) => event.seq > afterSeq && (!runId || event.runId === runId));
   }
 
   async acquireLease(name: string, owner: string, ttlMs: number): Promise<boolean> {

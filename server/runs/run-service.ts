@@ -1,8 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import type { Run, RunContext, RunStatus, RunStore, StartRunInput } from '../../shared/runs/types.js';
+import { EventEmitter } from 'node:events';
+import {
+  TooManyRunsError,
+  type Run,
+  type RunContext,
+  type RunStatus,
+  type RunStore,
+  type StartRunInput,
+} from '../../shared/runs/types.js';
 
 /** A run's lease lapses after this long without a heartbeat; the sweeper then declares it dead. */
 export const RUN_LEASE_TTL_MS = 30_000;
+
+/** Runs one user may have in flight at once; routines are exempt (the scheduler paces them). */
+export const MAX_RUNS_PER_USER = 3;
 
 /** Thrown inside a turn when Stop was pressed (or the run was lost): unwinds to the run's final status. */
 export class RunStoppedError extends Error {
@@ -31,6 +42,9 @@ export class RunService {
   /** Identifies this process as lease holder. */
   readonly owner = randomUUID();
   private readonly live = new Map<string, { controller: AbortController; heartbeat: NodeJS.Timeout }>();
+  private inserting: Promise<void> = Promise.resolve();
+  /** Live model text per run id, in this process only. */
+  private readonly deltas = new EventEmitter();
 
   constructor(
     readonly store: RunStore,
@@ -39,13 +53,42 @@ export class RunService {
 
   /** Opens a run unless the chat has one running (ActiveRunError). `ctx` is null for a requestId used before. */
   async start(input: StartRunInput): Promise<{ run: Run; ctx: RunContext | null }> {
-    const { run, duplicate } = await this.store.start(input);
+    const { run, duplicate } = await this.insert(input);
     return { run, ctx: duplicate ? null : await this.begin(run) };
   }
 
   /** `start` for callers that send no requestId, so the run is never a duplicate. */
   async open(input: Omit<StartRunInput, 'requestId'>): Promise<RunContext> {
-    return this.begin((await this.store.start(input)).run);
+    return this.begin((await this.insert(input)).run);
+  }
+
+  /**
+   * The cap check and the insert run one at a time, so concurrent sends cannot all pass the check.
+   * A repeated requestId skips the cap: it opens nothing new.
+   */
+  private insert(input: StartRunInput): Promise<{ run: Run; duplicate: boolean }> {
+    const attempt = this.inserting.then(async () => {
+      const repeat = input.requestId ? await this.store.findByRequestId(input.requestId) : null;
+      if (!repeat) await this.assertRoomFor(input);
+      return this.store.start(input);
+    });
+    this.inserting = attempt.then(
+      () => undefined,
+      () => undefined
+    );
+    return attempt;
+  }
+
+  private async assertRoomFor({ routine, payerUserId }: Pick<StartRunInput, 'routine' | 'payerUserId'>): Promise<void> {
+    if (routine || !payerUserId) return;
+    const running = (await this.store.listRunning()).filter((run) => !run.routine && run.payerUserId === payerUserId);
+    if (running.length >= MAX_RUNS_PER_USER) throw new TooManyRunsError(MAX_RUNS_PER_USER);
+  }
+
+  /** Calls `listener` with each live text chunk of the run until the returned function is called. */
+  onDelta(runId: string, listener: (text: string) => void): () => void {
+    this.deltas.on(runId, listener);
+    return () => this.deltas.off(runId, listener);
   }
 
   private async begin(run: Run): Promise<RunContext> {
@@ -64,6 +107,14 @@ export class RunService {
       routine: run.routine,
       payerUserId: run.payerUserId,
       signal: controller.signal,
+      // Live text is a feed for watchers; a broken listener must not fail the turn.
+      delta: (text) => {
+        try {
+          this.deltas.emit(run.id, text);
+        } catch {
+          // The listener's stream closes itself.
+        }
+      },
       // Events are a feed for watchers; losing one must not fail the turn.
       emit: async (type, payload = {}) => {
         try {

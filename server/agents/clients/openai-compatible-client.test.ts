@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { OpenAICompatibleChatClient } from './openai-compatible-client.js';
-import { stubFetchJson, stubFetchUntilAborted } from './test-fetch.js';
+import { sseResponse, stubFetchJson, stubFetchUntilAborted } from './test-fetch.js';
 
 describe('OpenAICompatibleChatClient', () => {
   afterEach(() => {
@@ -201,5 +201,154 @@ describe('OpenAICompatibleChatClient', () => {
     const pending = client.complete({ messages: [{ role: 'user', content: 'hi' }] }, { signal: controller.signal });
     controller.abort();
     await expect(pending).rejects.toThrow();
+  });
+
+  describe('streaming', () => {
+    const messages = [{ role: 'user' as const, content: 'hi' }];
+    const sentBody = (call: unknown[]) =>
+      JSON.parse((call[1] as RequestInit).body as string) as Record<string, unknown>;
+    const fragmented = [
+      { model: 'm-1', choices: [{ delta: { role: 'assistant', content: 'Hel' } }] },
+      { choices: [{ delta: { content: 'lo' } }] },
+      {
+        choices: [
+          {
+            delta: { tool_calls: [{ index: 0, id: 'call_a', function: { name: 'sql_query', arguments: '{"state' } }] },
+          },
+        ],
+      },
+      {
+        choices: [
+          { delta: { tool_calls: [{ index: 1, id: 'call_b', function: { name: 'web_fetch', arguments: '' } }] } },
+        ],
+      },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 'ment":"SELECT 1"}' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 1, function: { arguments: '{"url":"https://x.test"}' } }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      { choices: [], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.001 } },
+    ];
+
+    test('streams text to onDelta, folds tool-call fragments by index and reads usage from the final chunk', async () => {
+      const fetchMock = vi.fn(() => Promise.resolve(sseResponse(fragmented)));
+      vi.stubGlobal('fetch', fetchMock);
+      const client = new OpenAICompatibleChatClient({ baseUrl: 'https://stream-ok.test/v1', apiKey: 'k', model: 'm' });
+      const deltas: string[] = [];
+
+      const result = await client.complete({ messages }, { onDelta: (text) => deltas.push(text) });
+
+      const body = sentBody(fetchMock.mock.calls[0]);
+      expect(body).toMatchObject({ stream: true, stream_options: { include_usage: true } });
+      expect(deltas).toEqual(['Hel', 'lo']);
+      expect(result.content).toBe('Hello');
+      expect(result.toolCalls).toEqual([
+        { id: 'call_a', name: 'sql_query', arguments: { statement: 'SELECT 1' } },
+        { id: 'call_b', name: 'web_fetch', arguments: { url: 'https://x.test' } },
+      ]);
+      expect(result.usage).toEqual({ promptTokens: 10, completionTokens: 5, totalTokens: 15, cost: 0.001 });
+      expect(result.model).toBe('m-1');
+      expect(result.finishReason).toBe('tool_calls');
+    });
+
+    test('does not stream when nobody listens for deltas', async () => {
+      const fetchMock = stubFetchJson({ choices: [{ message: { content: 'ok' } }] });
+      const client = new OpenAICompatibleChatClient({
+        baseUrl: 'https://no-listener.test/v1',
+        apiKey: 'k',
+        model: 'm',
+      });
+      await client.complete({ messages });
+      expect(sentBody(fetchMock.mock.calls[0])).not.toHaveProperty('stream');
+    });
+
+    test('an endpoint that rejects stream is retried plain, and not asked to stream again', async () => {
+      const fetchMock = vi.fn((_url: string, init: RequestInit) =>
+        Promise.resolve(
+          (JSON.parse(init.body as string) as { stream?: boolean }).stream
+            ? new Response('stream not supported', { status: 400 })
+            : Response.json({ choices: [{ message: { content: 'plain answer' } }] })
+        )
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const client = new OpenAICompatibleChatClient({ baseUrl: 'https://no-stream.test/v1', apiKey: 'k', model: 'm' });
+
+      expect((await client.complete({ messages }, { onDelta: () => {} })).content).toBe('plain answer');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await client.complete({ messages }, { onDelta: () => {} });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    test('the refusal is forgotten after a while, so streaming is tried again', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        let streamingWorks = false;
+        const fetchMock = vi.fn((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            (JSON.parse(init.body as string) as { stream?: boolean }).stream
+              ? streamingWorks
+                ? sseResponse(fragmented)
+                : new Response('blip', { status: 400 })
+              : Response.json({ choices: [{ message: { content: 'plain answer' } }] })
+          )
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        const client = new OpenAICompatibleChatClient({ baseUrl: 'https://blip.test/v1', apiKey: 'k', model: 'm' });
+
+        await client.complete({ messages }, { onDelta: () => {} });
+        streamingWorks = true;
+        await client.complete({ messages }, { onDelta: () => {} });
+        expect(fetchMock).toHaveBeenCalledTimes(3); // still plain
+
+        vi.setSystemTime(Date.now() + 11 * 60_000);
+        const deltas: string[] = [];
+        await client.complete({ messages }, { onDelta: (text) => deltas.push(text) });
+        expect(deltas).toEqual(['Hel', 'lo']);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test('a genuine 400 is not remembered as "no streaming"', async () => {
+      const fetchMock = vi.fn(() => Promise.resolve(new Response('bad tool schema', { status: 400 })));
+      vi.stubGlobal('fetch', fetchMock);
+      const client = new OpenAICompatibleChatClient({
+        baseUrl: 'https://bad-request.test/v1',
+        apiKey: 'k',
+        model: 'm',
+      });
+
+      await expect(client.complete({ messages }, { onDelta: () => {} })).rejects.toThrow('bad tool schema');
+      await expect(client.complete({ messages }, { onDelta: () => {} })).rejects.toThrow('bad tool schema');
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      expect(sentBody(fetchMock.mock.calls[2])).toHaveProperty('stream');
+    });
+
+    test('an endpoint that ignores stream and answers JSON still works', async () => {
+      stubFetchJson({ choices: [{ message: { content: 'json anyway' } }] });
+      const client = new OpenAICompatibleChatClient({ baseUrl: 'https://ignores.test/v1', apiKey: 'k', model: 'm' });
+      expect((await client.complete({ messages }, { onDelta: () => {} })).content).toBe('json anyway');
+    });
+
+    test('aborting mid-stream rejects', async () => {
+      const controller = new AbortController();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            new Response(
+              new ReadableStream({
+                start(stream) {
+                  stream.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"par"}}]}\n\n'));
+                  init.signal?.addEventListener('abort', () => stream.error(new DOMException('aborted', 'AbortError')));
+                },
+              }),
+              { headers: { 'content-type': 'text/event-stream' } }
+            )
+          )
+        )
+      );
+      const client = new OpenAICompatibleChatClient({ baseUrl: 'https://abort.test/v1', apiKey: 'k', model: 'm' });
+      const pending = client.complete({ messages }, { signal: controller.signal, onDelta: () => controller.abort() });
+      await expect(pending).rejects.toThrow();
+    });
   });
 });

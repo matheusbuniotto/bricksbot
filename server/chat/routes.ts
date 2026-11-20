@@ -5,9 +5,10 @@ import type { SandboxUiStatus } from '../../shared/sandbox/types.js';
 import { AVAILABLE_DATABRICKS_MCPS, BUILTIN_PLUGIN_MCPS } from '../../shared/agents/mcp-types.js';
 import type { McpDiscoveryService } from '../agents/tools/mcp-discovery.js';
 import { buildConnectedMcpTools } from '../agents/tools/mcp-tools.js';
-import { ActiveRunError } from '../../shared/runs/types.js';
+import { ActiveRunError, TooManyRunsError } from '../../shared/runs/types.js';
+import { streamRunEvents, type SseTiming } from '../runs/sse.js';
 import { createErrorResponder } from '../lib/http.js';
-import { canManageSpaceMembers, canViewerAccessSpace } from './access-policy.js';
+import { canManageSpaceMembers, canViewBot, canViewerAccessSpace } from './access-policy.js';
 import { runWithDatabricksRequestAuth } from './databricks-auth.js';
 import { resolveOwnerId } from './identity.js';
 import { requireBotAccess, requireBotUse, requireSpaceAccess } from './route-guards.js';
@@ -109,6 +110,10 @@ function sendRunError(res: Response, err: unknown): void {
     res.status(409).json({ error: err.message, activeRunId: err.activeRunId });
     return;
   }
+  if (err instanceof TooManyRunsError) {
+    res.status(429).json({ error: err.message });
+    return;
+  }
   sendError(res, err);
 }
 
@@ -119,6 +124,7 @@ export function registerChatRoutes(
   service: ChatService,
   options?: {
     mcpDiscovery?: McpDiscoveryService;
+    sseTiming?: SseTiming;
   }
 ): void {
   async function sandboxStatusFor(chatId: string): Promise<SandboxUiStatus> {
@@ -742,6 +748,30 @@ export function registerChatRoutes(
         return;
       }
       res.json({ run });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  // Live feed of one run: replays from Last-Event-ID, then follows. The client reconnects every ~90 s.
+  app.get('/api/chats/:chatId/runs/:runId/events', async (req: Request, res: Response) => {
+    try {
+      const chatId = String(req.params.chatId);
+      const chat = await assertChatOwnership(chatId, req, res);
+      if (!chat) return;
+      const access = await requireBotAccess(store, chat.botId, req, res);
+      if (!access) return;
+      const run = await service.getRuns().store.get(String(req.params.runId));
+      if (!run || run.chatId !== chatId) {
+        res.status(404).json({ error: 'Run not found' });
+        return;
+      }
+      // Unsharing cuts off a stream that is already open, not just new ones.
+      const stillAllowed = async () => {
+        const bot = await store.getBot(chat.botId);
+        return bot ? canViewBot(store, bot, access.callerId) : false;
+      };
+      streamRunEvents(req, res, service.getRuns(), run, chat.userId ?? chatId, stillAllowed, options?.sseTiming);
     } catch (err) {
       sendError(res, err);
     }

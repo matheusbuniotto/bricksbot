@@ -10,6 +10,7 @@ import { ActiveRunError } from '../../shared/runs/types.js';
 import { MemoryIdempotencyStore } from '../durable/idempotency-store.js';
 import { MemoryRunStore } from '../runs/memory-store.js';
 import { RunService } from '../runs/run-service.js';
+import type { SseTiming } from '../runs/sse.js';
 import { MemoryChatStore } from './memory-store.js';
 import { registerChatRoutes } from './routes.js';
 import { ChatService } from './service.js';
@@ -21,19 +22,22 @@ class GatedClient implements ChatClient {
   private readonly waiting: Array<{
     resolve: (result: ChatCompletionResult) => void;
     reject: (err: Error) => void;
+    onDelta?: (text: string) => void;
   }> = [];
 
   complete(request: ChatCompletionRequest, options?: ChatCompletionOptions): Promise<ChatCompletionResult> {
     this.requests.push(request);
     return new Promise((resolve, reject) => {
       options?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
-      this.waiting.push({ resolve, reject });
+      this.waiting.push({ resolve, reject, onDelta: options?.onDelta });
     });
   }
 
-  release(result: ChatCompletionResult) {
+  /** Streams `deltas` to the turn's onDelta first, like a streaming client would. */
+  release(result: ChatCompletionResult, deltas: string[] = []) {
     const next = this.waiting.shift();
     if (!next) throw new Error('No completion is waiting');
+    deltas.forEach((text) => next.onDelta?.(text));
     next.resolve(result);
   }
 
@@ -413,22 +417,23 @@ describe('sweeper and handoffs', () => {
 describe('run routes', () => {
   async function withApp(
     check: (
-      api: (path: string, body?: unknown) => Promise<Response>,
+      api: (path: string, body?: unknown, headers?: Record<string, string>) => Promise<Response>,
       ctx: Awaited<ReturnType<typeof setup>>
-    ) => Promise<void>
+    ) => Promise<void>,
+    sseTiming?: SseTiming
   ) {
     const ctx = await setup();
     const app = express();
     app.use(express.json());
-    registerChatRoutes(app, ctx.store, ctx.service);
+    registerChatRoutes(app, ctx.store, ctx.service, { sseTiming });
     const server = await new Promise<import('node:http').Server>((resolve) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
     const { port } = server.address() as { port: number };
-    const api = (path: string, body?: unknown) =>
+    const api = (path: string, body?: unknown, headers: Record<string, string> = {}) =>
       fetch(`http://127.0.0.1:${port}${path}`, {
         method: body === undefined ? 'GET' : 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...headers },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     try {
@@ -470,5 +475,147 @@ describe('run routes', () => {
       const lookup = await api(`/api/chats/${chat.id}/runs/not-a-run`);
       expect(lookup.status).toBe(404);
     });
+  });
+
+  /** The `data:` payloads of an SSE body, with the `id:` each carried. */
+  const parseSse = (text: string) =>
+    text
+      .split('\n\n')
+      .filter((block) => block.includes('data:'))
+      .map((block) => ({
+        id: /^id: (\d+)$/m.exec(block)?.[1],
+        ...(JSON.parse(/^data: (.*)$/m.exec(block)![1]) as { type: string; payload: Record<string, unknown> }),
+      }));
+  const slow: SseTiming = { maxAgeMs: 5000, heartbeatMs: 1000, pollMs: 10 };
+
+  async function startRun(
+    ctx: Awaited<ReturnType<typeof setup>>,
+    api: (path: string, body?: unknown) => Promise<Response>
+  ) {
+    const sent = await api(`/api/chats/${ctx.chat.id}/messages`, { content: 'hello', async: true });
+    await ctx.waitForCompletion(1);
+    return ((await sent.json()) as { runId: string }).runId;
+  }
+
+  test('the event stream follows a run live: events carry their seq, text deltas carry none and are not stored', async () => {
+    await withApp(async (api, ctx) => {
+      const runId = await startRun(ctx, api);
+      const stream = api(`/api/chats/${ctx.chat.id}/runs/${runId}/events`);
+      const response = await stream;
+      expect(response.headers.get('content-type')).toBe('text/event-stream');
+      expect(response.headers.get('x-accel-buffering')).toBe('no');
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      ctx.client.release(answer('Hello there'), ['Hello ', 'there']);
+      const events = parseSse(await response.text());
+
+      expect(events.map((event) => event.type)).toEqual([
+        'run.started',
+        'llm.delta',
+        'llm.delta',
+        'assistant.committed',
+        'run.finished',
+      ]);
+      expect(events.filter((event) => event.type === 'llm.delta').map((event) => event.payload.text)).toEqual([
+        'Hello ',
+        'there',
+      ]);
+      expect(events.filter((event) => event.type === 'llm.delta').every((event) => event.id === undefined)).toBe(true);
+      expect(events[0].id).toBe('1');
+      const stored = await ctx.runs.listEvents(ctx.chat.id, 0);
+      expect(stored.some((event) => (event.type as string) === 'llm.delta')).toBe(false);
+    }, slow);
+  });
+
+  test('reconnecting with Last-Event-ID replays only what the client has not seen, without gaps', async () => {
+    await withApp(async (api, ctx) => {
+      const runId = await startRun(ctx, api);
+      ctx.client.release(sqlCalls('call_1'));
+      await ctx.waitForCompletion(2);
+      ctx.client.release(answer('all done'));
+      await until(async () => (await ctx.runs.get(runId))?.status === 'completed');
+
+      const all = parseSse(await (await api(`/api/chats/${ctx.chat.id}/runs/${runId}/events`)).text());
+      expect(all.map((event) => Number(event.id))).toEqual(all.map((_, index) => index + 1));
+      expect(all[0].type).toBe('run.started');
+      expect(all[all.length - 1].type).toBe('run.finished');
+
+      const resumed = parseSse(
+        await (await api(`/api/chats/${ctx.chat.id}/runs/${runId}/events`, undefined, { 'last-event-id': '3' })).text()
+      );
+      expect(resumed.map((event) => Number(event.id))).toEqual(all.slice(3).map((_, index) => index + 4));
+    }, slow);
+  });
+
+  test('a failed run ends the stream with its error', async () => {
+    await withApp(async (api, ctx) => {
+      const runId = await startRun(ctx, api);
+      const response = await api(`/api/chats/${ctx.chat.id}/runs/${runId}/events`);
+      await ctx.service.getRuns().store.finish(runId, 'failed', 'boom');
+      const events = parseSse(await response.text());
+      expect(events[events.length - 1]).toMatchObject({
+        type: 'run.finished',
+        payload: { status: 'failed', error: 'boom' },
+      });
+    }, slow);
+  });
+
+  test('the server closes a long stream after maxAge and heartbeats in between', async () => {
+    await withApp(
+      async (api, ctx) => {
+        const runId = await startRun(ctx, api);
+        const body = await (await api(`/api/chats/${ctx.chat.id}/runs/${runId}/events`)).text();
+        expect(body).toContain(': ping');
+        expect((await ctx.runs.get(runId))?.status).toBe('running');
+      },
+      { maxAgeMs: 150, heartbeatMs: 40, pollMs: 10 }
+    );
+  });
+
+  test('a user may hold 6 streams; the 7th is refused until one closes', async () => {
+    await withApp(
+      async (api, ctx) => {
+        const runId = await startRun(ctx, api);
+        const url = `/api/chats/${ctx.chat.id}/runs/${runId}/events`;
+        const open = await Promise.all(Array.from({ length: 6 }, () => api(url)));
+        expect(open.every((response) => response.status === 200)).toBe(true);
+        expect((await api(url)).status).toBe(429);
+        await Promise.all(open.map((response) => response.text()));
+        const again = await api(url);
+        expect(again.status).toBe(200);
+        await again.text();
+      },
+      { maxAgeMs: 300, heartbeatMs: 100, pollMs: 10 }
+    );
+  });
+
+  test('a user who lost access to the bot cannot open a stream, and an open one ends', async () => {
+    await withApp(
+      async (api, ctx) => {
+        const { space } = await ctx.store.ensureBootstrap('alice');
+        await ctx.store.ensureBootstrap('bob');
+        await ctx.store.addSpaceMember(space.id, 'bob', 'member');
+        const bot = await ctx.store.createBot({ name: 'Shared', spaceId: space.id, ownerId: 'alice', isShared: true });
+        const chat = await ctx.store.getOrCreateChatForBot(bot.id, 'bob');
+        const run = await ctx.service.getRuns().open({ chatId: chat.id, kind: 'send', routine: false });
+        const asBob = { 'x-forwarded-email': 'bob' };
+        const url = `/api/chats/${chat.id}/runs/${run.runId}/events`;
+
+        const open = await api(url, undefined, asBob);
+        expect(open.status).toBe(200);
+        await ctx.store.updateBot(bot.id, { isShared: false });
+
+        expect((await api(url, undefined, asBob)).status).toBe(403);
+        await open.text(); // resolves only because the server ended the stream
+        await ctx.service.getRuns().settle(run, 'completed');
+      },
+      { maxAgeMs: 5000, heartbeatMs: 50, pollMs: 10 }
+    );
+  });
+
+  test('streams are scoped to the chat', async () => {
+    await withApp(async (api, ctx) => {
+      expect((await api(`/api/chats/${ctx.chat.id}/runs/nope/events`)).status).toBe(404);
+    }, slow);
   });
 });
