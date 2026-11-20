@@ -74,6 +74,11 @@ env:
   # Operator creates the volume and grants WRITE. This app does not create the volume.
   # - name: BRICKSBOT_VOLUME_ROOT
   #   value: /Volumes/<catalog>/<schema>/<volume>/bricksbot
+  # Chat attachments (csv/xlsx/pdf, 25 MiB each) use BRICKSBOT_VOLUME_ROOT unless this is set.
+  # UC grants are per Volume, not per folder: anyone who can read this Volume can read everyone's uploads,
+  # so give uploads a Volume of their own when chats hold data not everyone may see.
+  # - name: BRICKSBOT_ATTACHMENT_VOLUME_ROOT
+  #   value: /Volumes/<catalog>/<schema>/<uploads_volume>/bricksbot
   # - name: BRICKSBOT_VOLUME_WRITE_MAX_BYTES
   #   value: "8388608"
   # - name: BRICKSBOT_VOLUME_USER_QUOTA_BYTES

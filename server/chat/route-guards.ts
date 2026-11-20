@@ -1,9 +1,10 @@
 import type { Request, Response } from 'express';
-import type { Bot, ChatStore } from '../../shared/chat/types.js';
+import type { Bot, Chat, ChatStore } from '../../shared/chat/types.js';
 import { canUseBot, canViewBot, canViewerAccessSpace } from './access-policy.js';
 import { resolveOwnerId } from './identity.js';
 
 type AccessStore = Pick<ChatStore, 'getBot' | 'getSpace' | 'listSpaceMembers'>;
+type ChatAccessStore = AccessStore & Pick<ChatStore, 'getChat'>;
 
 async function spaceAccess(
   store: AccessStore,
@@ -62,4 +63,35 @@ export async function requireBotUse(
   if (await canUseBot(store, access.bot, access.callerId)) return access;
   res.status(403).json({ error: 'Space viewers can see this bot but not chat with it' });
   return null;
+}
+
+/** The caller's own chat. Otherwise responds 404/403 and returns null. */
+export async function requireChatOwnership(
+  store: ChatAccessStore,
+  chatId: string,
+  req: Request,
+  res: Response
+): Promise<Chat | null> {
+  const chat = await store.getChat(chatId);
+  if (!chat) {
+    res.status(404).json({ error: 'Chat not found' });
+    return null;
+  }
+  if (!chat.userId || chat.userId !== resolveOwnerId(req)) {
+    res.status(403).json({ error: 'Forbidden' });
+    return null;
+  }
+  return chat;
+}
+
+/** The caller's chat, provided they may still run its bot (not a viewer, still shared). */
+export async function requireChatUse(
+  store: ChatAccessStore,
+  chatId: string,
+  req: Request,
+  res: Response
+): Promise<Chat | null> {
+  const chat = await requireChatOwnership(store, chatId, req, res);
+  if (!chat) return null;
+  return (await requireBotUse(store, chat.botId, req, res)) ? chat : null;
 }

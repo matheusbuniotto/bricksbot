@@ -16,6 +16,7 @@ import type {
   UpdateBotInput,
 } from '../../shared/chat/types.js';
 import type { ToolCall } from '../../shared/agents/types.js';
+import type { AttachmentRef } from '../../shared/chat/attachments.js';
 import { messagePreviewLine } from '../../shared/chat/preview.js';
 import { canViewerAccessSpace, isBotVisibleToViewer } from './access-policy.js';
 import {
@@ -464,7 +465,7 @@ export class MemoryChatStore implements ChatStore {
     chatId: string,
     role: MessageRole,
     content: string,
-    options?: { toolCallId?: string; toolCalls?: ToolCall[]; runId?: string }
+    options?: { toolCallId?: string; toolCalls?: ToolCall[]; runId?: string; attachments?: AttachmentRef[] }
   ): Promise<Message> {
     const trimmed = content.trim();
     if (!trimmed && role !== 'assistant') {
@@ -485,6 +486,7 @@ export class MemoryChatStore implements ChatStore {
       toolCallId: options?.toolCallId,
       toolCalls: options?.toolCalls?.length ? options.toolCalls : undefined,
       runId: options?.runId,
+      attachments: options?.attachments?.length ? options.attachments : undefined,
     };
     messages.push(message);
 

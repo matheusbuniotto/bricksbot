@@ -7,3 +7,4 @@ export * from './bot-created-notice.js';
 export * from './sql-result.js';
 export * from './vega-spec.js';
 export * from './mermaid-source.js';
+export * from './attachments.js';

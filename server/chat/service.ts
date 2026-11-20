@@ -8,7 +8,14 @@ import {
   type PendingChoice,
 } from '../../shared/chat/choice-notice.js';
 import { handoffBriefUserLine, parseHandoffNotice, serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
+import {
+  ATTACHMENTS_PER_MESSAGE,
+  attachmentRef,
+  type Attachment,
+  type AttachmentStore,
+} from '../../shared/chat/attachments.js';
 import type { Bot, Chat, ChatStore, Message, Presence } from '../../shared/chat/types.js';
+import { attachmentNote } from '../attachments/preview.js';
 import type { CompactionSettings, CompactionStore, IdempotencyStore } from '../../shared/durable/types.js';
 import { DEFAULT_COMPACTION_SETTINGS } from '../../shared/durable/types.js';
 import { buildCapabilityCatalog, formatCapabilityPrompt } from '../../shared/agents/capability-catalog.js';
@@ -149,6 +156,8 @@ export interface ChatServiceOptions {
   volumeWrite?: Omit<VolumeWriteToolOptions, 'chatStore' | 'usage'> & {
     usage?: VolumeWriteToolOptions['usage'];
   };
+  /** Set when attachments are on; messages may then carry `attachmentIds`. */
+  attachments?: AttachmentStore;
   /** Defaults to an in-memory store so meta tools stay on for every bot. */
   memory?: MemorySkillStore;
   /** Defaults to in-memory so schedule_routine works in tests/local without Lakebase. */
@@ -190,7 +199,7 @@ export type RegisteredTool = {
  * Build OpenAI-compatible history: every tool result must pair with a prior
  * assistant tool_calls entry. Drops orphan tool rows from older chats.
  */
-function toLlmHistory(history: Message[]): LlmMessage[] {
+function toLlmHistory(history: Message[], attachments: Map<string, Attachment>): LlmMessage[] {
   const declaredIds = new Set<string>();
   const out: LlmMessage[] = [];
 
@@ -231,7 +240,8 @@ function toLlmHistory(history: Message[]): LlmMessage[] {
       continue;
     }
 
-    out.push({ role: message.role as LlmMessage['role'], content: message.content });
+    const note = message.attachments?.length ? `\n\n${attachmentNote(message.attachments, attachments)}` : '';
+    out.push({ role: message.role as LlmMessage['role'], content: message.content + note });
   }
 
   return out;
@@ -411,12 +421,13 @@ export class ChatService {
   async sendUserMessage(
     chatId: string,
     content: string,
-    options?: { requestId?: string; routine?: boolean; systemNote?: string }
+    options?: { requestId?: string; routine?: boolean; systemNote?: string; attachmentIds?: string[] }
   ): Promise<SendMessageResult> {
     const trimmed = content.trim();
     if (!trimmed) {
       throw new Error('Message content is required');
     }
+    const files = await this.unsentAttachments(chatId, options?.attachmentIds, options?.routine);
 
     const requestId = options?.requestId?.trim();
     const stored = await this.storedResult(chatId, requestId);
@@ -437,7 +448,7 @@ export class ChatService {
     const result = await this.inRun(ctx, async () => {
       // Written inside the run so a refused send (409) leaves no stray note in the transcript.
       if (options?.systemNote) await this.options.store.addMessage(chatId, 'system', options.systemNote);
-      const user = await this.saveUserMessage(chatId, trimmed, ctx.runId);
+      const user = await this.saveUserMessage(chatId, trimmed, ctx.runId, files);
       return this.continueTurn(chatId, user, 0, { run: ctx });
     });
 
@@ -451,12 +462,13 @@ export class ChatService {
   async startUserMessage(
     chatId: string,
     content: string,
-    options?: { requestId?: string }
+    options?: { requestId?: string; attachmentIds?: string[] }
   ): Promise<{ run: Run; user: Message }> {
     const trimmed = content.trim();
     if (!trimmed) {
       throw new Error('Message content is required');
     }
+    const files = await this.unsentAttachments(chatId, options?.attachmentIds);
 
     const requestId = options?.requestId?.trim();
     await this.refuseWhilePaused(chatId, requestId);
@@ -472,7 +484,7 @@ export class ChatService {
     this.denyPauseByChat.delete(chatId);
     let user: Message;
     try {
-      user = await this.saveUserMessage(chatId, trimmed, ctx.runId);
+      user = await this.saveUserMessage(chatId, trimmed, ctx.runId, files);
     } catch (err) {
       await this.runs.settle(ctx, 'failed', errorText(err));
       throw err;
@@ -481,9 +493,49 @@ export class ChatService {
     return { run, user };
   }
 
+  /**
+   * The caller's files that this message will carry. Checked before a run opens, so a bad id leaves no trace.
+   * Routine turns have no person to attach for, and the feature is off without an attachment store.
+   */
+  private async unsentAttachments(chatId: string, ids: string[] | undefined, routine?: boolean): Promise<Attachment[]> {
+    if (!ids?.length) return [];
+    const store = this.options.attachments;
+    if (!store) throw new Error('Attachments are not enabled');
+    if (routine) throw new Error('Attachments are not available on routine runs');
+    const unique = [...new Set(ids)];
+    if (unique.length > ATTACHMENTS_PER_MESSAGE) {
+      throw new Error(`A message carries at most ${ATTACHMENTS_PER_MESSAGE} attachments`);
+    }
+    const userId = (await this.options.store.getChat(chatId))?.userId;
+    if (!userId) throw new Error('Chat not found');
+    const files = await Promise.all(unique.map((id) => store.get(chatId, userId, id)));
+    const missing = files.some((file) => !file);
+    if (missing) throw new Error('Attachment not found');
+    if (files.some((file) => file?.messageId)) throw new Error('Attachment was already sent with another message');
+    return files as Attachment[];
+  }
+
+  /** The chat's files by id, loaded only when a message in the window carries any. */
+  private async attachmentsById(chat: Chat | null, messages: Message[]): Promise<Map<string, Attachment>> {
+    const store = this.options.attachments;
+    if (!store || !chat?.userId || !messages.some((message) => message.attachments?.length)) return new Map();
+    return new Map((await store.list(chat.id, chat.userId)).map((file) => [file.id, file]));
+  }
+
   /** Saves the user's message; the first one in an untitled chat also names it. */
-  private async saveUserMessage(chatId: string, text: string, runId: string): Promise<Message> {
-    const message = await this.options.store.addMessage(chatId, 'user', text, { runId });
+  private async saveUserMessage(chatId: string, text: string, runId: string, files: Attachment[]): Promise<Message> {
+    const message = await this.options.store.addMessage(chatId, 'user', text, {
+      runId,
+      attachments: files.map(attachmentRef),
+    });
+    if (files.length > 0) {
+      await this.options.attachments?.attach(
+        chatId,
+        files[0].userId,
+        files.map((file) => file.id),
+        message.id
+      );
+    }
     const { chat, bot } = await this.chatContext(chatId);
     const untitled = chat?.title === DEFAULT_CHAT_TITLE || chat?.title === bot?.name;
     const title = titleFromMessage(text);
@@ -985,7 +1037,7 @@ export class ChatService {
         { role: 'system', content: systemPrompt },
         ...(pluginInjectedSystemPrompt ? [{ role: 'system' as const, content: pluginInjectedSystemPrompt }] : []),
         ...(summarySystem ? [{ role: 'system' as const, content: summarySystem }] : []),
-        ...toLlmHistory(windowed),
+        ...toLlmHistory(windowed, await this.attachmentsById(chat, windowed)),
       ];
 
       const completion = await traced(

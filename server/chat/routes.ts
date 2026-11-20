@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
+import { ATTACHMENTS_PER_MESSAGE } from '../../shared/chat/attachments.js';
 import { MIN_SEARCH_LENGTH } from '../../shared/chat/search.js';
 import type { Bot, Chat, ChatStore, MarketplaceBot } from '../../shared/chat/types.js';
 import type { SandboxUiStatus } from '../../shared/sandbox/types.js';
@@ -13,7 +14,13 @@ import { canManageSpaceMembers, canUseBot, canViewBot, canViewerAccessSpace } fr
 import { ModelCatalog } from '../agents/models.js';
 import { runWithDatabricksRequestAuth } from './databricks-auth.js';
 import { resolveOwnerId } from './identity.js';
-import { requireBotAccess, requireBotUse, requireSpaceAccess } from './route-guards.js';
+import {
+  requireBotAccess,
+  requireBotUse,
+  requireChatOwnership,
+  requireChatUse,
+  requireSpaceAccess,
+} from './route-guards.js';
 import { SEARCH_LIMIT } from './search.js';
 import type { ChatService } from './service.js';
 
@@ -32,6 +39,8 @@ const postMessageSchema = z.object({
   requestId: z.string().trim().min(1).max(128).optional(),
   /** Answer 202 as soon as the message is saved; the turn keeps running in the background. */
   async: z.boolean().optional(),
+  /** Files uploaded to this chat that this message carries. */
+  attachmentIds: z.array(z.string().uuid()).max(ATTACHMENTS_PER_MESSAGE).optional(),
 });
 
 const decideSchema = z.object({
@@ -109,7 +118,7 @@ const sendError = createErrorResponder([
   [409, /requestId already used/i],
   [
     400,
-    /required|already decided|Cannot (archive|delete|move|share)|Unarchive|index must|At least one field|Invalid option|selectedOption/i,
+    /required|already decided|Cannot (archive|delete|move|share)|Unarchive|index must|At least one field|Invalid option|selectedOption|Attachments? (is|are|was)|at most \d+ attachments/i,
   ],
 ]);
 
@@ -731,26 +740,9 @@ export function registerChatRoutes(
     }
   });
 
-  async function assertChatOwnership(chatId: string, req: Request, res: Response) {
-    const chat = await store.getChat(chatId);
-    if (!chat) {
-      res.status(404).json({ error: 'Chat not found' });
-      return null;
-    }
-    const callerId = resolveOwnerId(req);
-    if (!chat.userId || chat.userId !== callerId) {
-      res.status(403).json({ error: 'Forbidden' });
-      return null;
-    }
-    return chat;
-  }
-
-  /** The caller's chat, provided they may still run its bot (not a viewer, still shared). */
-  async function assertChatUse(chatId: string, req: Request, res: Response) {
-    const chat = await assertChatOwnership(chatId, req, res);
-    if (!chat) return null;
-    return (await requireBotUse(store, chat.botId, req, res)) ? chat : null;
-  }
+  const assertChatOwnership = (chatId: string, req: Request, res: Response) =>
+    requireChatOwnership(store, chatId, req, res);
+  const assertChatUse = (chatId: string, req: Request, res: Response) => requireChatUse(store, chatId, req, res);
 
   app.get('/api/chats/:chatId', async (req: Request, res: Response) => {
     try {
@@ -848,16 +840,16 @@ export function registerChatRoutes(
       const chatId = String(req.params.chatId);
       const chat = await assertChatUse(chatId, req, res);
       if (!chat) return;
-      const { content, requestId } = parsed.data;
+      const { content, requestId, attachmentIds } = parsed.data;
       if (parsed.data.async) {
         const { run, user } = await runWithDatabricksRequestAuth(req, () =>
-          service.startUserMessage(chatId, content, { requestId })
+          service.startUserMessage(chatId, content, { requestId, attachmentIds })
         );
         res.status(202).json({ runId: run.id, user });
         return;
       }
       const result = await runWithDatabricksRequestAuth(req, () =>
-        service.sendUserMessage(chatId, content, { requestId })
+        service.sendUserMessage(chatId, content, { requestId, attachmentIds })
       );
       res.status(201).json(result);
     } catch (err) {
