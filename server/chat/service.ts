@@ -725,7 +725,7 @@ export class ChatService {
       const pluginTurnContext = (messages: Message[]): PluginTurnContext => ({
         ...this.pluginHostContext(turnCtx),
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        model: this.options.client.provider,
+        model: this.options.client.model ?? this.options.client.provider,
       });
 
       let pluginInjectedSystemPrompt: string | undefined;
@@ -756,7 +756,7 @@ export class ChatService {
         },
         async () => {
           const result = await this.options.client.complete({ messages: llmMessages, tools });
-          annotate({ tool_calls: result.toolCalls.length });
+          annotate({ tool_calls: result.toolCalls.length, total_tokens: result.usage?.totalTokens });
           return result;
         }
       );

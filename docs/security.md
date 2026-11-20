@@ -7,13 +7,15 @@ What an operator grants when deploying BricksBot, which identity each action run
 | Identity | Used for | Granted by the operator |
 | --- | --- | --- |
 | **Signed-in user (OBO)** | `sql_query`, `lakehouse_catalog`, `volume_read`, `volume_write`, Genie | `user_api_scopes` in `databricks.yml`: `sql:restricted-query`, `files.files`, `ai-gateway`, plus `genie` if you bind a Genie space |
-| **App service principal** | Lakebase (schema `bricksbot`), reading bound secrets, warehouse `CAN_USE` | App resources in `databricks.yml` |
+| **App service principal** | Lakebase (schema `bricksbot`), reading bound secrets, warehouse `CAN_USE`, the Databricks Serving LLM, workspace-user lookup | App resources in `databricks.yml` |
 | **Job run-as** | Scheduled routine webhook | `CAN_USE` on the App (see README, "Wiring a scheduled Job") |
 
 Data tools run as the user, so Unity Catalog grants, row filters and column masks apply as they would in a notebook. They never silently fall back to the App service principal (`server/chat/databricks-auth.ts`):
 
 - **Interactive turns** fail with `no_user_token` when the Apps proxy does not forward the user's token.
 - **Routine turns** have no user token. Data tools wait for the routine owner's approval, which supplies their token.
+
+`createDatabricksTokenProvider` takes one of three purposes: `data` (the rules above), `viewer` (user-owned files such as uploads: the user's token only, refused on every routine turn, never the service principal, and the interactive escape hatch below does not apply) and `app` (infrastructure such as the Serving LLM: always the App identity, never the caller's token). The `system.ai` MCP connectors, MCP connector routes and sandbox stop/delete all use the caller's token.
 
 ## Approvals
 

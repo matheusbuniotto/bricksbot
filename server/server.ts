@@ -16,6 +16,7 @@ import { ApprovalStore } from './chat/approvals.js';
 import { LakebaseChatStore, type LakebaseQuery } from './chat/lakebase-store.js';
 import { MemoryChatStore } from './chat/memory-store.js';
 import { registerChatRoutes } from './chat/routes.js';
+import { diagRoutesEnabled, registerDiagRoutes } from './diag/routes.js';
 import { interactiveSpFallbackAllowed } from './chat/databricks-auth.js';
 import { ChatService } from './chat/service.js';
 import { LakebaseCompactionStore, MemoryCompactionStore } from './durable/compaction-store.js';
@@ -233,6 +234,10 @@ createApp({
     appkit.server.extend((app) => {
       registerChatRoutes(app, chats, chatService, { mcpDiscovery });
       registerMemoryRoutes(app, chats, memory);
+      if (diagRoutesEnabled()) {
+        console.warn('[bricksbot] BRICKSBOT_DIAG=1: /api/_diag/* gateway probes are enabled');
+        registerDiagRoutes(app);
+      }
       registerRoutineRoutes(app, routines, routineService, {
         provider: client.provider,
         chats,

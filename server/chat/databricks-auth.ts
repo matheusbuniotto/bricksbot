@@ -5,19 +5,26 @@ import { presentEnv } from '../lib/env.js';
 import { isDatabricksProxyEnvironment } from './identity.js';
 
 /**
- * Request-scoped Databricks credentials for lakehouse tools.
+ * Request-scoped Databricks credentials, by purpose.
  *
- * Lakehouse data (`purpose: 'data'`) runs as the signed-in user via the Apps proxy
- * OBO token (`x-forwarded-access-token`) so Unity Catalog grants, row filters and
- * masks match that user. It never silently becomes the App service principal:
+ * `data` (lakehouse tools) runs as the signed-in user via the Apps proxy OBO token
+ * (`x-forwarded-access-token`) so Unity Catalog grants, row filters and masks match
+ * that user. It never silently becomes the App service principal:
  * - Routine turns have no user token. They throw `RoutineIdentityRequiredError`
  *   unless the routine runs as `app` (operator opt-in via
  *   `BRICKSBOT_ROUTINE_APP_IDENTITY=allow`); the owner's approval click supplies OBO.
  * - Interactive requests in a deployed App throw `UserTokenRequiredError` when the
  *   proxy omits the token, unless `BRICKSBOT_INTERACTIVE_SP_FALLBACK=allow`.
- * Outside a request (local dev, background work) and for `purpose: 'app'`, the
- * chain is OBO → PAT → app SP M2M.
+ * Outside a request (local dev, background work) the chain is OBO → PAT → app SP M2M.
+ *
+ * `viewer` (user-owned files such as uploads) is `data` without the escape hatches:
+ * OBO only, refused on every routine turn, never the App SP. A PAT works only in local dev.
+ *
+ * `app` (Serving LLM, workspace-user lookup) is always the App identity: PAT → app SP M2M,
+ * never the caller's OBO token. In a deployed App the PAT is skipped: app SP M2M only.
  */
+
+export type DatabricksTokenPurpose = 'data' | 'viewer' | 'app';
 
 type DatabricksAuthStore = {
   userAccessToken?: string;
@@ -138,19 +145,15 @@ export type DatabricksTokenProviderOptions = {
   env?: Record<string, string | undefined>;
   fetchImpl?: typeof fetch;
   /** `data` (default) never falls back to the App SP on routine or deployed interactive turns. */
-  purpose?: 'data' | 'app';
+  purpose?: DatabricksTokenPurpose;
   /** Override static PAT (tests). */
   staticToken?: string;
   /** Override M2M provider (tests). */
   m2mGetToken?: () => Promise<string>;
 };
 
-/**
- * Prefer request OBO → PAT → app SP M2M, with the `data` guards described at the top.
- */
-export function createDatabricksTokenProvider(
-  options: DatabricksTokenProviderOptions = {}
-): (() => Promise<string>) | undefined {
+/** Token source for one purpose; see the docblock at the top for the rules. */
+export function createDatabricksTokenProvider(options: DatabricksTokenProviderOptions = {}): () => Promise<string> {
   const env = options.env ?? process.env;
   const purpose = options.purpose ?? 'data';
   const staticToken = options.staticToken ?? presentEnv(env.DATABRICKS_TOKEN);
@@ -163,19 +166,33 @@ export function createDatabricksTokenProvider(
       ? createM2mTokenProvider(host, clientId, clientSecret, options.fetchImpl)
       : undefined);
 
+  const noCredentials = () =>
+    new Error('No Databricks credentials: missing x-forwarded-access-token, DATABRICKS_TOKEN, and CLIENT_ID/SECRET');
+
   return async () => {
     const store = authAls.getStore();
+    if (purpose === 'app') {
+      // A PAT is somebody's identity, not the App's: only trust it outside a deployed App.
+      const deployed = isDatabricksProxyEnvironment(env) && env.NODE_ENV !== 'development';
+      if (staticToken && !deployed) return staticToken;
+      if (m2mGetToken) return m2mGetToken();
+      throw noCredentials();
+    }
+    if (purpose === 'viewer' && store?.routine) throw new RoutineIdentityRequiredError();
     if (store?.userAccessToken) return store.userAccessToken;
-    if (purpose === 'data' && store?.routine && store.routine.runAs !== 'app') {
+    if (purpose === 'viewer') {
+      if (isDatabricksProxyEnvironment(env) && env.NODE_ENV !== 'development') throw new UserTokenRequiredError();
+      if (staticToken) return staticToken;
+      throw new UserTokenRequiredError();
+    }
+    if (store?.routine && store.routine.runAs !== 'app') {
       throw new RoutineIdentityRequiredError();
     }
-    if (purpose === 'data' && store && !store.routine && requiresUserToken(env)) {
+    if (store && !store.routine && requiresUserToken(env)) {
       throw new UserTokenRequiredError();
     }
     if (staticToken) return staticToken;
     if (m2mGetToken) return m2mGetToken();
-    throw new Error(
-      'No Databricks credentials: missing x-forwarded-access-token, DATABRICKS_TOKEN, and CLIENT_ID/SECRET'
-    );
+    throw noCredentials();
   };
 }

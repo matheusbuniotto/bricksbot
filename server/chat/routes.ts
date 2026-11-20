@@ -222,7 +222,10 @@ export function registerChatRoutes(
     try {
       const refresh = req.query.refresh === 'true' || req.query.refresh === '1';
       if (options?.mcpDiscovery) {
-        const mcps = await options.mcpDiscovery.listViableMcps({ refresh, userId: resolveOwnerId(req) });
+        const discovery = options.mcpDiscovery;
+        const mcps = await runWithDatabricksRequestAuth(req, () =>
+          discovery.listViableMcps({ refresh, userId: resolveOwnerId(req) })
+        );
         res.json({ mcps });
         return;
       }
@@ -250,8 +253,12 @@ export function registerChatRoutes(
     }
     try {
       const userId = resolveOwnerId(req);
-      const mcp = await options.mcpDiscovery.connect(userId, serviceName);
-      await syncConnectedMcpTools(options.mcpDiscovery, service, userId);
+      const discovery = options.mcpDiscovery;
+      const mcp = await runWithDatabricksRequestAuth(req, async () => {
+        const connected = await discovery.connect(userId, serviceName);
+        await syncConnectedMcpTools(discovery, service, userId);
+        return connected;
+      });
       res.json({
         mcp,
         toolNames: service.listToolNames(userId).filter((n) => n.startsWith('mcp_') || n.startsWith('genie_')),
@@ -270,8 +277,12 @@ export function registerChatRoutes(
     const serviceName = Array.isArray(rawService) ? rawService.join('/') : String(rawService ?? '');
     try {
       const userId = resolveOwnerId(req);
-      const removed = await options.mcpDiscovery.disconnect(userId, serviceName);
-      await syncConnectedMcpTools(options.mcpDiscovery, service, userId);
+      const discovery = options.mcpDiscovery;
+      const removed = await runWithDatabricksRequestAuth(req, async () => {
+        const done = await discovery.disconnect(userId, serviceName);
+        await syncConnectedMcpTools(discovery, service, userId);
+        return done;
+      });
       res.json({ success: removed });
     } catch (err) {
       sendError(res, err, 400);
@@ -290,11 +301,15 @@ export function registerChatRoutes(
     }
     try {
       const userId = resolveOwnerId(req);
-      const appItem = await options.mcpDiscovery.registerCustomMcp(userId, serviceName, {
-        name: typeof req.body?.name === 'string' ? req.body.name : undefined,
-        description: typeof req.body?.description === 'string' ? req.body.description : undefined,
+      const discovery = options.mcpDiscovery;
+      const appItem = await runWithDatabricksRequestAuth(req, async () => {
+        const registered = await discovery.registerCustomMcp(userId, serviceName, {
+          name: typeof req.body?.name === 'string' ? req.body.name : undefined,
+          description: typeof req.body?.description === 'string' ? req.body.description : undefined,
+        });
+        await syncConnectedMcpTools(discovery, service, userId);
+        return registered;
       });
-      await syncConnectedMcpTools(options.mcpDiscovery, service, userId);
       res.status(201).json({ mcp: appItem });
     } catch (err) {
       sendError(res, err, 400);
@@ -315,8 +330,12 @@ export function registerChatRoutes(
     }
     try {
       const userId = resolveOwnerId(req);
-      const removed = await options.mcpDiscovery.removeCustomMcp(userId, mcpService);
-      await syncConnectedMcpTools(options.mcpDiscovery, service, userId);
+      const discovery = options.mcpDiscovery;
+      const removed = await runWithDatabricksRequestAuth(req, async () => {
+        const done = await discovery.removeCustomMcp(userId, mcpService);
+        await syncConnectedMcpTools(discovery, service, userId);
+        return done;
+      });
       res.json({ success: removed });
     } catch (err) {
       sendError(res, err, 400);
@@ -569,7 +588,7 @@ export function registerChatRoutes(
       if (!chat) return;
       const sandboxSvc = service.getSandbox();
       if (sandboxSvc?.isEnabled()) {
-        await sandboxSvc.stopSession(chat.id, 'user_ui');
+        await runWithDatabricksRequestAuth(req, () => sandboxSvc.stopSession(chat.id, 'user_ui'));
       }
       const sandbox = await sandboxStatusFor(chat.id);
       res.json({ sandbox });
@@ -584,7 +603,7 @@ export function registerChatRoutes(
       if (!chat) return;
       const sandboxSvc = service.getSandbox();
       if (sandboxSvc?.isEnabled()) {
-        await sandboxSvc.deleteSession(chat.id, 'user_ui');
+        await runWithDatabricksRequestAuth(req, () => sandboxSvc.deleteSession(chat.id, 'user_ui'));
       }
       const sandbox = await sandboxStatusFor(chat.id);
       res.json({ sandbox });

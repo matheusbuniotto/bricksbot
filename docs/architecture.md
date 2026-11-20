@@ -80,6 +80,7 @@ flowchart TD
 - **Dual Chat Client Architecture:**
   - **Primary:** High-reasoning OpenAI-compatible provider (OpenRouter delivering Claude 3.5 Sonnet, GPT-4o, or DeepSeek).
   - **Fallback:** Native Databricks Model Serving endpoints (DBRX, Llama 3 70B, or custom fine-tuned enterprise models) for zero-egress internal VPC security.
+- **ChatClient contract:** `complete(request, { signal, onDelta })` returns content, tool calls, provider `usage` (tokens, cached, reasoning, provider `cost`), the answering `model` and `finishReason`. `request.model` overrides the default model (or Serving endpoint) per call. `signal` aborts the call; `onDelta` is reserved for token streaming.
 - **Anti-Fast Model Policy:** Low-reasoning mini/flash models are avoided for tool-calling roles to prevent hallucinated tool arguments and cascading multi-turn failures.
 
 ### Layer 4: Lakehouse Tools & MCP Extensibility
@@ -132,3 +133,17 @@ Sensitive tools (`sql_query`, `volume_write`, sandbox operations) evaluate appro
 1. **Workspace SSO Identity:** Authenticates via Databricks Workspace headers (`x-forwarded-user`, `x-forwarded-access-token`).
 2. **Tenant Boundaries:** All store operations enforce user and space scoping.
 3. **Lakehouse Governance:** SQL and Volume operations inherit Databricks Unity Catalog permissions, row filters, and column masks.
+
+---
+
+## Gateway limits (X1)
+
+The Databricks Apps gateway reportedly cuts requests at about 2 minutes (forum reports, not official docs), and nothing documents SSE or upload limits. PR 1.1 ships a harness to measure them on a deployed App. **Results: not run yet.**
+
+1. Deploy this branch to the dev App with `BRICKSBOT_DIAG=1` set (the `/api/_diag/stream` and `/api/_diag/upload` probes do not exist otherwise).
+2. Run `scripts/smoke-sse.sh https://<app-url> [profile]` (about 6 minutes). It checks:
+   - (a) an SSE stream held 5 minutes with a server-side close every 90 s, `Last-Event-ID` resume, no buffering, no compression;
+   - (b) whether the cut near 120 s is idle or absolute (a silent and a busy 150 s stream, side by side);
+   - (c) a 25 MiB upload arrives intact;
+   - (d) an upload whose sink takes 130 s.
+3. Paste the output table here and unset `BRICKSBOT_DIAG`. If (a) fails, live runs fall back to polling; if (c) fails, the upload limit drops. Remove the probes (`server/diag/`) once recorded.

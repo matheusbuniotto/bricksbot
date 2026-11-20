@@ -135,14 +135,12 @@ export function systemAiMcpConfigFromEnv(env: Record<string, string | undefined>
   }
 
   const host = env.DATABRICKS_HOST?.trim() || env.DATABRICKS_WORKSPACE_URL?.trim() || '';
-  const token = env.DATABRICKS_TOKEN?.trim();
   const workspaceId = env.DATABRICKS_WORKSPACE_ID?.trim();
   const maxPollSeconds = env.GENIE_MAX_POLL_SECONDS ? Number.parseInt(env.GENIE_MAX_POLL_SECONDS, 10) : undefined;
 
   return {
     enabled: true,
     host,
-    getToken: token ? () => Promise.resolve(token) : undefined,
     workspaceId: workspaceId || undefined,
     maxPollSeconds: Number.isFinite(maxPollSeconds) ? maxPollSeconds : undefined,
   };
