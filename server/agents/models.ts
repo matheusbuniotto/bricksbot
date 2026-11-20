@@ -7,7 +7,7 @@ export interface CatalogModel extends ModelOption {
   outputUsdPerMTok?: number;
 }
 
-/** The operator's allow-list of models. Owners pick from it; nothing outside it is ever sent to the provider. */
+/** The operator's allow-list of models. Owners pick from it; a bot that picks nothing runs the client's own model. */
 export class ModelCatalog {
   private readonly byId: Map<string, CatalogModel>;
 
