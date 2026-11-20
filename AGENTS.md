@@ -27,6 +27,7 @@ Canonical product locks: [`docs/project-context.md`](docs/project-context.md). F
 | `server/agents/` | Agent domain: `clients/` (LLM chat clients), `tools/` (lakehouse + Pi meta tools), `memory/` (per-bot memories & skills), `handoff.ts` (Primary → teammate) |
 | `server/runs/` | Run model: run store (Lakebase/memory), leases, sweeper, Stop, SSE feed (`sse.ts`) |
 | `server/routines/` | Cron/webhook routines |
+| `server/usage/` | LLM usage ledger: `MeteredChatClient` records every call (turns, compaction) in `bricksbot_audit.llm_usage` + `bricksbot.usage_daily`, charged to the caller. Model catalog (`BRICKSBOT_MODELS`) lives in `server/agents/models.ts` |
 | `server/sandbox/` | Phase 5 execution backends, session service, reaper, artifact sync |
 | `shared/` | Domain types shared by client + server (`chat`, `agents` incl. `agents/memory`, `routines`, `durable`, `sandbox`) |
 | `databricks.yml` / `app.yaml` | Bundle + App runtime env |

@@ -60,6 +60,7 @@ export class MemoryRoutineStore implements RoutineStore {
       cron: patch.cron?.trim() ?? routine.cron,
       prompt: patch.prompt?.trim() || routine.prompt,
       runAs: patch.runAs ?? routine.runAs,
+      model: patch.model !== undefined ? patch.model : routine.model,
     };
     this.routines.set(routineId, updated);
     return updated;

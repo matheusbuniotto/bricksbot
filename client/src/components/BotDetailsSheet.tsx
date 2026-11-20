@@ -8,7 +8,9 @@ import { listArtifactPinsFromMessages } from '../lib/artifact-pins';
 import { toolLabel } from '../lib/user-facing';
 import { BotFace, botColor, botLook, encodeLook, type BotLook, COLORS } from './BotFace';
 import { BotPicker } from './BotPicker';
-import { RoutinesPanel } from './RoutinesPanel';
+import type { ModelCatalogView } from '../lib/chat-api';
+import { RoutinesPanel, type RoutineUpdatePatch } from './RoutinesPanel';
+import { Select } from './Select';
 
 export type BotDetailsTab = 'details' | 'library' | 'computer' | 'permissions';
 
@@ -111,6 +113,7 @@ export function BotDetailsSheet({
   bot,
   messages,
   routines,
+  models,
   routineBusyId,
   lastWebhookSecret,
   sandboxStatus,
@@ -136,6 +139,8 @@ export function BotDetailsSheet({
   bot: Bot;
   messages: Message[];
   routines: Routine[];
+  /** The operator's model catalog; absent hides both model pickers. */
+  models?: ModelCatalogView | null;
   routineBusyId: string | null;
   lastWebhookSecret: string | null;
   sandboxStatus?: SandboxUiStatus | null;
@@ -151,18 +156,24 @@ export function BotDetailsSheet({
   minWidth: number;
   maxWidth: number;
   onWidthChange: (width: number) => void;
-  onCreateRoutine: (input: { botId: string; name: string; cron: string; prompt: string }) => Promise<void>;
-  onUpdateRoutine: (
-    id: string,
-    patch: { name?: string; cron?: string; prompt?: string; enabled?: boolean }
-  ) => Promise<void>;
+  onCreateRoutine: (input: {
+    botId: string;
+    name: string;
+    cron: string;
+    prompt: string;
+    model?: string | null;
+  }) => Promise<void>;
+  onUpdateRoutine: (id: string, patch: RoutineUpdatePatch) => Promise<void>;
   onRunRoutine: (id: string) => Promise<void>;
   onDeleteRoutine: (id: string) => Promise<void>;
   onStopSandbox?: () => Promise<void>;
   onDeleteSandbox?: () => Promise<void>;
   onClose: () => void;
   onChangeLook: (botId: string, avatarLabel: string) => void | Promise<void>;
-  onUpdateBotConfig?: (botId: string, patch: { description?: string; isShared?: boolean }) => Promise<void>;
+  onUpdateBotConfig?: (
+    botId: string,
+    patch: { description?: string; isShared?: boolean; model?: string | null }
+  ) => Promise<void>;
 }) {
   const [tab, setTab] = useState<BotDetailsTab>(initialTab);
   const [libraryExpanded, setLibraryExpanded] = useState(false);
@@ -349,9 +360,28 @@ export function BotDetailsSheet({
               </section>
             ) : null}
 
+            {bot.isOwner && models?.models.length && onUpdateBotConfig ? (
+              <section className="bot-details-section">
+                <h3 className="bot-details-section-label">Model</h3>
+                <div className="bot-details-card">
+                  <Select
+                    ariaLabel="Model"
+                    value={bot.model ?? ''}
+                    onChange={(value) => void onUpdateBotConfig(bot.id, { model: value || null })}
+                    options={[
+                      { value: '', label: models.default ? `Default (${models.default})` : 'Default' },
+                      ...models.models.map((option) => ({ value: option.id, label: option.label })),
+                    ]}
+                  />
+                  <p className="marketplace-privacy-note">Only you can change this. Routines may override it.</p>
+                </div>
+              </section>
+            ) : null}
+
             <RoutinesPanel
               bots={[bot]}
               routines={routines}
+              models={models}
               lastWebhookSecret={lastWebhookSecret}
               busyId={routineBusyId}
               onCreate={onCreateRoutine}

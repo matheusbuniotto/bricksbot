@@ -10,6 +10,7 @@ import { ActiveRunError, TooManyRunsError } from '../../shared/runs/types.js';
 import { streamRunEvents, type SseTiming } from '../runs/sse.js';
 import { createErrorResponder } from '../lib/http.js';
 import { canManageSpaceMembers, canUseBot, canViewBot, canViewerAccessSpace } from './access-policy.js';
+import { ModelCatalog } from '../agents/models.js';
 import { runWithDatabricksRequestAuth } from './databricks-auth.js';
 import { resolveOwnerId } from './identity.js';
 import { requireBotAccess, requireBotUse, requireSpaceAccess } from './route-guards.js';
@@ -58,6 +59,7 @@ const updateBotSchema = z
     avatarLabel: z.string().trim().min(1).max(32).optional(),
     description: z.string().trim().max(2000).optional(),
     isShared: z.boolean().optional(),
+    model: z.string().trim().min(1).max(200).nullable().optional(),
   })
   .refine(
     (value) =>
@@ -65,7 +67,8 @@ const updateBotSchema = z
       value.spaceId !== undefined ||
       value.avatarLabel !== undefined ||
       value.description !== undefined ||
-      value.isShared !== undefined,
+      value.isShared !== undefined ||
+      value.model !== undefined,
     {
       message: 'At least one field is required',
     }
@@ -131,8 +134,12 @@ export function registerChatRoutes(
   options?: {
     mcpDiscovery?: McpDiscoveryService;
     sseTiming?: SseTiming;
+    /** Models owners may pick. Absent means none: only the default model runs. */
+    models?: ModelCatalog;
   }
 ): void {
+  const models = options?.models ?? new ModelCatalog();
+
   async function sandboxStatusFor(chatId: string): Promise<SandboxUiStatus> {
     const sandbox = service.getSandbox();
     if (!sandbox) return { enabled: false, backend: 'off', session: null, recentEvents: [] };
@@ -369,6 +376,15 @@ export function registerChatRoutes(
     }
   });
 
+  app.get('/api/models', (req: Request, res: Response) => {
+    try {
+      resolveOwnerId(req);
+      res.json({ models: models.options(), default: models.defaultId ?? null });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
   app.get('/api/bots', async (req: Request, res: Response) => {
     try {
       const ownerId = resolveOwnerId(req);
@@ -386,7 +402,13 @@ export function registerChatRoutes(
         archived,
       });
       const presence = await service.presenceByBot(ownerId);
-      res.json({ bots: bots.map((bot) => ({ ...bot, presence: presence.get(bot.id) ?? 'online' })) });
+      res.json({
+        bots: bots.map((bot) => ({
+          ...bot,
+          presence: presence.get(bot.id) ?? 'online',
+          isOwner: bot.ownerId === ownerId,
+        })),
+      });
     } catch (err) {
       sendError(res, err);
     }
@@ -477,6 +499,10 @@ export function registerChatRoutes(
       const botId = String(req.params.botId);
       const existing = await assertBotOwnership(botId, req, res);
       if (!existing) return;
+      if (parsed.data.model && !models.has(parsed.data.model)) {
+        res.status(400).json({ error: 'Unknown model' });
+        return;
+      }
 
       const callerId = resolveOwnerId(req);
       if (

@@ -1,6 +1,7 @@
 import express from 'express';
 import { describe, expect, test } from 'vitest';
 import { StubChatClient } from '../agents/clients/stub-client.js';
+import { ModelCatalog } from '../agents/models.js';
 import { MemoryIdempotencyStore } from '../durable/idempotency-store.js';
 import { MemoryChatStore } from './memory-store.js';
 import { registerChatRoutes } from './routes.js';
@@ -757,5 +758,74 @@ describe('chat HTTP API', () => {
         expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('vera', {}))).status).toBe(403);
       });
     });
+  });
+});
+
+describe('model choice', () => {
+  const models = new ModelCatalog(
+    [
+      { id: 'a/one', label: 'One', inputUsdPerMTok: 3 },
+      { id: 'b/two', label: 'Two' },
+    ],
+    'a/one'
+  );
+  const put = (baseUrl: string, botId: string, user: string, body: unknown) =>
+    fetch(`${baseUrl}/api/bots/${botId}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-forwarded-user': user },
+      body: JSON.stringify(body),
+    });
+
+  test('lists the catalog without prices', async () => {
+    await withChatApp(
+      async (baseUrl) => {
+        const body = (await (await fetch(`${baseUrl}/api/models`)).json()) as { models: unknown[]; default: string };
+        expect(body.default).toBe('a/one');
+        expect(body.models).toEqual([
+          { id: 'a/one', label: 'One' },
+          { id: 'b/two', label: 'Two' },
+        ]);
+      },
+      { models }
+    );
+  });
+
+  test('the bot owner picks from the catalog; members cannot; unknown ids are refused', async () => {
+    await withChatApp(
+      async (baseUrl, { store }) => {
+        const space = await store.createSpace({ name: 'Team', ownerId: 'alice' });
+        await store.addSpaceMember(space.id, 'bob', 'member');
+        const bot = await store.createBot({ name: 'Shared', ownerId: 'alice', spaceId: space.id, isShared: true });
+
+        const picked = await put(baseUrl, bot.id, 'alice', { model: 'b/two' });
+        expect(((await picked.json()) as { bot: { model: string } }).bot.model).toBe('b/two');
+        expect((await put(baseUrl, bot.id, 'bob', { model: 'a/one' })).status).toBe(403);
+        expect((await put(baseUrl, bot.id, 'alice', { model: 'x/unlisted' })).status).toBe(400);
+        expect((await store.getBot(bot.id))?.model).toBe('b/two');
+
+        const cleared = await put(baseUrl, bot.id, 'alice', { model: null });
+        expect(((await cleared.json()) as { bot: { model: string | null } }).bot.model).toBeNull();
+      },
+      { models }
+    );
+  });
+
+  test('the roster tells each caller whether the bot is theirs', async () => {
+    await withChatApp(
+      async (baseUrl, { store }) => {
+        const space = await store.createSpace({ name: 'Team', ownerId: 'alice' });
+        await store.addSpaceMember(space.id, 'bob', 'member');
+        const bot = await store.createBot({ name: 'Shared', ownerId: 'alice', spaceId: space.id, isShared: true });
+        const ownerOf = async (user: string) =>
+          (
+            (await (await fetch(`${baseUrl}/api/bots`, { headers: { 'x-forwarded-user': user } })).json()) as {
+              bots: Array<{ id: string; isOwner: boolean }>;
+            }
+          ).bots.find((candidate) => candidate.id === bot.id)?.isOwner;
+        expect(await ownerOf('alice')).toBe(true);
+        expect(await ownerOf('bob')).toBe(false);
+      },
+      { models }
+    );
   });
 });

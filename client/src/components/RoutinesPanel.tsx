@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Select } from './Select';
 import type { Bot } from '../../../shared/chat/types';
+import type { ModelCatalogView } from '../lib/chat-api';
 import {
   ROUTINE_WEBHOOK_HEADER,
   ROUTINE_WEBHOOK_PATH_TEMPLATE,
@@ -44,11 +45,14 @@ export type RoutineUpdatePatch = {
   cron?: string;
   prompt?: string;
   enabled?: boolean;
+  /** Catalog model id; null follows the bot. */
+  model?: string | null;
 };
 
 export function RoutinesPanel({
   bots,
   routines,
+  models,
   lastWebhookSecret,
   busyId,
   onCreate,
@@ -58,9 +62,17 @@ export function RoutinesPanel({
 }: {
   bots: Bot[];
   routines: Routine[];
+  /** Models a routine owner may override the bot's with; none hides the picker. */
+  models?: ModelCatalogView | null;
   lastWebhookSecret: string | null;
   busyId: string | null;
-  onCreate: (input: { botId: string; name: string; cron: string; prompt: string }) => Promise<void>;
+  onCreate: (input: {
+    botId: string;
+    name: string;
+    cron: string;
+    prompt: string;
+    model?: string | null;
+  }) => Promise<void>;
   onUpdate: (id: string, patch: RoutineUpdatePatch) => Promise<void>;
   onRun: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -70,6 +82,8 @@ export function RoutinesPanel({
   const [name, setName] = useState('');
   const [cron, setCron] = useState('0 9 * * *');
   const [prompt, setPrompt] = useState('');
+  // '' follows the bot's model.
+  const [model, setModel] = useState('');
   const [botId, setBotId] = useState(bots[0]?.id ?? '');
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -81,6 +95,17 @@ export function RoutinesPanel({
   const createQuartzHint = unixCronToQuartzHint(cron.trim() || '0 9 * * *');
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const showBotSelect = bots.length > 1;
+  const modelSelect = models?.models.length ? (
+    <Select
+      ariaLabel="Model"
+      value={model}
+      onChange={setModel}
+      options={[
+        { value: '', label: "Bot's model" },
+        ...models.models.map((option) => ({ value: option.id, label: option.label })),
+      ]}
+    />
+  ) : null;
 
   useEffect(() => {
     if (bots[0]?.id && !bots.some((b) => b.id === botId)) {
@@ -108,6 +133,7 @@ export function RoutinesPanel({
     setName('');
     setCron('0 9 * * *');
     setPrompt('');
+    setModel('');
     setOpen(true);
   }
 
@@ -117,6 +143,7 @@ export function RoutinesPanel({
     setName(routine.name);
     setCron(routine.cron);
     setPrompt(routine.prompt);
+    setModel(routine.model ?? '');
   }
 
   function cancelForms() {
@@ -125,6 +152,7 @@ export function RoutinesPanel({
     setName('');
     setCron('0 9 * * *');
     setPrompt('');
+    setModel('');
   }
 
   async function handleCreate(event: FormEvent) {
@@ -137,6 +165,7 @@ export function RoutinesPanel({
         name: name.trim(),
         cron: cron.trim(),
         prompt: prompt.trim() || `Scheduled routine: ${name.trim()}`,
+        model: model || null,
       });
       cancelForms();
     } finally {
@@ -153,6 +182,7 @@ export function RoutinesPanel({
         name: name.trim(),
         cron: cron.trim(),
         prompt: prompt.trim(),
+        model: model || null,
       });
       cancelForms();
     } finally {
@@ -239,6 +269,7 @@ export function RoutinesPanel({
               options={bots.map((bot) => ({ value: bot.id, label: bot.name }))}
             />
           ) : null}
+          {modelSelect}
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -288,6 +319,7 @@ export function RoutinesPanel({
                         Job schedule (Quartz): <span className="font-mono">{editQuartzHint}</span>
                       </p>
                     ) : null}
+                    {modelSelect}
                     <textarea
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
@@ -320,6 +352,9 @@ export function RoutinesPanel({
                     <p className="text-xs text-muted-foreground">{scheduleLabel}</p>
                     {quartzHint ? (
                       <p className="text-[11px] text-muted-foreground/90 font-mono">Quartz: {quartzHint}</p>
+                    ) : null}
+                    {routine.model ? (
+                      <p className="text-[11px] text-muted-foreground/90 font-mono">Model: {routine.model}</p>
                     ) : null}
                     {routine.prompt ? (
                       <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{routine.prompt}</p>

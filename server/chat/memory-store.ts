@@ -232,6 +232,7 @@ export class MemoryChatStore implements ChatStore {
     const description = input.description !== undefined ? input.description.trim() : bot.description;
     const updated: Bot = {
       ...bot,
+      model: input.model !== undefined ? input.model : bot.model,
       name,
       avatarLabel,
       spaceId,

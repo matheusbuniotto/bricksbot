@@ -21,10 +21,12 @@ import type {
   LlmMessage,
   ToolCall,
   ToolDefinition,
+  UsageAttribution,
 } from '../../shared/agents/types.js';
 import type { MemorySkillStore } from '../../shared/agents/memory/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
 import { ActiveRunError, type Run, type RunContext, type RunStore } from '../../shared/runs/types.js';
+import { ModelCatalog } from '../agents/models.js';
 import { createHandoffTool, HANDOFF_TOOL_NAME, planHandoff, type HandoffTurnContext } from '../agents/handoff.js';
 import { applyCompactionToHistory, runCompaction, shouldCompact } from '../durable/compaction.js';
 import { CREATE_BOT_TOOL_NAME, createCreateBotTool } from '../agents/tools/create-bot.js';
@@ -152,6 +154,8 @@ export interface ChatServiceOptions {
   routines?: RoutineStore;
   compaction?: CompactionStore;
   compactionSettings?: CompactionSettings;
+  /** Models owners may pick; a routine's, then its bot's, choice is sent as the request model. Defaults to none (client default only). */
+  models?: ModelCatalog;
   idempotency?: IdempotencyStore;
   /** Defaults to in-memory so runs, Stop and events work in tests/local without Lakebase. */
   runs?: RunStore;
@@ -271,6 +275,8 @@ export class ChatService {
   /** Each user's connected Unity Gateway MCP tools; replaced when that user's connectors change. */
   private readonly mcpToolsByUser = new Map<string, RegisteredTool[]>();
   private readonly compactionSettings: CompactionSettings;
+  private readonly models: ModelCatalog;
+  private readonly routines: RoutineStore;
   private readonly memory: MemorySkillStore;
   private readonly pluginHost?: PluginHost;
   private readonly runs: RunService;
@@ -281,6 +287,8 @@ export class ChatService {
     this.approvals = options.approvals ?? new ApprovalStore();
     this.choices = options.choices ?? new ChoiceStore();
     this.compactionSettings = options.compactionSettings ?? DEFAULT_COMPACTION_SETTINGS;
+    this.models = options.models ?? new ModelCatalog();
+    this.routines = options.routines ?? new MemoryRoutineStore();
     this.pluginHost = options.pluginHost;
     this.runs = new RunService(options.runs ?? new MemoryRunStore());
     // Meta tools (remember / skills / list_memories) are default for every bot.
@@ -317,7 +325,7 @@ export class ChatService {
     tools.push(createPinArtifactTool(options.store));
     tools.push(createPinChartTool(options.store));
     tools.push(createAskChoiceTool());
-    tools.push(...createRoutineTools(options.routines ?? new MemoryRoutineStore(), options.store));
+    tools.push(...createRoutineTools(this.routines, options.store));
     if (options.genieSpace) {
       tools.push(createGenieSpaceTool(options.genieSpace));
     }
@@ -912,13 +920,32 @@ export class ChatService {
         tools.map((tool) => tool.name)
       );
 
-      if (this.options.compaction && shouldCompact(history, systemPrompt, this.compactionSettings)) {
+      // Routine, then bot, then the client's default; the model's own window drives compaction.
+      const routine = chat?.routineId ? await this.routines.getRoutine(chat.routineId) : null;
+      const chosen = this.models.resolve(routine?.model, bot?.model);
+      const modelName = chosen?.id ?? this.options.client.model;
+      const compactionSettings = chosen?.contextWindow
+        ? { ...this.compactionSettings, contextWindow: chosen.contextWindow }
+        : this.compactionSettings;
+      const attribution = (kind: UsageAttribution['kind']): UsageAttribution => ({
+        kind,
+        payerUserId: run.payerUserId ?? turnUserId,
+        botId: botId ?? undefined,
+        chatId,
+        runId: run.runId,
+        routineId: chat?.routineId,
+        routine: run.routine,
+      });
+
+      if (this.options.compaction && shouldCompact(history, systemPrompt, compactionSettings)) {
         await runCompaction({
           chatId,
           history,
           client: this.options.client,
           store: this.options.compaction,
-          settings: this.compactionSettings,
+          settings: compactionSettings,
+          model: chosen?.id,
+          attribution: attribution('compaction'),
         });
         history = await this.options.store.listMessages(chatId);
       }
@@ -930,7 +957,7 @@ export class ChatService {
       const pluginTurnContext = (messages: Message[]): PluginTurnContext => ({
         ...this.pluginHostContext(turnCtx),
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        model: this.options.client.model ?? this.options.client.provider,
+        model: modelName ?? this.options.client.provider,
       });
 
       let pluginInjectedSystemPrompt: string | undefined;
@@ -950,7 +977,7 @@ export class ChatService {
         'llm_call',
         'LLM',
         {
-          model: this.options.client.model,
+          model: modelName,
           provider: this.options.client.provider,
           messages: llmMessages.length,
           tools: tools.length,
@@ -960,9 +987,10 @@ export class ChatService {
           let partial = '';
           try {
             const result = await this.options.client.complete(
-              { messages: llmMessages, tools },
+              { messages: llmMessages, tools, model: chosen?.id },
               {
                 signal: run.signal,
+                attribution: attribution('turn'),
                 onDelta: (text) => {
                   partial += text;
                   run.delta(text);

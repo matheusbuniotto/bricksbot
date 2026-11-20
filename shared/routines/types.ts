@@ -18,6 +18,8 @@ export interface Routine {
   prompt: string;
   enabled: boolean;
   runAs: RoutineRunAs;
+  /** Catalog model id overriding the bot's; null means the bot's own (or the default). */
+  model: string | null;
   lastRunAt: string | null;
   createdAt: string;
 }
@@ -30,6 +32,7 @@ export interface CreateRoutineInput {
   prompt?: string;
   enabled?: boolean;
   runAs?: RoutineRunAs;
+  model?: string | null;
 }
 
 export interface CreateRoutineResult {
@@ -44,6 +47,7 @@ export interface UpdateRoutineInput {
   cron?: string;
   prompt?: string;
   runAs?: RoutineRunAs;
+  model?: string | null;
 }
 
 export interface RoutineStore {

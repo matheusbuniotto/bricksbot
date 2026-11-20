@@ -9,10 +9,20 @@ import type {
   WorkspaceUser,
 } from '../../../shared/chat/types';
 import type { PendingChoice } from '../../../shared/chat/choice-notice';
-import type { ApprovalDecision, ApprovalRequest } from '../../../shared/agents/types';
+import type { ApprovalDecision, ApprovalRequest, ModelOption } from '../../../shared/agents/types';
 import type { SandboxUiStatus } from '../../../shared/sandbox/types';
 import type { DatabricksMcpApp } from '../../../shared/agents/mcp-types';
 import { readJson } from './http';
+
+export interface ModelCatalogView {
+  models: ModelOption[];
+  /** The model that runs when a bot or routine picks none. */
+  default: string | null;
+}
+
+export async function fetchModels(): Promise<ModelCatalogView> {
+  return readJson(await fetch('/api/models'));
+}
 
 export async function fetchSpaces(): Promise<Space[]> {
   const data = await readJson<{ spaces: Space[] }>(await fetch('/api/spaces'));
@@ -114,6 +124,7 @@ export async function updateBot(
     avatarLabel?: string;
     description?: string;
     isShared?: boolean;
+    model?: string | null;
   }
 ): Promise<Bot> {
   const data = await readJson<{ bot: Bot }>(
