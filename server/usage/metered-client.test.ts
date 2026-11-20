@@ -81,4 +81,24 @@ describe('MeteredChatClient', () => {
     );
     expect(warn).toHaveBeenCalledTimes(2);
   });
+
+  test('a routine call survives one failed ledger write', async () => {
+    const record = vi.fn().mockRejectedValueOnce(new Error('blip')).mockResolvedValue(undefined);
+    const client = new MeteredChatClient(inner(), { record }, catalog, vi.fn());
+    await expect(client.complete(request, { attribution: { ...attribution, routine: true } })).resolves.toMatchObject({
+      content: 'ok',
+    });
+    expect(record).toHaveBeenCalledTimes(2);
+  });
+
+  test('a negative provider cost is ignored in favour of the catalog price; zero is a free model', async () => {
+    const store = new MemoryUsageStore();
+    const usage = (cost: number) => ({ promptTokens: 1000, completionTokens: 500, totalTokens: 1500, cost });
+    await new MeteredChatClient(inner({ usage: usage(-5) }), store, catalog).complete(request, { attribution });
+    await new MeteredChatClient(inner({ usage: usage(0) }), store, catalog).complete(request, { attribution });
+    expect(store.entries.map((e) => [e.costSource, e.costUsd])).toEqual([
+      ['price_table', 0.007],
+      ['provider', 0],
+    ]);
+  });
 });

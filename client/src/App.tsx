@@ -49,6 +49,7 @@ import { createRoutine, deleteRoutine, fetchRoutines, runRoutine, updateRoutine 
 import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
 import { chatRoute, parseChatRoute } from './lib/chat-route';
 import { newestTicket } from './lib/newest-ticket';
+import { isWaitingOnYou } from './lib/waiting-on-you';
 import { lastUserFacingPreview, toolLabel } from './lib/user-facing';
 import type { Routine } from '../../shared/routines/types';
 
@@ -713,6 +714,7 @@ export default function App() {
   }
 
   const visibleMessages = messages;
+  const waitingOnYou = isWaitingOnYou(chat?.id, pendingApprovals, pendingChoices);
 
   return (
     <div className="app-shell">
@@ -848,7 +850,7 @@ export default function App() {
             <div className="composer-wrap">
               <ChatComposer
                 key={chat?.id}
-                disabled={!chat || pendingApprovals.length > 0 || pendingChoices.length > 0 || Boolean(runningTool)}
+                disabled={!chat || waitingOnYou || Boolean(runningTool)}
                 placeholder={
                   runningTool
                     ? `Running ${runningTool.label}…`
