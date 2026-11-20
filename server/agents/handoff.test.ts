@@ -11,7 +11,7 @@ describe('planHandoff', () => {
       ownerId: primary.ownerId,
       spaceId: primary.spaceId,
     });
-    const source = await store.getOrCreateChatForBot(analyst.id);
+    const source = await store.getDefaultChat(analyst.id);
 
     const planned = await planHandoff(store, analyst, { bot_id: primary.id, brief: 'look at revenue' });
     expect(planned.ok).toBe(false);
@@ -23,7 +23,7 @@ describe('planHandoff', () => {
     });
     expect(delivered).toMatch(/only the primary/i);
     expect(await store.listMessages(source.id)).toEqual([]);
-    const primaryChat = await store.getOrCreateChatForBot(primary.id);
+    const primaryChat = await store.getDefaultChat(primary.id);
     expect(await store.listMessages(primaryChat.id)).toEqual([]);
   });
 
@@ -35,7 +35,7 @@ describe('planHandoff', () => {
       ownerId: primary.ownerId,
       spaceId: primary.spaceId,
     });
-    const source = await store.getOrCreateChatForBot(primary.id);
+    const source = await store.getDefaultChat(primary.id);
 
     const delivered = await deliverHandoff(store, primary, source.id, {
       bot_name: 'analyst',
@@ -43,10 +43,13 @@ describe('planHandoff', () => {
     });
     expect(delivered).toBe('Handed off to Analyst.');
 
-    const target = await store.getOrCreateChatForBot(analyst.id);
+    const target = await store.getHandoffChat(analyst.id, analyst.ownerId);
     expect(await store.listMessages(target.id)).toEqual([
       expect.objectContaining({ role: 'user', content: 'From Primary: look at revenue' }),
     ]);
+    // The handoff does not leak into the chat the user opens with the teammate.
+    expect(target.kind).toBe('handoff');
+    expect((await store.getDefaultChat(analyst.id)).id).not.toBe(target.id);
     const sourceMessages = await store.listMessages(source.id);
     expect(sourceMessages).toHaveLength(1);
     expect(sourceMessages[0]?.role).toBe('system');
@@ -72,14 +75,14 @@ describe('planHandoff', () => {
       ownerId: 'alice',
       spaceId: other.id,
     });
-    const source = await store.getOrCreateChatForBot(primary.id);
+    const source = await store.getDefaultChat(primary.id);
 
     const planned = await planHandoff(store, primary, { bot_id: analyst.id, brief: 'cross the line' });
     expect(planned.ok).toBe(false);
     if (!planned.ok) expect(planned.error).toMatch(/your Space/);
 
     await deliverHandoff(store, primary, source.id, { bot_id: analyst.id, brief: 'cross the line' });
-    const target = await store.getOrCreateChatForBot(analyst.id);
+    const target = await store.getDefaultChat(analyst.id);
     expect(await store.listMessages(target.id)).toEqual([]);
     expect(await store.listMessages(source.id)).toEqual([]);
   });
@@ -99,13 +102,13 @@ describe('planHandoff', () => {
       ownerId: 'carol',
       spaceId: team.id,
     });
-    const source = await store.getOrCreateChatForBot(primary.id);
+    const source = await store.getDefaultChat(primary.id);
 
     const planned = await planHandoff(store, primary, { bot_id: analyst.id, brief: 'please' });
     expect(planned.ok).toBe(false);
     if (!planned.ok) expect(planned.error).toMatch(/membership/);
     await deliverHandoff(store, primary, source.id, { bot_id: analyst.id, brief: 'please' });
-    const target = await store.getOrCreateChatForBot(analyst.id);
+    const target = await store.getDefaultChat(analyst.id);
     expect(await store.listMessages(target.id)).toEqual([]);
   });
 
@@ -146,14 +149,14 @@ describe('planHandoff', () => {
       spaceId: team.id,
       isShared: true,
     });
-    const source = await store.getOrCreateChatForBot(primary.id);
+    const source = await store.getDefaultChat(primary.id);
 
     const delivered = await deliverHandoff(store, primary, source.id, {
       bot_id: analyst.id,
       brief: 'shared work',
     });
     expect(delivered).toBe('Handed off to Analyst.');
-    const target = await store.getOrCreateChatForBot(analyst.id, 'alice');
+    const target = await store.getHandoffChat(analyst.id, 'alice');
     expect(await store.listMessages(target.id)).toEqual([
       expect.objectContaining({ role: 'user', content: 'From Primary: shared work' }),
     ]);

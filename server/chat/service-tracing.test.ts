@@ -28,7 +28,7 @@ describe('ChatService tracing', () => {
     await initTracing({ MLFLOW_EXPERIMENT_ID: '1' });
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({
       store,
       client: new ScriptedClient([
@@ -71,7 +71,7 @@ describe('ChatService tracing', () => {
     const store = new MemoryChatStore();
     const primary = await store.ensurePrimaryBot();
     const analyst = await store.createBot({ name: 'Analyst', ownerId: primary.ownerId, spaceId: primary.spaceId });
-    const chat = await store.getOrCreateChatForBot(primary.id);
+    const chat = await store.getDefaultChat(primary.id);
     const service = new ChatService({
       store,
       client: new ScriptedClient([
@@ -109,7 +109,7 @@ describe('ChatService tracing', () => {
     await initTracing({ MLFLOW_EXPERIMENT_ID: '1' });
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({
       store,
       client: new ScriptedClient([
@@ -128,7 +128,7 @@ describe('ChatService tracing', () => {
   test('chats behave the same with tracing off', async () => {
     const store = new MemoryChatStore();
     const bot = await store.ensurePrimaryBot();
-    const chat = await store.getOrCreateChatForBot(bot.id);
+    const chat = await store.getDefaultChat(bot.id);
     const service = new ChatService({ store, client: new ScriptedClient([{ content: 'hi', toolCalls: [] }]) });
     expect((await service.sendUserMessage(chat.id, 'hello')).assistant?.content).toBe('hi');
     expect(recorded).toEqual([]);

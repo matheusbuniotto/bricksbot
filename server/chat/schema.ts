@@ -62,7 +62,19 @@ export const CHAT_SCHEMA_STATEMENTS = [
   `UPDATE bricksbot.chats c SET user_id = b.owner_id FROM bricksbot.bots b WHERE c.bot_id = b.id AND c.user_id = 'workspace-user' AND b.owner_id <> 'workspace-user' AND NOT EXISTS (SELECT 1 FROM bricksbot.chats existing WHERE existing.bot_id = c.bot_id AND existing.user_id = b.owner_id)`,
   `ALTER TABLE bricksbot.chats ADD COLUMN IF NOT EXISTS last_message_preview TEXT`,
   `DROP INDEX IF EXISTS bricksbot.idx_bricksbot_chats_bot_id`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chats_bot_user ON bricksbot.chats(bot_id, user_id)`,
+  // Many chats per (bot, user): routine and handoff chats are the only ones with a uniqueness rule.
+  `DROP INDEX IF EXISTS bricksbot.idx_bricksbot_chats_bot_user`,
+  `ALTER TABLE bricksbot.chats ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'user'`,
+  `ALTER TABLE bricksbot.chats ADD COLUMN IF NOT EXISTS routine_id UUID`,
+  `ALTER TABLE bricksbot.chats ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ`,
+  `ALTER TABLE bricksbot.chats DROP CONSTRAINT IF EXISTS chats_kind_check`,
+  `ALTER TABLE bricksbot.chats ADD CONSTRAINT chats_kind_check CHECK (kind IN ('user', 'routine', 'handoff'))`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_chats_bot_user_recent
+  ON bricksbot.chats(bot_id, user_id, updated_at DESC)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chats_routine
+  ON bricksbot.chats(routine_id) WHERE kind = 'routine'`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chats_handoff
+  ON bricksbot.chats(bot_id, user_id) WHERE kind = 'handoff'`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_space_members_user
   ON bricksbot.space_members(user_id, space_id)`,
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_bots_roster

@@ -486,15 +486,17 @@ export default function App() {
   }
 
   async function handleSelectChoice(choiceId: string, selectedOption: string) {
-    if (!chat) return;
+    // A choice from a routine or handoff chat is answered in that chat, not the open one.
+    const chatId = pendingChoices.find((item) => item.id === choiceId)?.chatId ?? chat?.id;
+    if (!chatId) return;
     setChoiceBusyId(choiceId);
     setError(null);
     try {
       const outcome = await submitChoice(
-        chat.id,
+        chatId,
         choiceId,
         selectedOption,
-        (update) => selectedBotId && showRunUpdate(chat.id, selectedBotId, update)
+        (update) => selectedBotId && showRunUpdate(chatId, selectedBotId, update)
       );
       if (selectedBotId) await settleRun(selectedBotId, outcome);
     } catch (err) {
@@ -567,11 +569,11 @@ export default function App() {
   }
 
   async function handleStopSandbox() {
-    if (!selectedBotId) return;
+    if (!selectedBotId || !chat) return;
     setSandboxBusy(true);
     setError(null);
     try {
-      const next = await stopBotSandbox(selectedBotId);
+      const next = await stopBotSandbox(selectedBotId, chat.id);
       setSandboxStatus(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to stop sandbox');
@@ -581,11 +583,11 @@ export default function App() {
   }
 
   async function handleDeleteSandbox() {
-    if (!selectedBotId) return;
+    if (!selectedBotId || !chat) return;
     setSandboxBusy(true);
     setError(null);
     try {
-      const next = await deleteBotSandbox(selectedBotId);
+      const next = await deleteBotSandbox(selectedBotId, chat.id);
       setSandboxStatus(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to delete sandbox');

@@ -26,7 +26,8 @@ describe('RoutineService', () => {
     expect(result.routine.lastRunAt).toBeTruthy();
     expect(result.chat.user.content).toBe('Give me the daily brief');
 
-    const chat = await chats.getOrCreateChatForBot(primary.id);
+    const chat = await chats.getRoutineChat(routine);
+    expect(chat).toMatchObject({ kind: 'routine', routineId: routine.id });
     const messages = await chats.listMessages(chat.id);
     expect(messages.some((m) => m.role === 'system' && m.content.includes('Daily'))).toBe(true);
     expect(messages.some((m) => m.role === 'user' && m.content === 'Give me the daily brief')).toBe(true);
@@ -120,8 +121,6 @@ describe('RoutineService', () => {
     });
     const env: Record<string, string | undefined> = {};
     const service = new RoutineService(routines, chats, chatService, env);
-    const chat = await chats.getOrCreateChatForBot(primary.id, 'owner');
-    await chatService.getApprovals().setAutoApproved(chat.id, 'sql_query');
     const created = await routines.createRoutine({
       botId: primary.id,
       ownerId: 'owner',
@@ -130,6 +129,8 @@ describe('RoutineService', () => {
       prompt: 'count',
       runAs: 'app',
     });
+    const chat = await chats.getRoutineChat(created.routine);
+    await chatService.getApprovals().setAutoApproved(chat.id, 'sql_query');
 
     const gated = await service.runFromWebhook(created.routine.id, created.webhookSecret);
     expect(gated.chat.pendingApprovals.map((a) => a.toolCall.name)).toEqual(['sql_query']);

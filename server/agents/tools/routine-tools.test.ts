@@ -28,7 +28,7 @@ describe('routine tools CRUD', () => {
     const chats = new MemoryChatStore();
     const routines = new MemoryRoutineStore();
     const { primary } = await chats.ensureBootstrap('owner-1');
-    const chat = await chats.getOrCreateChatForBot(primary.id);
+    const chat = await chats.getDefaultChat(primary.id);
     const ctx = { chatId: chat.id, bot: primary, userId: 'owner-1' };
     const [listTool, scheduleTool, updateTool, deleteTool] = createRoutineTools(routines, chats);
 
@@ -49,8 +49,10 @@ describe('routine tools CRUD', () => {
     expect(updated.routine.cron).toBe('0 7 * * *');
     expect(updated.routine.enabled).toBe(false);
 
+    await chats.getRoutineChat({ id, botId: primary.id, ownerId: 'owner-1', name: 'Dawn v2' });
     const deleted = JSON.parse(await deleteTool.execute({ name: 'Dawn v2' }, ctx)) as { ok: boolean };
     expect(deleted.ok).toBe(true);
+    expect((await chats.listChats(primary.id, 'owner-1')).map((c) => c.kind)).not.toContain('routine');
     expect((await routines.listRoutines('owner-1')).length).toBe(0);
 
     const messages = await chats.listMessages(chat.id);
@@ -71,7 +73,7 @@ describe('routine tools CRUD', () => {
       name: 'Daily',
       cron: '0 8 * * *',
     });
-    const bobChat = await chats.getOrCreateChatForBot(bot.id, 'bob');
+    const bobChat = await chats.getDefaultChat(bot.id, 'bob');
     const ctx = { chatId: bobChat.id, bot, userId: 'bob' };
     const [listTool, scheduleTool, updateTool, deleteTool] = createRoutineTools(routines, chats);
 

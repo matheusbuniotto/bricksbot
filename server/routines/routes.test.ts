@@ -9,7 +9,7 @@ import { registerRoutineRoutes } from './routes.js';
 import { RoutineService } from './service.js';
 import { WEBHOOK_HEADER } from './webhook-auth.js';
 
-async function withRoutineApp(run: (ctx: { baseUrl: string; botId: string }) => Promise<void>) {
+async function withRoutineApp(run: (ctx: { baseUrl: string; botId: string; chats: MemoryChatStore }) => Promise<void>) {
   const chats = new MemoryChatStore();
   const { primary } = await chats.ensureBootstrap('workspace-user');
   const routines = new MemoryRoutineStore();
@@ -33,7 +33,7 @@ async function withRoutineApp(run: (ctx: { baseUrl: string; botId: string }) => 
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
   try {
-    await run({ baseUrl, botId: primary.id });
+    await run({ baseUrl, botId: primary.id, chats });
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
@@ -66,7 +66,7 @@ describe('routines HTTP API', () => {
   });
 
   test('lists, creates, toggles, runs, and accepts authenticated webhooks', async () => {
-    await withRoutineApp(async ({ baseUrl, botId }) => {
+    await withRoutineApp(async ({ baseUrl, botId, chats }) => {
       const statusRes = await fetch(`${baseUrl}/api/setup/status`);
       expect(statusRes.status).toBe(200);
       const status = (await statusRes.json()) as { provider: string; needsLlmSetup: boolean };
@@ -136,6 +136,10 @@ describe('routines HTTP API', () => {
         method: 'POST',
       });
       expect(del.status).toBe(204);
+
+      // Its chat leaves the lists with it, so it does not linger as an orphan.
+      const kinds = (await chats.listChats(botId, 'workspace-user')).map((chat) => chat.kind);
+      expect(kinds).not.toContain('routine');
     });
   });
 

@@ -4,6 +4,7 @@ import { StubChatClient } from '../agents/clients/stub-client.js';
 import { MemoryIdempotencyStore } from '../durable/idempotency-store.js';
 import { MemoryChatStore } from './memory-store.js';
 import { registerChatRoutes } from './routes.js';
+import type { SandboxSessionService } from '../sandbox/session-service.js';
 import { ChatService } from './service.js';
 
 async function withChatApp(
@@ -34,6 +35,50 @@ async function withChatApp(
     });
   }
 }
+
+describe('sandbox routes', () => {
+  test('stop and delete act on the chat they name, not the latest one', async () => {
+    const store = new MemoryChatStore();
+    const stopped: string[] = [];
+    const deleted: string[] = [];
+    const sandbox = {
+      isEnabled: () => true,
+      getUiStatusForChat: () =>
+        Promise.resolve({ enabled: true, backend: 'python_exec', session: null, recentEvents: [] }),
+      stopSession: (chatId: string) => Promise.resolve(void stopped.push(chatId)),
+      deleteSession: (chatId: string) => Promise.resolve(void deleted.push(chatId)),
+    } as unknown as SandboxSessionService;
+    const service = new ChatService({ store, client: new StubChatClient(), sandbox });
+    const app = express();
+    app.use(express.json());
+    registerChatRoutes(app, store, service);
+    const server = await new Promise<import('node:http').Server>((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
+    try {
+      const address = server.address() as { port: number };
+      const base = `http://127.0.0.1:${address.port}/api/bots`;
+      const { primary } = await store.ensureBootstrap('workspace-user');
+      const older = await store.getDefaultChat(primary.id, 'workspace-user');
+      const latest = await store.createChat(primary.id, 'workspace-user');
+
+      await fetch(`${base}/${primary.id}/sandbox/stop?chatId=${older.id}`, { method: 'POST' });
+      await fetch(`${base}/${primary.id}/sandbox?chatId=${older.id}`, { method: 'DELETE' });
+      await fetch(`${base}/${primary.id}/sandbox/stop`, { method: 'POST' });
+      expect(stopped).toEqual([older.id, latest.id]);
+      expect(deleted).toEqual([older.id]);
+
+      const other = await store.createChat(primary.id, 'someone-else');
+      const refused = await fetch(`${base}/${primary.id}/sandbox/stop?chatId=${other.id}`, { method: 'POST' });
+      expect(refused.status).toBe(404);
+      expect(stopped).toHaveLength(2);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+    }
+  });
+});
 
 describe('chat HTTP API', () => {
   test('bootstraps spaces, creates a bot, and chats', async () => {
@@ -516,8 +561,8 @@ describe('chat HTTP API', () => {
   test('a retried message with the same requestId runs the turn once, and only in its own chat', async () => {
     await withChatApp(async (baseUrl, { store }) => {
       const bot = await store.ensurePrimaryBot();
-      const chat = await store.getOrCreateChatForBot(bot.id);
-      const other = await store.getOrCreateChatForBot(
+      const chat = await store.getDefaultChat(bot.id);
+      const other = await store.getDefaultChat(
         (await store.createBot({ name: 'Analyst', ownerId: bot.ownerId, spaceId: bot.spaceId })).id
       );
       const send = (chatId: string) =>
@@ -535,6 +580,106 @@ describe('chat HTTP API', () => {
       const reused = await send(other.id);
       expect(reused.status).toBe(409);
       expect(await store.listMessages(other.id)).toEqual([]);
+    });
+  });
+
+  describe('multiple chats per bot', () => {
+    const as = (user: string, body?: unknown) => ({
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-user': user },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+    type ChatRef = { id: string; title: string; kind: string; botId: string };
+    const chatOf = async (res: Response) => ((await res.json()) as { chat: ChatRef }).chat;
+    const chatsOf = async (res: Response) => ((await res.json()) as { chats: ChatRef[] }).chats;
+
+    test('creates, lists, renames and archives chats; the bot alias follows the latest one', async () => {
+      await withChatApp(async (baseUrl, { store }) => {
+        const bot = await store.createBot({ name: 'Analyst', ownerId: 'alice' });
+        const first = await chatOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, as('alice')));
+
+        const created = await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('alice', { title: ' Q3 review ' }));
+        expect(created.status).toBe(201);
+        const second = await chatOf(created);
+        expect(second).toMatchObject({ title: 'Q3 review', kind: 'user', botId: bot.id });
+
+        const list = async () =>
+          (await chatsOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('alice')))).map((c) => c.id);
+        expect(await list()).toEqual([second.id, first.id]);
+
+        const alias = async () => (await chatOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, as('alice')))).id;
+        expect(await alias()).toBe(second.id);
+
+        const renamed = await fetch(`${baseUrl}/api/chats/${first.id}/update`, as('alice', { title: 'Renamed' }));
+        expect((await chatOf(renamed)).title).toBe('Renamed');
+        expect((await fetch(`${baseUrl}/api/chats/${first.id}/update`, as('alice', {}))).status).toBe(400);
+
+        const byId = await fetch(`${baseUrl}/api/chats/${first.id}`, as('alice'));
+        expect((await chatOf(byId)).title).toBe('Renamed');
+
+        expect((await fetch(`${baseUrl}/api/chats/${second.id}/archive`, as('alice', {}))).status).toBe(200);
+        expect(await list()).toEqual([first.id]);
+        expect(await alias()).toBe(first.id);
+      });
+    });
+
+    test('routine and handoff chats surface their approvals on the bot chat and cannot be archived', async () => {
+      await withChatApp(async (baseUrl, { store, service }) => {
+        const bot = await store.createBot({ name: 'Analyst', ownerId: 'alice' });
+        const open = await chatOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, as('alice')));
+        const routineChat = await store.getRoutineChat({ id: 'r1', botId: bot.id, ownerId: 'alice', name: 'Nightly' });
+        const handoffChat = await store.getHandoffChat(bot.id, 'alice');
+        const toolCall = (id: string) => ({ id, name: 'sql_query', arguments: { statement: 'SELECT 1' } });
+        const meta = { botId: bot.id, userId: 'alice' };
+        await service.getApprovals().create(routineChat.id, toolCall('c1'), meta);
+        await service.getApprovals().create(handoffChat.id, toolCall('c2'), meta);
+
+        const payload = (await (await fetch(`${baseUrl}/api/bots/${bot.id}/chat`, as('alice'))).json()) as {
+          chat: ChatRef;
+          pendingApprovals: Array<{ chatId: string }>;
+        };
+        expect(payload.chat.id).toBe(open.id);
+        expect(payload.pendingApprovals.map((approval) => approval.chatId).sort()).toEqual(
+          [routineChat.id, handoffChat.id].sort()
+        );
+
+        for (const chat of [routineChat, handoffChat]) {
+          expect((await fetch(`${baseUrl}/api/chats/${chat.id}/archive`, as('alice', {}))).status).toBe(400);
+        }
+        expect((await store.getChat(routineChat.id))?.archivedAt).toBeFalsy();
+      });
+    });
+
+    test('only the caller sees their chats, and losing access to the bot cuts them off', async () => {
+      await withChatApp(async (baseUrl, { store }) => {
+        const space = await store.createSpace({ name: 'Team', ownerId: 'alice' });
+        await store.addSpaceMember(space.id, 'bob', 'member');
+        const bot = await store.createBot({ name: 'Shared', ownerId: 'alice', spaceId: space.id, isShared: true });
+
+        const bobChat = await chatOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('bob', {})));
+        expect(await chatsOf(await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('alice')))).toEqual([]);
+
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}`, as('alice'))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}/archive`, as('alice', {}))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}`, as('bob'))).status).toBe(200);
+
+        await store.removeSpaceMember(space.id, 'bob');
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}`, as('bob'))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/chats/${bobChat.id}/update`, as('bob', { title: 'x' }))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('bob'))).status).toBe(403);
+        expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('bob', {}))).status).toBe(403);
+      });
+    });
+
+    test('Space viewers can read a bot but not start chats with it', async () => {
+      await withChatApp(async (baseUrl, { store }) => {
+        const space = await store.createSpace({ name: 'Team', ownerId: 'alice' });
+        await store.addSpaceMember(space.id, 'vera', 'viewer');
+        const bot = await store.createBot({ name: 'Shared', ownerId: 'alice', spaceId: space.id, isShared: true });
+        expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('vera'))).status).toBe(200);
+        expect((await fetch(`${baseUrl}/api/bots/${bot.id}/chats`, as('vera', {}))).status).toBe(403);
+      });
     });
   });
 });

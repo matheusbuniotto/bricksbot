@@ -4,6 +4,7 @@ import type { UpdateBotInput } from '../../shared/chat/types.js';
 
 export const PRIMARY_NAME = 'Primary';
 export const DEFAULT_SPACE_NAME = 'Personal';
+export const DEFAULT_CHAT_TITLE = 'New chat';
 
 export function avatarFromName(name: string): string {
   return (name.trim()[0] ?? '?').toUpperCase();

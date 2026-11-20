@@ -18,7 +18,13 @@ import type {
 import type { ToolCall } from '../../shared/agents/types.js';
 import { messagePreviewLine } from '../../shared/chat/preview.js';
 import { canViewerAccessSpace, isBotVisibleToViewer } from './access-policy.js';
-import { avatarFromName, DEFAULT_SPACE_NAME, PRIMARY_NAME, updatedAvatarLabel } from './bot-defaults.js';
+import {
+  avatarFromName,
+  DEFAULT_CHAT_TITLE,
+  DEFAULT_SPACE_NAME,
+  PRIMARY_NAME,
+  updatedAvatarLabel,
+} from './bot-defaults.js';
 import { nowIso } from '../lib/coerce.js';
 
 function sortBots(a: Bot, b: Bot): number {
@@ -32,7 +38,6 @@ export class MemoryChatStore implements ChatStore {
   private spaces = new Map<string, Space>();
   private members: SpaceMember[] = [];
   private bots = new Map<string, Bot>();
-  private chatsByBotUser = new Map<string, Chat>();
   private chatById = new Map<string, Chat>();
   private messagesByChat = new Map<string, Message[]>();
   private primaryByOwner = new Map<string, string>();
@@ -146,7 +151,7 @@ export class MemoryChatStore implements ChatStore {
       return sorted.map((bot) => ({
         ...bot,
         lastPreview:
-          this.chatsByBotUser.get(`${bot.id}:${ownerId}`)?.lastPreview ??
+          this.chatsFor(bot.id, ownerId).find((chat) => chat.lastPreview)?.lastPreview ??
           (bot.ownerId === ownerId ? (bot.lastPreview ?? '') : ''),
       }));
     }
@@ -296,11 +301,10 @@ export class MemoryChatStore implements ChatStore {
     const bot = this.bots.get(botId);
     if (!bot) throw new Error('Bot not found');
     if (bot.isPrimary) throw new Error('Cannot delete the Primary bot');
-    for (const [key, chat] of this.chatsByBotUser.entries()) {
+    for (const chat of [...this.chatById.values()]) {
       if (chat.botId === botId) {
         this.messagesByChat.delete(chat.id);
         this.chatById.delete(chat.id);
-        this.chatsByBotUser.delete(key);
       }
     }
     this.bots.delete(botId);
@@ -318,31 +322,92 @@ export class MemoryChatStore implements ChatStore {
     return updated;
   }
 
-  async getOrCreateChatForBot(botId: string, userId?: string): Promise<Chat> {
-    const bot = this.bots.get(botId);
-    if (!bot) {
-      throw new Error('Bot not found');
-    }
+  /** The user's active chats with the bot, most recently active first. */
+  private chatsFor(botId: string, userId: string): Chat[] {
+    return [...this.chatById.values()]
+      .filter((chat) => chat.botId === botId && chat.userId === userId && !chat.archivedAt)
+      .reverse() // newest insert wins an updatedAt tie
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
 
-    const resolvedUserId = userId?.trim() || bot.ownerId || 'workspace-user';
-    const key = `${botId}:${resolvedUserId}`;
-    const existing = this.chatsByBotUser.get(key);
-    if (existing) return existing;
-
+  private insertChat(botId: string, userId: string, fields: Partial<Chat> & { title: string }): Chat {
     const createdAt = nowIso();
     const chat: Chat = {
       id: randomUUID(),
       botId,
-      userId: resolvedUserId,
-      title: bot.name,
+      userId,
+      kind: 'user',
+      archivedAt: null,
       createdAt,
       updatedAt: createdAt,
       lastPreview: '',
+      ...fields,
     };
-    this.chatsByBotUser.set(key, chat);
     this.chatById.set(chat.id, chat);
     this.messagesByChat.set(chat.id, []);
     return chat;
+  }
+
+  private requireBotAndUser(botId: string, userId?: string): { bot: Bot; userId: string } {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new Error('Bot not found');
+    return { bot, userId: userId?.trim() || bot.ownerId || 'workspace-user' };
+  }
+
+  async getDefaultChat(botId: string, userId?: string): Promise<Chat> {
+    const { bot, userId: resolved } = this.requireBotAndUser(botId, userId);
+    const existing = this.chatsFor(botId, resolved).find((chat) => chat.kind === 'user');
+    return existing ?? this.insertChat(botId, resolved, { title: bot.name });
+  }
+
+  async listChats(botId: string, userId: string): Promise<Chat[]> {
+    return this.chatsFor(botId, userId);
+  }
+
+  async createChat(botId: string, userId: string, title?: string): Promise<Chat> {
+    this.requireBotAndUser(botId);
+    return this.insertChat(botId, userId, { title: title?.trim() || DEFAULT_CHAT_TITLE });
+  }
+
+  async renameChat(chatId: string, title: string): Promise<Chat> {
+    const chat = this.chatById.get(chatId);
+    if (!chat) throw new Error('Chat not found');
+    chat.title = title.trim() || chat.title;
+    return chat;
+  }
+
+  async archiveChat(chatId: string): Promise<Chat> {
+    const chat = this.chatById.get(chatId);
+    if (!chat) throw new Error('Chat not found');
+    chat.archivedAt ??= nowIso();
+    return chat;
+  }
+
+  archiveRoutineChat(routineId: string): Promise<void> {
+    for (const chat of this.chatById.values()) {
+      if (chat.routineId === routineId && chat.kind === 'routine') chat.archivedAt ??= nowIso();
+    }
+    return Promise.resolve();
+  }
+
+  async getRoutineChat(routine: { id: string; botId: string; ownerId: string; name: string }): Promise<Chat> {
+    const existing = [...this.chatById.values()].find((chat) => chat.routineId === routine.id);
+    return (
+      existing ??
+      this.insertChat(routine.botId, routine.ownerId, {
+        title: `Routine: ${routine.name}`,
+        kind: 'routine',
+        routineId: routine.id,
+      })
+    );
+  }
+
+  async getHandoffChat(botId: string, userId: string): Promise<Chat> {
+    const { bot, userId: resolved } = this.requireBotAndUser(botId, userId);
+    const existing = [...this.chatById.values()].find(
+      (chat) => chat.botId === botId && chat.userId === resolved && chat.kind === 'handoff'
+    );
+    return existing ?? this.insertChat(botId, resolved, { title: `${bot.name} (handoffs)`, kind: 'handoff' });
   }
 
   async getChat(chatId: string): Promise<Chat | null> {

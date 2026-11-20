@@ -62,11 +62,19 @@ export interface MarketplaceBot {
   createdAt: string;
 }
 
+/** `user` chats are the ones people open and start; routine and handoff chats are made by the system. */
+export type ChatKind = 'user' | 'routine' | 'handoff';
+
 export interface Chat {
   id: string;
   botId: string;
   userId?: string;
   title: string;
+  /** Absent means `user`. */
+  kind?: ChatKind;
+  /** Set on routine chats: one chat per routine. */
+  routineId?: string;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   lastPreview?: string;
@@ -143,7 +151,19 @@ export interface ChatStore {
   /** @deprecated Prefer ensureBootstrap — kept for older call sites during Phase 3. */
   ensurePrimaryBot(): Promise<Bot>;
   listMarketplaceBots(): Promise<Bot[]>;
-  getOrCreateChatForBot(botId: string, userId?: string): Promise<Chat>;
+  /** The user's most recently active chat with the bot; creates the first one. */
+  getDefaultChat(botId: string, userId?: string): Promise<Chat>;
+  /** Every active chat the user has with the bot (user, routine and handoff), newest first. */
+  listChats(botId: string, userId: string): Promise<Chat[]>;
+  createChat(botId: string, userId: string, title?: string): Promise<Chat>;
+  renameChat(chatId: string, title: string): Promise<Chat>;
+  archiveChat(chatId: string): Promise<Chat>;
+  /** The one chat a routine runs in, created on first use. */
+  getRoutineChat(routine: { id: string; botId: string; ownerId: string; name: string }): Promise<Chat>;
+  /** Takes a deleted routine's chat off the lists; its history stays. */
+  archiveRoutineChat(routineId: string): Promise<void>;
+  /** The one chat where `userId`'s handoffs to the bot land, created on first use. */
+  getHandoffChat(botId: string, userId: string): Promise<Chat>;
   getChat(chatId: string): Promise<Chat | null>;
   findBotIdForChat(chatId: string): Promise<string | null>;
   listMessages(chatId: string): Promise<Message[]>;

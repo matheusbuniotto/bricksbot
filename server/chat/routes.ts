@@ -69,6 +69,10 @@ const updateBotSchema = z
     }
   );
 
+const chatTitleSchema = z.object({
+  title: z.string().trim().max(120).optional(),
+});
+
 const installBotSchema = z.object({
   spaceId: z.string().uuid().nullable().optional(),
 });
@@ -420,10 +424,18 @@ export function registerChatRoutes(
     return bot;
   }
 
-  /** The caller's chat with an accessible bot, or null after responding 404/403. */
+  /** The caller's chat with an accessible bot (`?chatId=` picks one, else their latest), or null after responding. */
   async function accessibleBotChat(req: Request, res: Response): Promise<Chat | null> {
     const access = await requireBotAccess(store, String(req.params.botId), req, res);
-    return access ? store.getOrCreateChatForBot(access.bot.id, access.callerId) : null;
+    if (!access) return null;
+    const chatId = typeof req.query?.chatId === 'string' ? req.query.chatId : '';
+    if (!chatId) return store.getDefaultChat(access.bot.id, access.callerId);
+    const chat = await store.getChat(chatId);
+    if (!chat || chat.botId !== access.bot.id || chat.userId !== access.callerId) {
+      res.status(404).json({ error: 'Chat not found' });
+      return null;
+    }
+    return chat;
   }
 
   app.put('/api/bots/:botId', async (req: Request, res: Response) => {
@@ -499,7 +511,7 @@ export function registerChatRoutes(
         sourceBotId: sourceBot.id,
       });
       await service.getMemory().cloneSkills(sourceBot.id, installed.id);
-      const chat = await store.getOrCreateChatForBot(installed.id, ownerId);
+      const chat = await store.getDefaultChat(installed.id, ownerId);
       const greeting = `Hi — I'm ${installed.name}.${installed.description ? ` ${installed.description}` : ''} How can I help?`;
       await store.addMessage(chat.id, 'assistant', greeting);
       res.status(201).json({ bot: installed });
@@ -568,25 +580,60 @@ export function registerChatRoutes(
     }
   });
 
+  async function chatPayload(chat: Chat) {
+    const [messages, pendingApprovals, pendingChoices, autoApprovedTools, sandboxStatus] = await Promise.all([
+      store.listMessages(chat.id),
+      service.getApprovals().listPending(chat.id),
+      service.getChoices().listPending(chat.id),
+      service.getApprovals().listAutoApproved(chat.id),
+      sandboxStatusFor(chat.id),
+    ]);
+    return { chat, messages, pendingApprovals, pendingChoices, autoApprovedTools, sandboxStatus };
+  }
+
+  // Alias for the caller's latest chat with the bot. Routine and handoff chats have no screen of their own,
+  // so their pending approvals and choices ride along here; each card carries its own chatId to decide against.
   app.get('/api/bots/:botId/chat', async (req: Request, res: Response) => {
     try {
       const chat = await accessibleBotChat(req, res);
       if (!chat) return;
-      const [messages, pendingApprovals, pendingChoices, autoApprovedTools, sandboxStatus] = await Promise.all([
-        store.listMessages(chat.id),
-        service.getApprovals().listPending(chat.id),
-        service.getChoices().listPending(chat.id),
-        service.getApprovals().listAutoApproved(chat.id),
-        sandboxStatusFor(chat.id),
-      ]);
+      const payload = await chatPayload(chat);
+      const systemChats = (await store.listChats(chat.botId, chat.userId ?? '')).filter(
+        (other) => (other.kind ?? 'user') !== 'user'
+      );
+      const approvals = await Promise.all(systemChats.map((other) => service.getApprovals().listPending(other.id)));
+      const choices = systemChats.flatMap((other) => service.getChoices().listPending(other.id));
       res.json({
-        chat,
-        messages,
-        pendingApprovals,
-        pendingChoices,
-        autoApprovedTools,
-        sandboxStatus,
+        ...payload,
+        pendingApprovals: [...payload.pendingApprovals, ...approvals.flat()],
+        pendingChoices: [...payload.pendingChoices, ...choices],
       });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/bots/:botId/chats', async (req: Request, res: Response) => {
+    try {
+      const access = await requireBotAccess(store, String(req.params.botId), req, res);
+      if (!access) return;
+      res.json({ chats: await store.listChats(access.bot.id, access.callerId) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/bots/:botId/chats', async (req: Request, res: Response) => {
+    const parsed = chatTitleSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid title' });
+      return;
+    }
+    try {
+      const access = await requireBotUse(store, String(req.params.botId), req, res);
+      if (!access) return;
+      const chat = await store.createChat(access.bot.id, access.callerId, parsed.data.title);
+      res.status(201).json({ chat });
     } catch (err) {
       sendError(res, err);
     }
@@ -653,6 +700,47 @@ export function registerChatRoutes(
     if (!chat) return null;
     return (await requireBotUse(store, chat.botId, req, res)) ? chat : null;
   }
+
+  app.get('/api/chats/:chatId', async (req: Request, res: Response) => {
+    try {
+      const chat = await assertChatOwnership(String(req.params.chatId), req, res);
+      if (!chat) return;
+      if (!(await requireBotAccess(store, chat.botId, req, res))) return;
+      res.json(await chatPayload(chat));
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/chats/:chatId/update', async (req: Request, res: Response) => {
+    const parsed = chatTitleSchema.safeParse(req.body);
+    if (!parsed.success || !parsed.data.title) {
+      res.status(400).json({ error: 'title is required' });
+      return;
+    }
+    try {
+      const chat = await assertChatUse(String(req.params.chatId), req, res);
+      if (!chat) return;
+      res.json({ chat: await store.renameChat(chat.id, parsed.data.title) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/chats/:chatId/archive', async (req: Request, res: Response) => {
+    try {
+      const chat = await assertChatUse(String(req.params.chatId), req, res);
+      if (!chat) return;
+      // Routines and handoffs keep using their chat, so hiding it would only strand its approvals.
+      if ((chat.kind ?? 'user') !== 'user') {
+        res.status(400).json({ error: 'Cannot archive a routine or handoff chat' });
+        return;
+      }
+      res.json({ chat: await store.archiveChat(chat.id) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
 
   app.get('/api/chats/:chatId/approvals/auto', async (req: Request, res: Response) => {
     try {

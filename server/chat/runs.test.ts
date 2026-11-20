@@ -65,7 +65,7 @@ async function until(condition: () => boolean | Promise<boolean>) {
 async function setup(options: { sql?: () => Promise<string>; runs?: MemoryRunStore } = {}) {
   const store = new MemoryChatStore();
   const bot = await store.ensurePrimaryBot();
-  const chat = await store.getOrCreateChatForBot(bot.id);
+  const chat = await store.getDefaultChat(bot.id);
   const client = new GatedClient();
   const runs = options.runs ?? new MemoryRunStore();
   const service = new ChatService({
@@ -268,7 +268,7 @@ describe('runs', () => {
     await store.ensureBootstrap('bob');
     await store.addSpaceMember(space.id, 'bob', 'member');
     const bot = await store.createBot({ name: 'Shared', spaceId: space.id, ownerId: 'alice', isShared: true });
-    const chat = await store.getOrCreateChatForBot(bot.id, 'bob');
+    const chat = await store.getDefaultChat(bot.id, 'bob');
     const client = new GatedClient();
     const runs = new MemoryRunStore();
     const service = new ChatService({
@@ -391,7 +391,7 @@ describe('sweeper and handoffs', () => {
       sql: () => new Promise(() => {}),
     });
     const analyst = await store.createBot({ name: 'Analyst', ownerId: bot.ownerId, spaceId: bot.spaceId });
-    const targetChat = await store.getOrCreateChatForBot(analyst.id);
+    const targetChat = await store.getHandoffChat(analyst.id, bot.ownerId);
     await service.getApprovals().setAutoApproved(chat.id, 'handoff_to_bot');
 
     void service.sendUserMessage(chat.id, 'ask the analyst').catch(() => {});
@@ -596,7 +596,7 @@ describe('run routes', () => {
         await ctx.store.ensureBootstrap('bob');
         await ctx.store.addSpaceMember(space.id, 'bob', 'member');
         const bot = await ctx.store.createBot({ name: 'Shared', spaceId: space.id, ownerId: 'alice', isShared: true });
-        const chat = await ctx.store.getOrCreateChatForBot(bot.id, 'bob');
+        const chat = await ctx.store.getDefaultChat(bot.id, 'bob');
         const run = await ctx.service.getRuns().open({ chatId: chat.id, kind: 'send', routine: false });
         const asBob = { 'x-forwarded-email': 'bob' };
         const url = `/api/chats/${chat.id}/runs/${run.runId}/events`;

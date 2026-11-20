@@ -134,6 +134,7 @@ export function registerRoutineRoutes(
   const deleteHandler = async (req: Request, res: Response) => {
     try {
       await store.deleteRoutine(String(req.params.id), resolveOwnerId(req));
+      await options.chats.archiveRoutineChat(String(req.params.id));
       res.status(204).end();
     } catch (err) {
       sendError(res, err);

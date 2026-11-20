@@ -222,6 +222,7 @@ export function createDeleteRoutineTool(routines: RoutineStore, store: ChatStore
       const { routine } = resolved;
       try {
         await routines.deleteRoutine(routine.id, ctx.userId!);
+        await store.archiveRoutineChat(routine.id);
         await store.addMessage(ctx.chatId, 'system', `[routine:${routine.name}] deleted`);
         return JSON.stringify({
           ok: true,
