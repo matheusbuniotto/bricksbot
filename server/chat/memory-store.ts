@@ -365,7 +365,7 @@ export class MemoryChatStore implements ChatStore {
     chatId: string,
     role: MessageRole,
     content: string,
-    options?: { toolCallId?: string; toolCalls?: ToolCall[] }
+    options?: { toolCallId?: string; toolCalls?: ToolCall[]; runId?: string }
   ): Promise<Message> {
     const trimmed = content.trim();
     if (!trimmed && role !== 'assistant') {
@@ -385,6 +385,7 @@ export class MemoryChatStore implements ChatStore {
       createdAt: nowIso(),
       toolCallId: options?.toolCallId,
       toolCalls: options?.toolCalls?.length ? options.toolCalls : undefined,
+      runId: options?.runId,
     };
     messages.push(message);
 

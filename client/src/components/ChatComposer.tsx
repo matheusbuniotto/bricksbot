@@ -1,16 +1,21 @@
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, Square } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 export function ChatComposer({
   disabled,
   placeholder,
   accent,
+  running,
   onSend,
+  onStop,
 }: {
   disabled?: boolean;
   placeholder?: string;
   accent: string;
+  /** The bot is busy with something this composer did not send (e.g. an approved tool). */
+  running?: boolean;
   onSend: (content: string) => Promise<void>;
+  onStop: () => Promise<void>;
 }) {
   const [value, setValue] = useState('');
   const [sending, setSending] = useState(false);
@@ -55,15 +60,27 @@ export function ChatComposer({
           }
         }}
       />
-      <button
-        type="submit"
-        className="composer-send"
-        aria-label="Send"
-        disabled={disabled || !value.trim()}
-        style={{ background: accent }}
-      >
-        <ArrowUp size={18} strokeWidth={2} />
-      </button>
+      {sending || running ? (
+        <button
+          type="button"
+          className="composer-send"
+          aria-label="Stop"
+          style={{ background: accent }}
+          onClick={() => void onStop()}
+        >
+          <Square size={14} strokeWidth={2} fill="currentColor" />
+        </button>
+      ) : (
+        <button
+          type="submit"
+          className="composer-send"
+          aria-label="Send"
+          disabled={disabled || !value.trim()}
+          style={{ background: accent }}
+        >
+          <ArrowUp size={18} strokeWidth={2} />
+        </button>
+      )}
     </form>
   );
 }

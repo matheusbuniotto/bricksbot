@@ -1,6 +1,7 @@
 import { handoffBriefUserLine, serializeHandoffNotice } from '../../shared/chat/handoff-notice.js';
 import type { Bot, ChatStore } from '../../shared/chat/types.js';
 import type { ToolDefinition } from '../../shared/agents/types.js';
+import type { RunContext } from '../../shared/runs/types.js';
 import { readText } from '../lib/coerce.js';
 import { isBotVisibleToViewer } from '../chat/access-policy.js';
 
@@ -30,8 +31,8 @@ export interface HandoffTurnContext {
   bot: Bot | null;
   /** Signed-in caller. Volume paths use this, never the bot owner. */
   userId?: string;
-  /** Set on routine-started turns so volume_write can refuse them. */
-  routine?: boolean;
+  /** The run this turn executes in: routine flag for volume_write, `signal` for tools that can stop early. */
+  run?: RunContext;
 }
 
 export interface HandoffPlan {

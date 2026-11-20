@@ -1226,8 +1226,8 @@ describe('ChatService', () => {
 
   test('offers each turn only the MCP connectors of the turn user (chat, routine, handoff)', async () => {
     const store = new MemoryChatStore();
-    const { space, primary } = await store.ensureBootstrap('user-a');
-    await store.ensureBootstrap('user-b');
+    const { space } = await store.ensureBootstrap('user-a');
+    const { primary: bobPrimary } = await store.ensureBootstrap('user-b');
     await store.addSpaceMember(space.id, 'user-b', 'member');
     const teammate = await store.createBot({
       name: 'DataWizard',
@@ -1280,7 +1280,8 @@ describe('ChatService', () => {
     expect(offered(1)).not.toContain('mcp_user_b_lookup');
 
     // Handoff: the teammate's nested turn keeps the calling user's connectors.
-    const bobPrimaryChat = await store.getOrCreateChatForBot(primary.id, 'user-b');
+    await store.createBot({ name: 'DataWizard', spaceId: bobPrimary.spaceId, ownerId: 'user-b' });
+    const bobPrimaryChat = await store.getOrCreateChatForBot(bobPrimary.id, 'user-b');
     const pending = await service.sendUserMessage(bobPrimaryChat.id, 'ask DataWizard');
     expect(offered(2)).toContain('mcp_user_b_lookup');
     await service.decideApproval(pending.pendingApprovals[0].id, 'once');

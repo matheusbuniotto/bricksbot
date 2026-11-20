@@ -3,6 +3,7 @@ import { createDatabricksTokenProvider, normalizeHostUrl } from '../../chat/data
 import { UnityGatewayMcpClient } from './mcp-client.js';
 import { clip, readText } from '../../lib/coerce.js';
 import { presentEnv } from '../../lib/env.js';
+import type { HandoffTurnContext } from '../handoff.js';
 
 export { normalizeHostUrl };
 
@@ -259,6 +260,8 @@ async function executeSqlStatement(
     maxChars: number;
     pollSeconds?: number;
     pollIntervalMs?: number;
+    /** Stop: ends the request and the polling (the warehouse statement itself is not cancelled). */
+    signal?: AbortSignal;
   }
 ): Promise<string> {
   const host = input.host.replace(/\/+$/, '');
@@ -276,6 +279,7 @@ async function executeSqlStatement(
       disposition: 'INLINE',
       format: 'JSON_ARRAY',
     }),
+    signal: input.signal,
   });
   const text = await response.text();
   if (!response.ok) {
@@ -291,12 +295,13 @@ async function executeSqlStatement(
   const pollDeadline = Date.now() + (input.pollSeconds ?? 50) * 1000;
   let interval = input.pollIntervalMs ?? 500;
 
-  while (isStatementPending(body) && Date.now() < pollDeadline) {
+  while (isStatementPending(body) && Date.now() < pollDeadline && !input.signal?.aborted) {
     await sleep(interval);
     interval = Math.min(Math.round(interval * 1.5), 2000);
     const pollRes = await input.fetchImpl(`${host}/api/2.0/sql/statements/${encodeURIComponent(body.statement_id)}`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${token}` },
+      signal: input.signal,
     });
     if (!pollRes.ok) break;
     try {
@@ -378,7 +383,8 @@ async function executeViaDbsqlMcp(input: {
 export async function executeReadOnlySql(
   options: SqlQueryToolOptions,
   statement: string,
-  warehouseIdFromArgs?: string
+  warehouseIdFromArgs?: string,
+  signal?: AbortSignal
 ): Promise<string> {
   const maxChars = options.maxChars ?? 20_000;
   const trimmed = statement.trim();
@@ -410,6 +416,7 @@ export async function executeReadOnlySql(
         maxChars,
         pollSeconds: options.mcpPollSeconds ?? 50,
         pollIntervalMs: options.mcpPollIntervalMs ?? 1000,
+        signal,
       });
     }
 
@@ -437,12 +444,12 @@ export function createSqlQueryTool(options: SqlQueryToolOptions = {}) {
       const statement = typeof args.statement === 'string' ? args.statement : '';
       return readOnlySqlError(statement);
     },
-    async execute(args: Record<string, unknown>): Promise<string> {
+    async execute(args: Record<string, unknown>, ctx?: HandoffTurnContext): Promise<string> {
       const statement = typeof args.statement === 'string' ? args.statement : '';
       const refusal = readOnlySqlError(statement);
       if (refusal) return refusal;
       const fromArgs = readText(args.warehouse_id);
-      return executeReadOnlySql(options, statement, fromArgs);
+      return executeReadOnlySql(options, statement, fromArgs, ctx?.run?.signal);
     },
   };
 }

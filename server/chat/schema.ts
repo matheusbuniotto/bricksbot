@@ -218,4 +218,41 @@ export const CHAT_SCHEMA_STATEMENTS = [
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (user_id, service)
 )`,
+  `ALTER TABLE bricksbot.chats ADD COLUMN IF NOT EXISTS event_seq BIGINT NOT NULL DEFAULT 0`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.chat_runs (
+  id UUID PRIMARY KEY,
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  turn_id UUID NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('send', 'resume')),
+  status TEXT NOT NULL CHECK (status IN ('running', 'waiting', 'completed', 'failed', 'stopped')),
+  routine BOOLEAN NOT NULL DEFAULT FALSE,
+  request_id TEXT,
+  payer_user_id TEXT,
+  stop_requested BOOLEAN NOT NULL DEFAULT FALSE,
+  error TEXT,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finished_at TIMESTAMPTZ
+)`,
+  // One running run per chat: concurrent starts fail on this index instead of racing.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chat_runs_active
+  ON bricksbot.chat_runs(chat_id) WHERE status = 'running'`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bricksbot_chat_runs_request
+  ON bricksbot.chat_runs(request_id) WHERE request_id IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_chat_runs_chat
+  ON bricksbot.chat_runs(chat_id, started_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.run_events (
+  chat_id UUID NOT NULL REFERENCES bricksbot.chats(id) ON DELETE CASCADE,
+  seq BIGINT NOT NULL,
+  run_id UUID NOT NULL,
+  type TEXT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (chat_id, seq)
+)`,
+  `CREATE TABLE IF NOT EXISTS bricksbot.leases (
+  name TEXT PRIMARY KEY,
+  owner TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+)`,
+  `ALTER TABLE bricksbot.messages ADD COLUMN IF NOT EXISTS run_id UUID`,
 ] as const;

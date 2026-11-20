@@ -230,6 +230,13 @@ export async function sendChatMessage(
   );
 }
 
+/** Stop whatever the chat is running. A no-op when it already finished. */
+export async function stopActiveRun(chatId: string): Promise<void> {
+  const { run } = await readJson<{ run: { id: string } | null }>(await fetch(`/api/chats/${chatId}/runs/active`));
+  if (!run) return;
+  await readJson(await fetch(`/api/chats/${chatId}/runs/${run.id}/stop`, { method: 'POST' }));
+}
+
 export async function decideApproval(
   approvalId: string,
   decision: ApprovalDecision

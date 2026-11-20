@@ -52,10 +52,9 @@ export class RoutineService {
     }
     const chat = await this.chats.getOrCreateChatForBot(routine.botId, routine.ownerId);
     const systemNote = `[routine:${routine.name}] scheduled run`;
-    await this.chats.addMessage(chat.id, 'system', systemNote);
     const runAs = routine.runAs === 'app' && routineAppIdentityAllowed(this.env) ? 'app' : 'owner_approval';
     const result = await runWithRoutineAuth(runAs, () =>
-      this.chatService.sendUserMessage(chat.id, routine.prompt, { routine: true })
+      this.chatService.sendUserMessage(chat.id, routine.prompt, { routine: true, systemNote })
     );
     const updated = await this.routines.markRoutineRun(routine.id);
     return { routine: updated, chat: result };

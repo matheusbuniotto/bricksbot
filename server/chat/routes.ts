@@ -5,6 +5,7 @@ import type { SandboxUiStatus } from '../../shared/sandbox/types.js';
 import { AVAILABLE_DATABRICKS_MCPS, BUILTIN_PLUGIN_MCPS } from '../../shared/agents/mcp-types.js';
 import type { McpDiscoveryService } from '../agents/tools/mcp-discovery.js';
 import { buildConnectedMcpTools } from '../agents/tools/mcp-tools.js';
+import { ActiveRunError } from '../../shared/runs/types.js';
 import { createErrorResponder } from '../lib/http.js';
 import { canManageSpaceMembers, canViewerAccessSpace } from './access-policy.js';
 import { runWithDatabricksRequestAuth } from './databricks-auth.js';
@@ -25,14 +26,18 @@ async function syncConnectedMcpTools(
 const postMessageSchema = z.object({
   content: z.string().trim().min(1, 'Message content is required'),
   requestId: z.string().trim().min(1).max(128).optional(),
+  /** Answer 202 as soon as the message is saved; the turn keeps running in the background. */
+  async: z.boolean().optional(),
 });
 
 const decideSchema = z.object({
   decision: z.enum(['all_the_time', 'always', 'once', 'approved', 'denied', 'not_approved']),
+  async: z.boolean().optional(),
 });
 
 const submitChoiceSchema = z.object({
   selectedOption: z.string().trim().min(1, 'selectedOption is required'),
+  async: z.boolean().optional(),
 });
 
 const createBotSchema = z.object({
@@ -90,12 +95,22 @@ export type ChatHttpApp = {
 };
 
 const sendError = createErrorResponder([
+  [403, /Access to this bot was revoked/i],
   [409, /requestId already used/i],
   [
     400,
     /required|already decided|Cannot (archive|delete|move|share)|Unarchive|index must|At least one field|Invalid option|selectedOption/i,
   ],
 ]);
+
+/** A chat already running something answers 409 with the run to Stop or wait for. */
+function sendRunError(res: Response, err: unknown): void {
+  if (err instanceof ActiveRunError) {
+    res.status(409).json({ error: err.message, activeRunId: err.activeRunId });
+    return;
+  }
+  sendError(res, err);
+}
 
 /** Register Spaces, roster, durable chat, and approval HTTP routes. */
 export function registerChatRoutes(
@@ -688,12 +703,63 @@ export function registerChatRoutes(
       const chatId = String(req.params.chatId);
       const chat = await assertChatUse(chatId, req, res);
       if (!chat) return;
+      const { content, requestId } = parsed.data;
+      if (parsed.data.async) {
+        const { run, user } = await runWithDatabricksRequestAuth(req, () =>
+          service.startUserMessage(chatId, content, { requestId })
+        );
+        res.status(202).json({ runId: run.id, user });
+        return;
+      }
       const result = await runWithDatabricksRequestAuth(req, () =>
-        service.sendUserMessage(chatId, parsed.data.content, {
-          requestId: parsed.data.requestId,
-        })
+        service.sendUserMessage(chatId, content, { requestId })
       );
       res.status(201).json(result);
+    } catch (err) {
+      sendRunError(res, err);
+    }
+  });
+
+  // What the Stop button asks first: the run in flight, if any (the sync send does not hand back its run id).
+  app.get('/api/chats/:chatId/runs/active', async (req: Request, res: Response) => {
+    try {
+      const chatId = String(req.params.chatId);
+      if (!(await assertChatOwnership(chatId, req, res))) return;
+      const running = await service.getRuns().store.listRunning();
+      res.json({ run: running.find((run) => run.chatId === chatId) ?? null });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/chats/:chatId/runs/:runId', async (req: Request, res: Response) => {
+    try {
+      const chatId = String(req.params.chatId);
+      if (!(await assertChatOwnership(chatId, req, res))) return;
+      const run = await service.getRuns().store.get(String(req.params.runId));
+      if (!run || run.chatId !== chatId) {
+        res.status(404).json({ error: 'Run not found' });
+        return;
+      }
+      res.json({ run });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  // Stop needs only ownership of the chat: whoever lost access to the bot can still cut a run short.
+  app.post('/api/chats/:chatId/runs/:runId/stop', async (req: Request, res: Response) => {
+    try {
+      const chatId = String(req.params.chatId);
+      if (!(await assertChatOwnership(chatId, req, res))) return;
+      const runId = String(req.params.runId);
+      const run = await service.getRuns().store.get(runId);
+      if (!run || run.chatId !== chatId) {
+        res.status(404).json({ error: 'Run not found' });
+        return;
+      }
+      await service.stopRun(runId);
+      res.json({ run: await service.getRuns().store.get(runId) });
     } catch (err) {
       sendError(res, err);
     }
@@ -715,12 +781,20 @@ export function registerChatRoutes(
       }
       const chat = await assertChatUse(pending.chatId, req, res);
       if (!chat) return;
+      const { decision } = parsed.data;
+      if (parsed.data.async) {
+        const runId = await runWithDatabricksRequestAuth(req, () =>
+          service.decideApprovalDetached(approvalId, decision, { decidedBy: chat.userId })
+        );
+        res.status(202).json({ runId });
+        return;
+      }
       const result = await runWithDatabricksRequestAuth(req, () =>
-        service.decideApproval(approvalId, parsed.data.decision, { decidedBy: chat.userId })
+        service.decideApproval(approvalId, decision, { decidedBy: chat.userId })
       );
       res.json(result);
     } catch (err) {
-      sendError(res, err);
+      sendRunError(res, err);
     }
   });
 
@@ -741,12 +815,18 @@ export function registerChatRoutes(
         res.status(404).json({ error: 'Choice not found' });
         return;
       }
-      const result = await runWithDatabricksRequestAuth(req, () =>
-        service.submitChoice(choiceId, parsed.data.selectedOption)
-      );
+      const { selectedOption } = parsed.data;
+      if (parsed.data.async) {
+        const runId = await runWithDatabricksRequestAuth(req, () =>
+          service.submitChoiceDetached(choiceId, selectedOption)
+        );
+        res.status(202).json({ runId });
+        return;
+      }
+      const result = await runWithDatabricksRequestAuth(req, () => service.submitChoice(choiceId, selectedOption));
       res.json(result);
     } catch (err) {
-      sendError(res, err);
+      sendRunError(res, err);
     }
   });
 }

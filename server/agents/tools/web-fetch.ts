@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '../../../shared/agents/types.js';
 import { clip, readText } from '../../lib/coerce.js';
 import { presentEnv } from '../../lib/env.js';
+import type { HandoffTurnContext } from '../handoff.js';
 
 export function isUrlAllowlisted(url: string, allowlist: string[]): boolean {
   let parsed: URL;
@@ -83,14 +84,16 @@ export function createWebFetchTool(options: {
       }
       return null;
     },
-    async execute(args: Record<string, unknown>): Promise<string> {
+    async execute(args: Record<string, unknown>, ctx?: HandoffTurnContext): Promise<string> {
       const fetchImpl = options.fetchImpl ?? globalThis.fetch;
       const url = readText(args.url);
       if (!isUrlAllowlisted(url, options.allowlist)) {
         throw new Error(`URL is not on the web_fetch allowlist: ${url}`);
       }
 
-      const response = await fetchFollowingAllowlist(url, options.allowlist, fetchImpl, AbortSignal.timeout(timeoutMs));
+      // Stop cuts the request short, like the timeout does.
+      const signal = AbortSignal.any([AbortSignal.timeout(timeoutMs), ...(ctx?.run ? [ctx.run.signal] : [])]);
+      const response = await fetchFollowingAllowlist(url, options.allowlist, fetchImpl, signal);
       if (!response.ok) {
         throw new Error(`web_fetch failed (${response.status}) for ${url}`);
       }

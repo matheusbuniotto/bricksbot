@@ -24,6 +24,7 @@ import type {
 } from '../../shared/agents/types.js';
 import type { MemorySkillStore } from '../../shared/agents/memory/types.js';
 import type { RoutineStore } from '../../shared/routines/types.js';
+import { ActiveRunError, type Run, type RunContext, type RunStore } from '../../shared/runs/types.js';
 import { createHandoffTool, HANDOFF_TOOL_NAME, planHandoff, type HandoffTurnContext } from '../agents/handoff.js';
 import { applyCompactionToHistory, runCompaction, shouldCompact } from '../durable/compaction.js';
 import { CREATE_BOT_TOOL_NAME, createCreateBotTool } from '../agents/tools/create-bot.js';
@@ -70,17 +71,22 @@ import type { SystemAiMcpOptions } from '../../shared/agents/mcp-types.js';
 import { formatBotContext } from '../agents/memory/context.js';
 import { MemoryMemorySkillStore } from '../agents/memory/memory-store.js';
 import { annotate, traced } from '../observability/tracing.js';
+import { MemoryRunStore } from '../runs/memory-store.js';
+import { abortable, RunService, RunStoppedError, stoppedBy } from '../runs/run-service.js';
 import { MemoryRoutineStore } from '../routines/memory-store.js';
 import type { ArtifactSyncService } from '../sandbox/artifact-sync.js';
 import type { SandboxSessionService } from '../sandbox/session-service.js';
 import { MemoryVolumeUsageStore } from '../volumes/usage-store.js';
 import { ApprovalStore } from './approvals.js';
 import { ChoiceStore } from './choices.js';
+import { canUseBot } from './access-policy.js';
 import { routineNeedsOwnerApproval } from './databricks-auth.js';
 import { PluginHost } from '../plugins/host/plugin-host.js';
 import type { PluginExecutionContext, PluginPromptContext, PluginTurnContext } from '../../shared/plugins/types.js';
 
 const SILENT_LOG: PluginExecutionContext['log'] = { info: () => {}, warn: () => {}, error: () => {} };
+
+const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Unexpected error');
 
 function latestOfRole(history: Message[], role: Message['role']): Message | undefined {
   for (let i = history.length - 1; i >= 0; i -= 1) {
@@ -143,6 +149,8 @@ export interface ChatServiceOptions {
   compaction?: CompactionStore;
   compactionSettings?: CompactionSettings;
   idempotency?: IdempotencyStore;
+  /** Defaults to in-memory so runs, Stop and events work in tests/local without Lakebase. */
+  runs?: RunStore;
   /** Optional Phase 5 sandbox execution service (tools registered only when enabled). */
   sandbox?: SandboxSessionService;
   sandboxArtifactSync?: ArtifactSyncService;
@@ -222,13 +230,23 @@ function toLlmHistory(history: Message[]): LlmMessage[] {
 type ApprovalOutcome = 'auto' | 'user_approved' | 'user_denied' | 'refused';
 
 type ContinueTurnOptions = {
+  /** The run this turn belongs to; carries the routine flag (no user OBO token) and the Stop signal. */
+  run: RunContext;
   /** Nested teammate turns from handoff auto-run tools without extra approvals. */
   autoApproveAll?: boolean;
   /** Signed-in caller when this chat row belongs to someone else. */
   callerUserId?: string;
-  /** Routine runs have no user OBO token. */
-  routine?: boolean;
 };
+
+/** HandoffTurnContext as built by the service: always inside a run. */
+type TurnContext = HandoffTurnContext & { run: RunContext };
+
+/** The caller lost access to the bot while the run was in flight. */
+class AccessRevokedError extends Error {
+  constructor() {
+    super('Access to this bot was revoked');
+  }
+}
 
 export interface SendMessageResult {
   user: Message;
@@ -251,6 +269,7 @@ export class ChatService {
   private readonly compactionSettings: CompactionSettings;
   private readonly memory: MemorySkillStore;
   private readonly pluginHost?: PluginHost;
+  private readonly runs: RunService;
   private readonly activeTurnsByBot = new Map<string, number>();
   /** After a deny, skip auto-continue until the next user message for that chat. */
   private readonly denyPauseByChat = new Set<string>();
@@ -260,6 +279,7 @@ export class ChatService {
     this.choices = options.choices ?? new ChoiceStore();
     this.compactionSettings = options.compactionSettings ?? DEFAULT_COMPACTION_SETTINGS;
     this.pluginHost = options.pluginHost;
+    this.runs = new RunService(options.runs ?? new MemoryRunStore());
     // Meta tools (remember / skills / list_memories) are default for every bot.
     this.memory = options.memory ?? new MemoryMemorySkillStore();
     const allowlist = options.webFetchAllowlist ?? [];
@@ -366,10 +386,18 @@ export class ChatService {
     return this.options.sandbox;
   }
 
+  getRuns(): RunService {
+    return this.runs;
+  }
+
+  /**
+   * Sends a user message and waits for the turn to stop (answer, approvals, or choice).
+   * Throws ActiveRunError when the chat already has a run in flight.
+   */
   async sendUserMessage(
     chatId: string,
     content: string,
-    options?: { requestId?: string; routine?: boolean }
+    options?: { requestId?: string; routine?: boolean; systemNote?: string }
   ): Promise<SendMessageResult> {
     const trimmed = content.trim();
     if (!trimmed) {
@@ -377,22 +405,145 @@ export class ChatService {
     }
 
     const requestId = options?.requestId?.trim();
-    if (requestId && this.options.idempotency) {
-      const existing = await this.options.idempotency.get(requestId);
-      if (existing) {
-        if (existing.chatId !== chatId) throw new Error('requestId already used for another chat');
-        return JSON.parse(existing.resultJson) as SendMessageResult;
-      }
+    const stored = await this.storedResult(chatId, requestId);
+    if (stored) return stored;
+
+    await this.refuseWhilePaused(chatId, requestId);
+    const { run, ctx } = await this.openRun(chatId, 'send', { requestId, routine: options?.routine });
+    if (!ctx) {
+      // Same requestId as a run that is still going (or whose result was never stored).
+      if (run.chatId !== chatId) throw new Error('requestId already used for another chat');
+      if (run.status === 'running') throw new ActiveRunError(run.id);
+      // The first attempt threw; a retry with the same requestId reports that, a new requestId runs again.
+      if (run.status === 'failed') throw new Error(run.error ?? 'The first attempt of this request failed');
+      return (await this.storedResult(chatId, requestId)) ?? this.turnResult(chatId);
     }
 
     this.denyPauseByChat.delete(chatId);
-    const user = await this.options.store.addMessage(chatId, 'user', trimmed);
-    const result = await this.continueTurn(chatId, user, 0, { routine: options?.routine === true });
+    const result = await this.inRun(ctx, async () => {
+      // Written inside the run so a refused send (409) leaves no stray note in the transcript.
+      if (options?.systemNote) await this.options.store.addMessage(chatId, 'system', options.systemNote);
+      const user = await this.options.store.addMessage(chatId, 'user', trimmed, { runId: ctx.runId });
+      return this.continueTurn(chatId, user, 0, { run: ctx });
+    });
 
     if (requestId && this.options.idempotency) {
       await this.options.idempotency.put(requestId, chatId, JSON.stringify(result));
     }
     return result;
+  }
+
+  /** Like sendUserMessage, but returns as soon as the user message is saved; the turn runs in the background. */
+  async startUserMessage(
+    chatId: string,
+    content: string,
+    options?: { requestId?: string }
+  ): Promise<{ run: Run; user: Message }> {
+    const trimmed = content.trim();
+    if (!trimmed) {
+      throw new Error('Message content is required');
+    }
+
+    const requestId = options?.requestId?.trim();
+    await this.refuseWhilePaused(chatId, requestId);
+    const { run, ctx } = await this.openRun(chatId, 'send', { requestId });
+    if (!ctx) {
+      const user = (await this.options.store.listMessages(chatId)).find(
+        (message) => message.runId === run.id && message.role === 'user'
+      );
+      if (!user) throw new Error('requestId already used for another chat');
+      return { run, user };
+    }
+
+    this.denyPauseByChat.delete(chatId);
+    let user: Message;
+    try {
+      user = await this.options.store.addMessage(chatId, 'user', trimmed, { runId: ctx.runId });
+    } catch (err) {
+      await this.runs.settle(ctx, 'failed', errorText(err));
+      throw err;
+    }
+    this.inBackground(ctx, () => this.continueTurn(chatId, user, 0, { run: ctx }));
+    return { run, user };
+  }
+
+  /**
+   * A turn paused on an approval or choice still owns the chat: a new message (user, cron, webhook) would land
+   * between the assistant's tool_calls and their results and make the history invalid for the LLM.
+   * A repeated `requestId` is no new message: it gets its original run back instead.
+   */
+  private async refuseWhilePaused(chatId: string, requestId?: string): Promise<void> {
+    if (requestId && (await this.runs.store.findByRequestId(requestId))) return;
+    const approvals = await this.approvals.listPending(chatId);
+    if (approvals.length === 0 && this.choices.listPending(chatId).length === 0) return;
+    const latest = await this.runs.store.latest(chatId);
+    throw new ActiveRunError(latest?.id ?? '', 'This chat is waiting for an approval or an answer');
+  }
+
+  /** A result stored under `requestId`, so a retried send does not run twice. */
+  private async storedResult(chatId: string, requestId?: string): Promise<SendMessageResult | null> {
+    const existing = requestId && this.options.idempotency ? await this.options.idempotency.get(requestId) : null;
+    if (!existing) return null;
+    if (existing.chatId !== chatId) throw new Error('requestId already used for another chat');
+    return JSON.parse(existing.resultJson) as SendMessageResult;
+  }
+
+  /** Opens a run for the chat's caller. `ctx` is null for a repeated requestId; `run` is then the first one. */
+  private async openRun(
+    chatId: string,
+    kind: Run['kind'],
+    { requestId, routine }: { requestId?: string; routine?: boolean }
+  ): Promise<{ run: Run; ctx: RunContext | null }> {
+    const chat = await this.options.store.getChat(chatId);
+    return this.runs.start({ chatId, kind, routine: routine === true, requestId, payerUserId: chat?.userId });
+  }
+
+  /** A run that continues the turn after an approval or choice; `ctx.turnId` and the routine flag stay the turn's. */
+  private async openResume(chatId: string): Promise<RunContext> {
+    const [chat, turnRun] = await Promise.all([this.options.store.getChat(chatId), this.runs.store.latest(chatId)]);
+    return this.runs.open({ chatId, kind: 'resume', routine: turnRun?.routine === true, payerUserId: chat?.userId });
+  }
+
+  /** Runs `work` as the body of `ctx`'s run and records how it ended. */
+  private async inRun(ctx: RunContext, work: () => Promise<SendMessageResult>): Promise<SendMessageResult> {
+    try {
+      const result = await work();
+      const paused = result.pendingApprovals.length > 0 || (result.pendingChoices?.length ?? 0) > 0;
+      await this.runs.settle(ctx, paused ? 'waiting' : 'completed');
+      return result;
+    } catch (err) {
+      if (err instanceof RunStoppedError && err.reason === 'stop') {
+        await this.runs.settle(ctx, 'stopped');
+        return this.turnResult(ctx.chatId);
+      }
+      await this.runs.settle(ctx, 'failed', errorText(err));
+      throw err;
+    }
+  }
+
+  /** Detached runs report through the run record and its events, so nobody awaits the outcome. */
+  private inBackground(ctx: RunContext, work: () => Promise<SendMessageResult>): void {
+    this.inRun(ctx, work).catch((err) => console.warn(`[bricksbot] Run ${ctx.runId} failed: ${errorText(err)}`));
+  }
+
+  /** Stop button: ends the run (here or on the instance running it) once its current step lets go. */
+  stopRun(runId: string): Promise<boolean> {
+    return this.runs.stop(runId);
+  }
+
+  /** Fails runs whose server died mid-turn, leaving every tool call answered so the next turn replays cleanly. */
+  sweepInterruptedRuns(): Promise<number> {
+    return this.runs.sweep(async (run) => {
+      const reason = 'Interrupted: the server restarted';
+      await this.closeOrphanToolCalls(run.chatId, reason);
+      // A handoff in flight leaves the teammate's chat mid-turn as well.
+      for (const message of await this.options.store.listMessages(run.chatId)) {
+        const notice =
+          message.runId === run.id && message.role === 'system' ? parseHandoffNotice(message.content) : null;
+        if (notice?.direction === 'sent' && notice.targetChatId)
+          await this.closeOrphanToolCalls(notice.targetChatId, reason);
+      }
+    });
   }
 
   /** What the UI gets whenever a turn stops; missing user/assistant default to the latest in the chat. */
@@ -410,14 +561,15 @@ export class ChatService {
   }
 
   /** Continue the model turn unless approvals, choices, or (optionally) a denial still hold it. */
-  private async resumeUnlessPaused(chatId: string, { honorDenyPause }: { honorDenyPause: boolean }) {
+  private async resumeUnlessPaused(run: RunContext, { honorDenyPause }: { honorDenyPause: boolean }) {
+    const chatId = run.chatId;
     const [pendingApprovals, pendingChoices] = await Promise.all([
       this.approvals.listPending(chatId),
       this.choices.listPending(chatId),
     ]);
     const paused =
       pendingApprovals.length > 0 || pendingChoices.length > 0 || (honorDenyPause && this.denyPauseByChat.has(chatId));
-    if (!paused) return this.continueTurn(chatId);
+    if (!paused) return this.continueTurn(chatId, undefined, 0, { run });
     await this.syncBotPresenceAfterTurn(chatId, await this.options.store.findBotIdForChat(chatId));
     return this.turnResult(chatId);
   }
@@ -451,14 +603,42 @@ export class ChatService {
     decision: ApprovalDecision,
     opts?: { decidedBy?: string }
   ): Promise<SendMessageResult> {
-    return traced('approval_decision', 'CHAIN', { approval_id: approvalId, decision }, () =>
-      this.settleApproval(approvalId, decision, opts)
-    );
+    return traced('approval_decision', 'CHAIN', { approval_id: approvalId, decision }, async () => {
+      const pending = await this.approvals.get(approvalId);
+      if (!pending) throw new Error('Approval not found');
+      try {
+        const ctx = await this.openResume(pending.chatId);
+        return await this.inRun(ctx, () => this.settleApproval(approvalId, decision, ctx, opts));
+      } catch (err) {
+        // Double click on a card that is already decided while its run is busy: nothing to redo.
+        if (err instanceof ActiveRunError && pending.status !== 'pending') return this.turnResult(pending.chatId);
+        throw err;
+      }
+    });
+  }
+
+  /** Like decideApproval, but returns the id of the resume run at once and finishes the work in the background. */
+  async decideApprovalDetached(
+    approvalId: string,
+    decision: ApprovalDecision,
+    opts?: { decidedBy?: string }
+  ): Promise<string> {
+    const pending = await this.approvals.get(approvalId);
+    if (!pending) throw new Error('Approval not found');
+    try {
+      const ctx = await this.openResume(pending.chatId);
+      this.inBackground(ctx, () => this.settleApproval(approvalId, decision, ctx, opts));
+      return ctx.runId;
+    } catch (err) {
+      if (err instanceof ActiveRunError && pending.status !== 'pending') return err.activeRunId;
+      throw err;
+    }
   }
 
   private async settleApproval(
     approvalId: string,
     decision: ApprovalDecision,
+    run: RunContext,
     opts?: { decidedBy?: string }
   ): Promise<SendMessageResult> {
     const pending = await this.approvals.get(approvalId);
@@ -481,7 +661,7 @@ export class ChatService {
     if (isDenial) {
       this.denyPauseByChat.add(chatId);
     }
-    await this.applyDecidedApproval(approval, isDenial);
+    await this.applyDecidedApproval(approval, isDenial, run);
 
     // "Always allow" should clear the whole same-tool wave in this turn, not leave
     // N-1 sibling cards that still need clicks (and race into "already decided").
@@ -496,17 +676,17 @@ export class ChatService {
           trailMeta
         );
         if (!siblingApplied) continue;
-        await this.applyDecidedApproval(decided, false);
+        await this.applyDecidedApproval(decided, false, run);
       }
     }
 
     // OpenAI requires every tool_call id from the assistant turn to have a tool
     // result before the next completion — wait if siblings are still pending.
     // Deny-until-new-message: do not auto-retry the model after a denial wave.
-    return this.resumeUnlessPaused(chatId, { honorDenyPause: true });
+    return this.resumeUnlessPaused(run, { honorDenyPause: true });
   }
 
-  private async applyDecidedApproval(approval: ApprovalRequest, isDenial: boolean): Promise<void> {
+  private async applyDecidedApproval(approval: ApprovalRequest, isDenial: boolean, run: RunContext): Promise<void> {
     const chatId = approval.chatId;
     if (isDenial) {
       await this.traceTool(approval.toolCall, { chatId }, 'user_denied', () =>
@@ -514,7 +694,7 @@ export class ChatService {
           chatId,
           'tool',
           JSON.stringify({ error: 'User denied tool call', tool: approval.toolCall.name }),
-          { toolCallId: approval.toolCall.id }
+          { toolCallId: approval.toolCall.id, runId: run.runId }
         )
       );
       return;
@@ -527,6 +707,7 @@ export class ChatService {
       if (error) {
         await this.options.store.addMessage(chatId, 'tool', JSON.stringify({ error, tool: approval.toolCall.name }), {
           toolCallId: approval.toolCall.id,
+          runId: run.runId,
         });
       }
       return;
@@ -539,26 +720,42 @@ export class ChatService {
     await this.loadMcpTools(chat?.userId);
     const toolResult = await this.executeTool(
       approval.toolCall,
-      { chatId, bot, userId: chat?.userId },
+      { chatId, bot, userId: chat?.userId, run },
       'user_approved'
     );
     await this.options.store.addMessage(chatId, 'tool', toolResult, {
       toolCallId: approval.toolCall.id,
+      runId: run.runId,
     });
   }
 
   async submitChoice(choiceId: string, selectedOption: string): Promise<SendMessageResult> {
-    const trimmed = selectedOption.trim();
-    if (!trimmed) {
+    const { chatId } = this.pendingChoice(choiceId, selectedOption);
+    const ctx = await this.openResume(chatId);
+    return this.inRun(ctx, () => this.answerChoice(choiceId, selectedOption.trim(), ctx));
+  }
+
+  /** Like submitChoice, but returns the id of the resume run at once and finishes the work in the background. */
+  async submitChoiceDetached(choiceId: string, selectedOption: string): Promise<string> {
+    const { chatId } = this.pendingChoice(choiceId, selectedOption);
+    const ctx = await this.openResume(chatId);
+    this.inBackground(ctx, () => this.answerChoice(choiceId, selectedOption.trim(), ctx));
+    return ctx.runId;
+  }
+
+  private pendingChoice(choiceId: string, selectedOption: string) {
+    if (!selectedOption.trim()) {
       throw new Error('selectedOption is required');
     }
-
     const pending = this.choices.get(choiceId);
     if (!pending) {
       throw new Error('Choice not found');
     }
+    return pending;
+  }
 
-    const answered = this.choices.answer(choiceId, trimmed);
+  private async answerChoice(choiceId: string, selectedOption: string, run: RunContext): Promise<SendMessageResult> {
+    const answered = this.choices.answer(choiceId, selectedOption);
     const chatId = answered.chatId;
 
     await this.options.store.addMessage(
@@ -568,18 +765,18 @@ export class ChatService {
         kind: 'choice_answer',
         choiceId: answered.id,
         prompt: answered.prompt,
-        selectedOption: trimmed,
+        selectedOption,
       })
     );
 
     await this.options.store.addMessage(
       chatId,
       'tool',
-      JSON.stringify({ ok: true, selected: trimmed, tool: ASK_CHOICE_TOOL_NAME }),
-      { toolCallId: answered.toolCallId }
+      JSON.stringify({ ok: true, selected: selectedOption, tool: ASK_CHOICE_TOOL_NAME }),
+      { toolCallId: answered.toolCallId, runId: run.runId }
     );
 
-    return this.resumeUnlessPaused(chatId, { honorDenyPause: false });
+    return this.resumeUnlessPaused(run, { honorDenyPause: false });
   }
 
   /** After approval: post choice_prompt system row and keep the turn open. */
@@ -653,30 +850,32 @@ export class ChatService {
   /** One trace per turn; follow-up model calls (depth > 0) stay inside it. */
   private continueTurn(
     chatId: string,
-    user?: Message,
-    depth: number = 0,
-    opts: ContinueTurnOptions = {}
+    user: Message | undefined,
+    depth: number,
+    opts: ContinueTurnOptions
   ): Promise<SendMessageResult> {
     if (depth > 0) return this.runTurn(chatId, user, depth, opts);
     return traced(
       'chat_turn',
       'AGENT',
-      { chat_id: chatId, routine: opts.routine === true, handoff: opts.autoApproveAll === true },
+      { chat_id: chatId, run_id: opts.run.runId, routine: opts.run.routine, handoff: opts.autoApproveAll === true },
       () => this.runTurn(chatId, user, depth, opts)
     );
   }
 
   private async runTurn(
     chatId: string,
-    user?: Message,
-    depth: number = 0,
-    opts: ContinueTurnOptions = {}
+    user: Message | undefined,
+    depth: number,
+    opts: ContinueTurnOptions
   ): Promise<SendMessageResult> {
+    const { run } = opts;
     if (depth > 8) {
       const assistant = await this.options.store.addMessage(
         chatId,
         'assistant',
-        'Reached maximum tool execution steps for this turn.'
+        'Reached maximum tool execution steps for this turn.',
+        { runId: run.runId }
       );
       return this.turnResult(chatId, user, assistant);
     }
@@ -693,6 +892,11 @@ export class ChatService {
     try {
       let history = await this.options.store.listMessages(chatId);
       const turnUserId = opts.callerUserId ?? chat?.userId;
+      // Checked every step: unsharing or removal cuts off a run that is already going.
+      if (run.signal.aborted) throw stoppedBy(run.signal);
+      if (bot && turnUserId && !(await canUseBot(this.options.store, bot, turnUserId))) {
+        throw new AccessRevokedError();
+      }
       await this.loadMcpTools(turnUserId);
       const tools = this.toolsFor(bot, turnUserId);
       const systemPrompt = await this.systemPromptFor(
@@ -716,12 +920,7 @@ export class ChatService {
       const compaction = this.options.compaction ? await this.options.compaction.getLatest(chatId) : null;
       const { messages: windowed, summarySystem } = applyCompactionToHistory(history, compaction);
 
-      const turnCtx: HandoffTurnContext = {
-        chatId,
-        bot,
-        userId: turnUserId,
-        routine: opts.routine,
-      };
+      const turnCtx: TurnContext = { chatId, bot, userId: turnUserId, run };
       const pluginTurnContext = (messages: Message[]): PluginTurnContext => ({
         ...this.pluginHostContext(turnCtx),
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -755,9 +954,25 @@ export class ChatService {
           depth,
         },
         async () => {
-          const result = await this.options.client.complete({ messages: llmMessages, tools });
-          annotate({ tool_calls: result.toolCalls.length, total_tokens: result.usage?.totalTokens });
-          return result;
+          let partial = '';
+          try {
+            const result = await this.options.client.complete(
+              { messages: llmMessages, tools },
+              { signal: run.signal, onDelta: (text) => (partial += text) }
+            );
+            annotate({ tool_calls: result.toolCalls.length, total_tokens: result.usage?.totalTokens });
+            return result;
+          } catch (err) {
+            if (!run.signal.aborted) throw err;
+            // Keep whatever streamed before Stop, marked so it is not mistaken for a full answer.
+            await this.options.store.addMessage(
+              chatId,
+              'assistant',
+              partial ? `${partial}\n\n(stopped)` : '(stopped)',
+              { runId: run.runId }
+            );
+            throw stoppedBy(run.signal);
+          }
         }
       );
 
@@ -808,20 +1023,25 @@ export class ChatService {
         // Persist the assistant tool_calls before any tool results so replay is valid.
         const assistant = await this.options.store.addMessage(chatId, 'assistant', assistantContent, {
           toolCalls: completion.toolCalls,
+          runId: run.runId,
         });
+        await run.emit('assistant.committed', { messageId: assistant.id, toolCalls: completion.toolCalls.length });
 
         for (const { toolCall, reason } of refusals) {
           await this.traceTool(toolCall, turnCtx, 'refused', () =>
             this.options.store.addMessage(chatId, 'tool', JSON.stringify({ error: reason, tool: toolCall.name }), {
               toolCallId: toolCall.id,
+              runId: run.runId,
             })
           );
         }
 
         for (const toolCall of toAutoExecute) {
+          if (run.signal.aborted) throw stoppedBy(run.signal);
           const toolResult = await this.executeTool(toolCall, turnCtx, 'auto');
           await this.options.store.addMessage(chatId, 'tool', toolResult, {
             toolCallId: toolCall.id,
+            runId: run.runId,
           });
         }
 
@@ -840,6 +1060,9 @@ export class ChatService {
               return this.approvals.create(chatId, toolCall, trailMeta, extra);
             })
           );
+          await run.emit('approval.pending', {
+            approvals: pendingApprovals.map((approval) => ({ id: approval.id, tool: approval.toolCall.name })),
+          });
           return {
             ...(await this.turnResult(chatId, user ?? latestOfRole(history, 'user'), assistant)),
             pendingApprovals,
@@ -857,18 +1080,57 @@ export class ChatService {
       const assistant = await this.options.store.addMessage(
         chatId,
         'assistant',
-        completion.content?.trim() || '(empty model response)'
+        completion.content?.trim() || '(empty model response)',
+        { runId: run.runId }
       );
+      await run.emit('assistant.committed', { messageId: assistant.id, toolCalls: 0 });
 
       if (this.pluginHost) {
         await this.pluginHost.executeAfterTurn(pluginTurnContext([...windowed, assistant]));
       }
 
       return this.turnResult(chatId, user ?? latestOfRole(history, 'user'), assistant);
+    } catch (err) {
+      // Stop, lost access, or a crash can land between an assistant's tool_calls and their results.
+      if (err instanceof RunStoppedError || err instanceof AccessRevokedError) {
+        await this.closeOrphanToolCalls(
+          chatId,
+          err instanceof AccessRevokedError
+            ? err.message
+            : err.reason === 'stop'
+              ? 'Stopped by user'
+              : 'Interrupted: the run lost its lease'
+        );
+      }
+      throw err;
     } finally {
       if (depth === 0) {
         await this.markBotTurnEnd(chatId, botId);
       }
+    }
+  }
+
+  /**
+   * Answers every tool call of the latest assistant turn that has neither a result nor a pending
+   * approval/choice, so the next completion never replays a dangling tool_call.
+   */
+  private async closeOrphanToolCalls(chatId: string, reason: string): Promise<void> {
+    const history = await this.options.store.listMessages(chatId);
+    const calls = [...history]
+      .reverse()
+      .find((message) => message.role === 'assistant' && message.toolCalls?.length)?.toolCalls;
+    if (!calls) return;
+    const pendingApprovals = await this.approvals.listPending(chatId);
+    const pendingChoices = this.choices.listPending(chatId);
+    const settled = new Set([
+      ...history.flatMap((message) => (message.role === 'tool' && message.toolCallId ? [message.toolCallId] : [])),
+      ...pendingApprovals.map((approval) => approval.toolCall.id),
+      ...pendingChoices.map((choice) => choice.toolCallId),
+    ]);
+    for (const call of calls.filter((call) => !settled.has(call.id))) {
+      await this.options.store.addMessage(chatId, 'tool', JSON.stringify({ error: reason, tool: call.name }), {
+        toolCallId: call.id,
+      });
     }
   }
 
@@ -992,11 +1254,22 @@ export class ChatService {
     );
   }
 
-  private executeTool(toolCall: ToolCall, ctx: HandoffTurnContext, approval: ApprovalOutcome): Promise<string> {
-    return this.traceTool(toolCall, ctx, approval, () => this.runTool(toolCall, ctx));
+  private executeTool(toolCall: ToolCall, ctx: TurnContext, approval: ApprovalOutcome): Promise<string> {
+    return this.traceTool(toolCall, ctx, approval, async () => {
+      await ctx.run.emit('tool.started', { toolCallId: toolCall.id, name: toolCall.name });
+      let ok = false;
+      try {
+        // Stop frees the run at once; a tool that ignores ctx.run.signal finishes unobserved.
+        const result = await abortable(this.runTool(toolCall, ctx), ctx.run.signal);
+        ok = true;
+        return result;
+      } finally {
+        await ctx.run.emit('tool.finished', { toolCallId: toolCall.id, name: toolCall.name, ok });
+      }
+    });
   }
 
-  private async runTool(toolCall: ToolCall, ctx: HandoffTurnContext): Promise<string> {
+  private async runTool(toolCall: ToolCall, ctx: TurnContext): Promise<string> {
     if (toolCall.name === HANDOFF_TOOL_NAME) {
       return this.executeHandoffRoundTrip(toolCall.arguments, ctx);
     }
@@ -1019,7 +1292,7 @@ export class ChatService {
    * Deliver brief → run teammate one turn → post “N messages with …” on both chats
    * and return their reply so Primary can summarize.
    */
-  private async executeHandoffRoundTrip(args: Record<string, unknown>, ctx: HandoffTurnContext): Promise<string> {
+  private async executeHandoffRoundTrip(args: Record<string, unknown>, ctx: TurnContext): Promise<string> {
     const planned = await planHandoff(this.options.store, ctx.bot, args);
     if (!planned.ok) return planned.error;
 
@@ -1045,18 +1318,21 @@ export class ChatService {
         senderName: sender.name,
         brief,
         threadBotId: target.id,
-      })
+      }),
+      { runId: ctx.run.runId }
     );
 
     let reply: string;
     try {
+      // The teammate turn shares the caller's run (Stop, routine flag) but not its event feed.
       const nested = await this.continueTurn(targetChat.id, undefined, 0, {
         autoApproveAll: true,
         callerUserId: callerId,
-        routine: ctx.routine,
+        run: { ...ctx.run, chatId: targetChat.id, emit: async () => {} },
       });
       reply = nested.assistant?.content?.trim() || '(no reply)';
     } catch (err) {
+      if (err instanceof RunStoppedError) throw err;
       reply = `(handoff failed) ${err instanceof Error ? err.message : 'Unexpected error'}`;
       await this.options.store.addMessage(targetChat.id, 'assistant', reply);
     }

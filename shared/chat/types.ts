@@ -81,6 +81,8 @@ export interface Message {
   toolCallId?: string;
   /** Assistant turns that issued tools; required for OpenAI-compatible replay. */
   toolCalls?: ToolCall[];
+  /** The run that wrote this message, when it came from agent work. */
+  runId?: string;
 }
 
 export interface CreateBotInput {
@@ -149,6 +151,6 @@ export interface ChatStore {
     chatId: string,
     role: MessageRole,
     content: string,
-    options?: { toolCallId?: string; toolCalls?: ToolCall[] }
+    options?: { toolCallId?: string; toolCalls?: ToolCall[]; runId?: string }
   ): Promise<Message>;
 }
