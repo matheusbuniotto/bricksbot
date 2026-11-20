@@ -56,6 +56,37 @@ describe('genieSpaceConfigFromEnv', () => {
   });
 });
 
+describe('Genie kill switch and daily cap', () => {
+  test('BRICKSBOT_GENIE_ENABLED=false removes the tool even with a space id', () => {
+    const env = { BRICKSBOT_GENIE_SPACE_ID: SPACE };
+    expect(
+      genieSpaceConfigFromEnv({ ...env, BRICKSBOT_GENIE_ENABLED: 'false' }, { host: HOST, getToken })
+    ).toBeUndefined();
+    expect(
+      genieSpaceConfigFromEnv({ ...env, BRICKSBOT_GENIE_ENABLED: 'true' }, { host: HOST, getToken })
+    ).toBeDefined();
+  });
+
+  test('a refused claim stops the call before Genie is contacted', async () => {
+    const { calls, fetchImpl } = fakeGenie({});
+    const claimed: Array<string | undefined> = [];
+    const tool = createGenieSpaceTool({
+      spaceId: SPACE,
+      host: HOST,
+      getToken,
+      fetchImpl,
+      claimCall: (userId) => {
+        claimed.push(userId);
+        return Promise.resolve(false);
+      },
+    });
+    const result = await tool.execute({ question: 'How many orders?' }, { userId: 'bob' } as never);
+    expect(result).toMatch(/daily Genie limit is used up/);
+    expect(claimed).toEqual(['bob']);
+    expect(calls).toHaveLength(0);
+  });
+});
+
 describe('ask_genie_space', () => {
   test('starts a conversation, polls, and returns answer, SQL, rows, and citation as the user', async () => {
     let polls = 0;

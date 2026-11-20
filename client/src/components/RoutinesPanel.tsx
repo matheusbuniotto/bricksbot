@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Select } from './Select';
+import { RoutineUsage } from './UsagePanel';
 import type { Bot } from '../../../shared/chat/types';
 import type { ModelCatalogView } from '../lib/chat-api';
 import {
@@ -400,6 +401,7 @@ export function RoutinesPanel({
                     Delete
                   </button>
                 </div>
+                <RoutineUsage routineId={routine.id} />
               </li>
             );
           })}

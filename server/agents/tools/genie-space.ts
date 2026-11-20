@@ -19,6 +19,8 @@ export interface GenieSpaceToolOptions {
   maxPollSeconds?: number;
   pollIntervalMs?: number;
   maxRows?: number;
+  /** Counts one call against the user's daily Genie cap; false refuses it. Absent means uncapped. */
+  claimCall?: (userId: string | undefined) => Promise<boolean>;
 }
 
 /** GenieAskResult plus the first rows of Genie's query, so the model can quote numbers. */
@@ -60,12 +62,16 @@ export const genieSpaceToolDefinition: ToolDefinition = {
   },
 };
 
-/** Registered only when a space id is configured and the workspace host is known. */
+/**
+ * Registered only when a space id is configured and the workspace host is known.
+ * `BRICKSBOT_GENIE_ENABLED=false` switches it off without touching the space id.
+ */
 export function genieSpaceConfigFromEnv(
   env: Record<string, string | undefined>,
   base: { host?: string; getToken?: () => Promise<string> }
 ): GenieSpaceToolOptions | undefined {
   const spaceId = presentEnv(env.BRICKSBOT_GENIE_SPACE_ID);
+  if (/^(false|0|off|no)$/i.test(presentEnv(env.BRICKSBOT_GENIE_ENABLED) ?? '')) return undefined;
   if (!spaceId || !base.host || !base.getToken) return undefined;
   return { spaceId, host: base.host, getToken: base.getToken };
 }
@@ -125,11 +131,14 @@ export function createGenieSpaceTool(options: GenieSpaceToolOptions): Registered
         return `${GENIE_SPACE_TOOL_NAME}: invalid conversation_id`;
       return null;
     },
-    async execute(args) {
+    async execute(args, ctx) {
       const question = readText(args.question);
       if (!question) return `${GENIE_SPACE_TOOL_NAME} error: question is required`;
       const followUp = readText(args.conversation_id);
       if (followUp && !ID_PATTERN.test(followUp)) return `${GENIE_SPACE_TOOL_NAME} error: invalid conversation_id`;
+      if (options.claimCall && !(await options.claimCall(ctx.userId))) {
+        return `${GENIE_SPACE_TOOL_NAME} error: the daily Genie limit is used up. It resets at 00:00 UTC.`;
+      }
 
       try {
         const started = await genie<{ conversation_id?: string; message_id?: string; id?: string }>(

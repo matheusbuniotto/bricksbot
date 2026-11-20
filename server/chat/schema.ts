@@ -307,6 +307,17 @@ export const CHAT_SCHEMA_STATEMENTS = [
   genie_calls INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (day, scope_kind, scope_id)
 )`,
+  `ALTER TABLE bricksbot.usage_daily ADD COLUMN IF NOT EXISTS unpriced_calls INTEGER NOT NULL DEFAULT 0`,
+  // Limits people set on themselves. The operator's caps come from env and are never stored. No FKs, like usage_daily.
+  `CREATE TABLE IF NOT EXISTS bricksbot.budgets (
+  scope_kind TEXT NOT NULL CHECK (scope_kind IN ('user', 'bot', 'routine')),
+  scope_id TEXT NOT NULL,
+  period TEXT NOT NULL CHECK (period IN ('day', 'month')),
+  limit_usd NUMERIC(14, 6) NOT NULL CHECK (limit_usd >= 0),
+  action TEXT NOT NULL CHECK (action IN ('warn', 'block')),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (scope_kind, scope_id, period)
+)`,
   // NULL means the operator's default model.
   `ALTER TABLE bricksbot.bots ADD COLUMN IF NOT EXISTS model TEXT`,
   `ALTER TABLE bricksbot.routines ADD COLUMN IF NOT EXISTS model TEXT`,

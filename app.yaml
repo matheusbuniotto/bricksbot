@@ -24,6 +24,14 @@ env:
   # - name: BRICKSBOT_MODELS
   #   value: '["openai/gpt-6-luna"]'
 
+  # Optional spend caps in estimated USD (unset = no limit). BRICKSBOT_BUDGET_ACTION: warn (default) | block.
+  # - name: BRICKSBOT_BUDGET_USER_DAILY_USD
+  #   value: '5'
+  # - name: BRICKSBOT_BUDGET_BOT_DAILY_USD
+  #   value: '20'
+  # - name: BRICKSBOT_BUDGET_ACTION
+  #   value: block
+
   # Optional: web_fetch host allowlist (bind the web-fetch-allowlist secret in databricks.yml first)
   # - name: WEB_FETCH_ALLOWLIST
   #   valueFrom: web-fetch-allowlist

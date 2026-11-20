@@ -24,6 +24,7 @@ import { LakebaseCompactionStore, MemoryCompactionStore } from './durable/compac
 import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idempotency-store.js';
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
 import { modelCatalogFromEnv } from './agents/models.js';
+import { presentEnv } from './lib/env.js';
 import { parseVolumeQuotaLimits, resolveVolumeRoot } from './agents/tools/volume-namespace.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
 import { genieSpaceConfigFromEnv } from './agents/tools/genie-space.js';
@@ -49,6 +50,14 @@ import { SandboxReaper } from './sandbox/reaper.js';
 import { createSandboxRegistryFromEnv } from './sandbox/registry.js';
 import { SandboxSessionService } from './sandbox/session-service.js';
 import { MeteredChatClient } from './usage/metered-client.js';
+import {
+  BudgetService,
+  budgetCapsFromEnv,
+  LakebaseBudgetStore,
+  MemoryBudgetStore,
+  type BudgetStore,
+} from './usage/budget-service.js';
+import { registerUsageRoutes } from './usage/routes.js';
 import { LakebaseUsageStore, MemoryUsageStore, type UsageStore } from './usage/usage-store.js';
 import { LakebaseVolumeUsageStore, MemoryVolumeUsageStore } from './volumes/usage-store.js';
 
@@ -69,6 +78,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   plugins: PluginRegistryStore;
   mcpConnectors: McpConnectorStore;
   usage: UsageStore;
+  budgetStore: BudgetStore;
 }> {
   const ownerId = process.env.BRICKSBOT_USER_ID?.trim() || 'workspace-user';
   if (lakebaseConfigured() && query) {
@@ -88,6 +98,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       plugins: new LakebasePluginRegistryStore(query),
       mcpConnectors: new LakebaseMcpConnectorStore(query),
       usage: new LakebaseUsageStore(query),
+      budgetStore: new LakebaseBudgetStore(query),
     };
   }
 
@@ -107,6 +118,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     plugins: new MemoryPluginRegistryStore(),
     mcpConnectors: new MemoryMcpConnectorStore(),
     usage: new MemoryUsageStore(),
+    budgetStore: new MemoryBudgetStore(),
   };
 }
 
@@ -132,6 +144,7 @@ createApp({
       plugins: pluginRegistry,
       mcpConnectors,
       usage,
+      budgetStore,
     } = await createStores(query);
     const volumeRoot = resolveVolumeRoot(process.env);
     const baseClient = createChatClientFromEnv(process.env);
@@ -170,8 +183,19 @@ createApp({
       await reaper.reconcileAtStartup();
       reaper.start();
     }
+    const budgets = new BudgetService(usage, budgetStore, budgetCapsFromEnv(process.env));
+    const { user: userCaps, bot: botCaps } = budgets.caps;
+    if (![...Object.values(userCaps), ...Object.values(botCaps)].some((cap) => cap !== undefined)) {
+      console.warn(
+        '[bricksbot] No spend budgets set (BRICKSBOT_BUDGET_*_USD): usage is recorded but never limited or flagged'
+      );
+    }
     const genieSpace = genieSpaceConfigFromEnv(process.env, sqlQuery);
     if (genieSpace) {
+      const dailyCap = Math.floor(Number(presentEnv(process.env.BRICKSBOT_GENIE_DAILY_CALLS)));
+      const genieDailyCap = dailyCap > 0 ? dailyCap : 50;
+      genieSpace.claimCall = (userId) =>
+        userId ? usage.claimGenieCall(userId, genieDailyCap) : Promise.resolve(false);
       console.info(
         `[bricksbot] Genie space configured (id=${genieSpace.spaceId.slice(0, 8)}…); ask_genie_space is Ask-first`
       );
@@ -223,6 +247,7 @@ createApp({
       store: chats,
       client,
       models,
+      budgets,
       memory,
       routines,
       compaction,
@@ -267,6 +292,7 @@ createApp({
         chats,
         models,
       });
+      registerUsageRoutes(app, usage, budgets, { chats, routines });
       registerPluginRoutes(app, {
         pluginHost,
         volumeLoader: volumePluginLoader,
