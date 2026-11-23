@@ -25,6 +25,13 @@ describe('capability-catalog', () => {
     expect(formatCapabilityPrompt(teammate)).toContain('cannot create bots');
   });
 
+  test('lakehouse_catalog adds the semantics and metric-view hint', () => {
+    const prompt = formatCapabilityPrompt(buildCapabilityCatalog({ toolNames: ['lakehouse_catalog'] }));
+    expect(prompt).toContain('lakehouse_catalog semantics');
+    expect(prompt).toContain('MEASURE()');
+    expect(formatCapabilityPrompt(buildCapabilityCatalog({ toolNames: ['sql_query'] }))).not.toContain('MEASURE()');
+  });
+
   test('prompt says never to confirm Ask-first actions with ask_choice', () => {
     const prompt = formatCapabilityPrompt(
       buildCapabilityCatalog({ toolNames: ['ask_choice', 'create_bot'], isPrimary: true })

@@ -150,6 +150,33 @@ The user wants a chart, plot, distribution, comparison, trend, ranking, or diagr
 - Every \`pin_chart\` and \`pin_artifact\` call until the user allows the tool for this chat.
 `;
 
+const METRIC_VIEW_FIRST = `# metric-view-first
+
+## When to use
+User asks for a KPI, metric, or aggregate (revenue, active users, churn) over a table or schema. Check for a governed metric view before deriving the number from raw tables.
+
+## Required inputs and access
+- \`lakehouse_catalog\` and \`sql_query\`
+- A topic keyword or a catalog.schema to look in
+
+## Sequence of work
+1. Find candidates with \`lakehouse_catalog\` (\`list_tables\`); names and comments often show which are metric views or certified sources.
+2. Call \`lakehouse_catalog\` with action \`semantics\` on the best candidates. Read the comments, the tags (\`system.certification_status\`), and, for a metric view, the YAML definition in view_text (dimensions and measures).
+3. If a metric view covers the question, query it with \`sql_query\`: wrap every measure in \`MEASURE()\`, add \`GROUP BY\` on its dimensions, and never \`SELECT *\`. To join a metric view, wrap it in a CTE first.
+4. If none exists, say so, then fall back to the raw tables. Prefer certified over uncertified and never use a deprecated source.
+
+## How to validate
+- Measure and dimension names came from the definition, not memory.
+- Filters match the definition's own filter and the user's time range.
+
+## What to return
+- The answer, then the source: the metric view (or tables) used, its certification status, and the SQL.
+- When you had to re-derive a KPI from raw tables, flag it as unofficial.
+
+## What requires approval
+- \`lakehouse_catalog\` and \`sql_query\` as usual (Ask-first until allowed). Read-only: never create or alter metric views here.
+`;
+
 /** Stable pack — add new seeds carefully; name changes orphan overrides. */
 export const SEED_SKILLS: readonly SeedSkill[] = [
   { name: 'sql-explore', body: SQL_EXPLORE.trim() + '\n' },
@@ -157,6 +184,7 @@ export const SEED_SKILLS: readonly SeedSkill[] = [
   { name: 'weekly-table-health', body: WEEKLY_TABLE_HEALTH.trim() + '\n' },
   { name: 'pin-finding', body: PIN_FINDING.trim() + '\n' },
   { name: 'dataviz', body: DATAVIZ.trim() + '\n' },
+  { name: 'metric-view-first', body: METRIC_VIEW_FIRST.trim() + '\n' },
 ] as const;
 
 export function seedSkillByName(name: string): SeedSkill | undefined {

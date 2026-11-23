@@ -41,6 +41,7 @@ describe('effective-skills', () => {
     ];
     expect(resolveEffectiveSkill('bot-1', botSkills, 'catalog-recon')?.body).toBe('Bot catalog');
     expect(resolveEffectiveSkill('bot-1', [], 'weekly-table-health')?.source).toBe('seed');
+    expect(resolveEffectiveSkill('bot-1', [], 'metric-view-first')?.source).toBe('seed');
     expect(resolveEffectiveSkill('bot-1', [], 'missing')).toBeUndefined();
   });
 });
