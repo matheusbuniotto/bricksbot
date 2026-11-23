@@ -124,7 +124,12 @@ export function formatCapabilityPrompt(catalog: CapabilityCatalog): string {
 
   if (catalog.tools.some((tool) => tool.name === 'activate_skill')) {
     blocks[0] +=
-      ' When a listed skill matches the task, call activate_skill before following its steps; use read_skill_resource for bundled paths; use list_memories when a key is outside the prompt window. Built-in seed skills (sql-explore, catalog-recon, weekly-table-health, pin-finding, dataviz) appear in the index even before any bot saves its own.';
+      ' When a listed skill matches the task, call activate_skill before following its steps; use read_skill_resource for bundled paths; use list_memories when a key is outside the prompt window. Built-in seed skills (sql-explore, catalog-recon, weekly-table-health, pin-finding, dataviz, metric-view-first) appear in the index even before any bot saves its own.';
+  }
+
+  if (catalog.tools.some((tool) => tool.name === 'lakehouse_catalog')) {
+    blocks[0] +=
+      ' lakehouse_catalog semantics reads comments, tags, certification, and metric view definitions for one table; when a metric view fits a KPI question, query it with MEASURE() instead of re-deriving from raw tables (skill metric-view-first).';
   }
 
   if (catalog.tools.some((tool) => tool.name === 'pin_artifact')) {
