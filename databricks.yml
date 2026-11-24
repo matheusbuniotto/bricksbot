@@ -83,7 +83,8 @@ resources:
             id: ${var.sql_warehouse_id}
             permission: CAN_USE
         # LLM provider: exactly one of the two blocks is enabled. `npm run bootstrap` flips them
-        # (and the matching block in app.yaml); by hand, comment one and uncomment the other.
+        # (and the matching block in app.yaml, so it edits both tracked files); by hand, comment one
+        # and uncomment the other. Keep comments out of the blocks: bootstrap comments every line between the markers.
         # llm:openrouter begin
         - name: openrouter-api-key
           secret:

@@ -26,7 +26,8 @@ export function buildSetupStatus(
   const secretKey = env.LLM_SECRET_KEY?.trim() || 'openrouter-api-key';
   const lakebaseConfigured = Boolean(env.LAKEBASE_ENDPOINT || env.PGHOST);
   const hasOpenAI = Boolean(presentEnv(resolved.LLM_BASE_URL) && presentEnv(resolved.LLM_API_KEY));
-  const needsLlmSetup = provider === 'stub' || (!hasOpenAI && provider !== 'databricks-serving');
+  const usesSecret = provider !== 'databricks-serving';
+  const needsLlmSetup = provider === 'stub' || (!hasOpenAI && usesSecret);
 
   const appPublicUrl = env.BRICKSBOT_PUBLIC_APP_URL?.trim() || null;
   const routineWebhookScope = env.ROUTINE_WEBHOOK_SECRET_SCOPE?.trim() || 'bricksbot';
@@ -37,14 +38,16 @@ export function buildSetupStatus(
     needsLlmSetup,
     lakebaseConfigured,
     secretsScope: scope,
-    secretKeys: [secretKey],
+    secretKeys: usesSecret ? [secretKey] : [],
     servingHint:
       'To use Databricks Model Serving instead of OpenRouter, re-run `npm run bootstrap` and pick Model Serving (or flip the llm:serving blocks in databricks.yml and app.yaml).',
-    putSecretExamples: [
-      `# Scope \`${scope}\`, secret \`${secretKey}\``,
-      `databricks secrets put-secret ${scope} ${secretKey} --string-value 'YOUR_KEY' -p <profile>`,
-      `# Optional local override: LLM_BASE_URL + LLM_MODEL in .env (defaults to OpenRouter)`,
-    ],
+    putSecretExamples: usesSecret
+      ? [
+          `# Scope \`${scope}\`, secret \`${secretKey}\``,
+          `databricks secrets put-secret ${scope} ${secretKey} --string-value 'YOUR_KEY' -p <profile>`,
+          `# Optional local override: LLM_BASE_URL + LLM_MODEL in .env (defaults to OpenRouter)`,
+        ]
+      : [],
     appPublicUrl,
     routineWebhookSecretPutExample: [
       `# After creating a routine in the App, store its one-time webhook secret`,

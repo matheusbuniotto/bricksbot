@@ -9,18 +9,12 @@ env:
     valueFrom: sql-warehouse
 
   # LLM provider: exactly one of the two blocks is enabled (`npm run bootstrap` flips them, and the
-  # matching resource in databricks.yml). OpenRouter is the default; Serving keeps model calls in Databricks.
+  # matching resource in databricks.yml, which edits these tracked files). OpenRouter is the default;
+  # Serving keeps model calls in Databricks and ignores LLM_MODEL (the endpoint is the model).
+  # Keep comments out of the blocks: bootstrap comments every line between the markers.
   # llm:openrouter begin
   - name: OPENROUTER_API_KEY
     valueFrom: openrouter-api-key
-  # llm:openrouter end
-  # llm:serving begin
-  # - name: LLM_PROVIDER
-  #   value: databricks
-  # - name: DATABRICKS_SERVING_ENDPOINT_NAME
-  #   valueFrom: serving-endpoint
-  # llm:serving end
-  # Read only by the OpenRouter client; ignored with Serving.
   - name: LLM_BASE_URL
     value: https://openrouter.ai/api/v1
   - name: LLM_MODEL
@@ -29,6 +23,13 @@ env:
     value: bricksbot
   - name: LLM_SECRET_KEY
     value: openrouter-api-key
+  # llm:openrouter end
+  # llm:serving begin
+  # - name: LLM_PROVIDER
+  #   value: databricks
+  # - name: DATABRICKS_SERVING_ENDPOINT_NAME
+  #   valueFrom: serving-endpoint
+  # llm:serving end
 
   # Optional: models owners may pick per bot / routine (JSON array). Unset = LLM_MODEL only.
   # - name: BRICKSBOT_MODELS

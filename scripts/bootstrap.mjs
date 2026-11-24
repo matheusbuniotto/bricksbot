@@ -30,24 +30,22 @@ async function main() {
     cli('warehouses', 'list').map((wh) => ({ value: wh.id, label: `${wh.name} (${wh.state})` }))
   );
 
-  const provider = await choose('LLM provider', [
+  const choice = await choose('LLM provider', [
     { value: 'serving', label: 'Databricks Model Serving (no API key, model calls stay in Databricks)' },
     { value: 'openrouter', label: 'OpenRouter (needs an API key)' },
   ]);
-  let servingEndpoint = '';
-  if (provider === 'serving') {
-    servingEndpoint = await chooseServingEndpoint(cli);
-  } else {
-    await ensureLlmSecret(cli, profile);
-  }
-  selectProvider(provider);
+  const servingEndpoint = choice === 'serving' ? await chooseServingEndpoint(cli) : '';
+  const provider = servingEndpoint ? 'serving' : 'openrouter';
+  if (provider === 'openrouter') await ensureLlmSecret(cli, profile);
 
   if (await confirmWrite(LOCAL_CONFIG)) {
     writeFileSync(LOCAL_CONFIG, localConfig({ branch, database, warehouse, servingEndpoint }));
     console.log(`Wrote ${LOCAL_CONFIG}`);
   } else if (servingEndpoint) {
-    console.log(`Kept ${LOCAL_CONFIG}. Set serving_endpoint_name: ${servingEndpoint} in it.`);
+    setServingEndpoint(LOCAL_CONFIG, servingEndpoint);
+    console.log(`Kept ${LOCAL_CONFIG}, set serving_endpoint_name: ${servingEndpoint}`);
   }
+  selectProvider(provider);
 
   console.log('\nValidating bundle…');
   databricksInteractive('bundle', 'validate', '-p', profile);
@@ -79,27 +77,63 @@ async function chooseLakebaseBranch(cli) {
   );
 }
 
+/** Returns '' when the workspace has no chat endpoints and the user falls back to OpenRouter. */
 async function chooseServingEndpoint(cli) {
   const chatEndpoints = cli('serving-endpoints', 'list').filter((endpoint) => endpoint.task === 'llm/v1/chat');
+  if (chatEndpoints.length === 0) {
+    if (!(await yes('No Model Serving chat endpoints in this workspace. Use OpenRouter instead?'))) {
+      fail('Create a chat endpoint (e.g. a Foundation Model API one) and re-run bootstrap.');
+    }
+    return '';
+  }
   return choose(
     'Serving endpoint',
-    chatEndpoints.map((endpoint) => ({ value: endpoint.name, label: `${endpoint.name} (${endpoint.state?.ready})` }))
+    chatEndpoints.map((endpoint) => ({ value: endpoint.name, label: `${endpoint.name} (${endpoint.state?.ready ?? 'unknown'})` }))
   );
+}
+
+/** Keep an existing dev.local.yml, changing only the endpoint. */
+function setServingEndpoint(path, name) {
+  const text = readFileSync(path, 'utf8');
+  const existing = /^(\s*)serving_endpoint_name:.*$/m;
+  const variables = /^(\s*)variables:[ \t]*$/m;
+  if (existing.test(text)) return writeFileSync(path, text.replace(existing, (_, indent) => `${indent}serving_endpoint_name: ${name}`));
+  if (variables.test(text)) {
+    return writeFileSync(path, text.replace(variables, (line, indent) => `${line}\n${indent}  serving_endpoint_name: ${name}`));
+  }
+  fail(`Add serving_endpoint_name: ${name} under targets.dev.variables in ${path}, then re-run.`);
 }
 
 /**
  * databricks.yml and app.yaml each carry an `llm:openrouter` and an `llm:serving` block between
  * `# llm:<name> begin` / `end` markers. Enable one by uncommenting it and comment the other out.
+ * This edits those tracked files: the app env and resource list cannot be overridden from the
+ * gitignored dev.local.yml (bundle lists append, and app.yaml is read as is).
  */
 function selectProvider(provider) {
-  for (const file of ['databricks.yml', 'app.yaml']) {
-    let text = readFileSync(file, 'utf8');
-    for (const name of ['openrouter', 'serving']) text = toggleBlock(text, name, name === provider);
-    writeFileSync(file, text);
+  const edits = ['databricks.yml', 'app.yaml'].map((file) => {
+    const before = readFileSync(file, 'utf8');
+    let after = before;
+    for (const name of ['openrouter', 'serving']) after = toggleBlock(after, file, name, name === provider);
+    return { file, before, after };
+  });
+
+  const changed = edits.filter(({ before, after }) => before !== after);
+  for (const { file, after } of changed) writeFileSync(file, after);
+  if (changed.length > 0) {
+    console.warn(
+      `\nNOTE: switched the ${provider} LLM blocks in tracked files: ${changed.map(({ file }) => file).join(', ')}.\n` +
+        'Do not commit that by accident; undo with `git checkout databricks.yml app.yaml`.'
+    );
   }
 }
 
-function toggleBlock(text, name, enabled) {
+function toggleBlock(text, file, name, enabled) {
+  const count = (marker) => text.split('\n').filter((line) => line.includes(`# llm:${name} ${marker}`)).length;
+  if (count('begin') !== 1 || count('end') !== 1) {
+    fail(`${file} needs exactly one "# llm:${name} begin" and one "# llm:${name} end" marker.`);
+  }
+
   let inside = false;
   let indent = '';
   return text

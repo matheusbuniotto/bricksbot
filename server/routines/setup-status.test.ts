@@ -25,6 +25,13 @@ describe('buildSetupStatus', () => {
     expect(status.lakebaseConfigured).toBe(true);
   });
 
+  test('asks for no secret when Model Serving is the provider', () => {
+    const status = buildSetupStatus({}, 'databricks-serving');
+    expect(status.needsLlmSetup).toBe(false);
+    expect(status.secretKeys).toEqual([]);
+    expect(status.putSecretExamples).toEqual([]);
+  });
+
   test('surfaces optional public App URL and custom routine webhook scope', () => {
     const status = buildSetupStatus(
       {
