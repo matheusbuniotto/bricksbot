@@ -19,6 +19,25 @@ import { HandoffPeek } from './HandoffPeek';
 import { HandoffStatus } from './HandoffStatus';
 import { ChoiceAnswerStatus, ChoicePromptStatus } from './ChoicePromptStatus';
 
+// Work on any workspace: `samples` ships with Databricks.
+const STARTER_PROMPTS = [
+  'What tables are in samples.nyctaxi? Describe them.',
+  'Top 5 pickup zip codes by trip count in samples.nyctaxi.trips',
+  'Which 10 customers have the highest total order value in samples.tpch?',
+];
+
+export function StarterPrompts({ onPick }: { onPick: (prompt: string) => void }) {
+  return (
+    <div className="starter-prompts">
+      {STARTER_PROMPTS.map((prompt) => (
+        <button key={prompt} type="button" className="starter-prompt" onClick={() => onPick(prompt)}>
+          {prompt}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function isHandoffToolEcho(content: string): boolean {
   return /^Handed off to .+\./i.test(content.trim());
 }
@@ -110,6 +129,7 @@ export function ChatTranscript({
   liveTools = [],
   bots = [],
   onOpenBot,
+  onStarterPrompt,
 }: {
   messages: Message[];
   botName?: string | null;
@@ -124,6 +144,8 @@ export function ChatTranscript({
   liveTools?: Array<{ id: string; label: string; done: boolean }>;
   bots?: Bot[];
   onOpenBot?: (botId: string) => void;
+  /** When set, an empty chat offers starter prompts; picking one sends it. */
+  onStarterPrompt?: (prompt: string) => void;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [peek, setPeek] = useState<HandoffNotice | null>(null);
@@ -346,6 +368,7 @@ export function ChatTranscript({
             </Fragment>
           );
         })}
+        {onStarterPrompt && !rows.length && !thinking ? <StarterPrompts onPick={onStarterPrompt} /> : null}
         {liveTools.map((tool) => (
           <div key={tool.id} className="message message-enter">
             <div className="message-body typing-status">

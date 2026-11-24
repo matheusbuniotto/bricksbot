@@ -1853,6 +1853,31 @@ textarea.field {
   margin: 0 auto;
 }
 
+.starter-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.starter-prompt {
+  max-width: 340px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--muted);
+  color: var(--foreground);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.starter-prompt:hover {
+  border-color: var(--accent);
+  background: var(--card);
+}
+
 .transcript-time-sep {
   display: flex;
   justify-content: center;

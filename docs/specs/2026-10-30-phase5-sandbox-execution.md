@@ -1,6 +1,6 @@
 # Spec: Phase 5: Sandbox Execution Module (agents' VM)
 
-**Status:** Implemented (Phases 5.0 to 5.6); D1, D2 and the no-Daytona decision accepted 2026-10-30. Flagged off by default (`SANDBOX_BACKEND=off` in code and `app.yaml`) so MVP/OSS community share stays untouched unless explicitly enabled. Also supports `python_exec` backend / Databricks→python_exec fallback with truthful session labeling.
+**Status:** Implemented (Phases 5.0 to 5.6); D1, D2 and the no-Daytona decision accepted 2026-10-30. Off in code when `SANDBOX_BACKEND` is unset; the shipped `app.yaml` now sets `databricks` (falls back to `python_exec`). Set `off` to disable. Also supports `python_exec` backend / Databricks→python_exec fallback with truthful session labeling.
 **Origin:** Matheus's Sandbox Execution Module TDD (Python), adapted to BricksBot (TypeScript, Lakebase, AppKit).
 **Supersedes:** the "Daytona default, E2B Desktop alt" lock in [project-context.md](../project-context.md) for the *execution* sandbox. A desktop/"computer" UI is still out of scope.
 

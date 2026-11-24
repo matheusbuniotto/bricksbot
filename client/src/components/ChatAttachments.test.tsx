@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import type { ReactElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { attachmentConfig } from '../../../shared/chat/attachments';
-import type { Bot } from '../../../shared/chat/types';
+import type { Bot, Message } from '../../../shared/chat/types';
 import { BotDetailsSheet } from './BotDetailsSheet';
 import { ChatComposer } from './ChatComposer';
-import { ChatTranscript } from './ChatTranscript';
+import { ChatTranscript, StarterPrompts } from './ChatTranscript';
 
 const noop = async () => {};
 
@@ -56,6 +57,37 @@ describe('transcript', () => {
     );
     expect(html).toContain('href="/api/chats/chat-1/attachments/a1/content"');
     expect(html).toContain('sales.csv');
+  });
+});
+
+describe('starter prompts', () => {
+  const transcript = (props: { messages?: Message[]; onStarterPrompt?: (prompt: string) => void }) =>
+    renderToString(
+      <ChatTranscript accent="#333" messages={props.messages ?? []} onStarterPrompt={props.onStarterPrompt} />
+    );
+
+  it('offers samples prompts only in an empty chat that can send', () => {
+    const html = transcript({ onStarterPrompt: () => {} });
+    expect(html).toContain('samples.nyctaxi');
+    expect(html).toContain('samples.tpch');
+    expect(transcript({})).not.toContain('starter-prompt');
+    const message: Message = {
+      id: 'm1',
+      chatId: 'c',
+      role: 'user',
+      content: 'hi',
+      createdAt: '2026-11-20T10:00:00.000Z',
+    };
+    expect(transcript({ messages: [message], onStarterPrompt: () => {} })).not.toContain('starter-prompt');
+  });
+
+  it('sends the prompt on click', () => {
+    const sent: string[] = [];
+    const list = StarterPrompts({ onPick: (prompt) => sent.push(prompt) });
+    const buttons = (list.props as { children: ReactElement<{ children: string; onClick: () => void }>[] }).children;
+    buttons[1].props.onClick();
+    expect(sent).toEqual([buttons[1].props.children]);
+    expect(sent[0]).toContain('samples.nyctaxi');
   });
 });
 
