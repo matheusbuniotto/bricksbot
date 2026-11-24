@@ -28,6 +28,8 @@ export const handoffToolDefinition: ToolDefinition = {
 
 export interface HandoffTurnContext {
   chatId: string;
+  /** The user's own chat whose uploads this turn may read. Differs from `chatId` on a handoff turn. */
+  attachmentChatId?: string;
   bot: Bot | null;
   /** Signed-in caller. Volume paths use this, never the bot owner. */
   userId?: string;

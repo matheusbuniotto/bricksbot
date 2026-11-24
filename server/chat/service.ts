@@ -261,6 +261,8 @@ type ContinueTurnOptions = {
   autoApproveAll?: boolean;
   /** Signed-in caller when this chat row belongs to someone else. */
   callerUserId?: string;
+  /** The chat the caller attached files in, when this turn runs in another one (a teammate's handoff chat). */
+  attachmentChatId?: string;
 };
 
 /** HandoffTurnContext as built by the service: always inside a run. */
@@ -1047,7 +1049,7 @@ export class ChatService {
       const compaction = this.options.compaction ? await this.options.compaction.getLatest(chatId) : null;
       const { messages: windowed, summarySystem } = applyCompactionToHistory(history, compaction);
 
-      const turnCtx: TurnContext = { chatId, bot, userId: turnUserId, run };
+      const turnCtx: TurnContext = { chatId, attachmentChatId: opts.attachmentChatId, bot, userId: turnUserId, run };
       const pluginTurnContext = (messages: Message[]): PluginTurnContext => ({
         ...this.pluginHostContext(turnCtx),
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -1456,6 +1458,7 @@ export class ChatService {
       const nested = await this.continueTurn(targetChat.id, undefined, 0, {
         autoApproveAll: true,
         callerUserId: callerId,
+        attachmentChatId: ctx.attachmentChatId ?? sourceChatId,
         run: { ...ctx.run, chatId: targetChat.id, emit: async () => {}, delta: () => {} },
       });
       reply = nested.assistant?.content?.trim() || '(no reply)';

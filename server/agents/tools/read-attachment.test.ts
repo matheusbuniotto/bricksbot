@@ -7,7 +7,7 @@ import { createReadAttachmentTool } from './read-attachment.js';
 
 const ctx = { chatId: 'chat-1', bot: null, userId: 'alice' };
 
-async function toolWith(files: Array<Partial<Attachment> & { body?: string }>, maxChars?: number) {
+async function toolWith(files: Array<Partial<Attachment> & { body?: string; unsent?: boolean }>, maxChars?: number) {
   const store = new MemoryAttachmentStore();
   const bodies = new Map<string, string>();
   for (const [index, file] of files.entries()) {
@@ -21,6 +21,7 @@ async function toolWith(files: Array<Partial<Attachment> & { body?: string }>, m
       volumePath: `/Volumes/c/s/v/${index}`,
       ...file,
     });
+    if (!file.unsent) await store.attach('chat-1', 'alice', [created.id], `message-${index}`);
     bodies.set(created.id, file.body ?? '');
   }
   return createReadAttachmentTool({
@@ -40,6 +41,26 @@ describe('read_attachment', () => {
     const tool = await toolWith([{ body: 'old\n' }, { body: 'new\n' }]);
     expect(await tool.execute({ name: 'a.csv' }, ctx)).toContain('new');
     expect(await tool.execute({ name: 'id-0' }, ctx)).toContain('old');
+  });
+
+  test('an upload that was never sent with a message is not found', async () => {
+    const tool = await toolWith([{ body: 'draft\n', unsent: true }]);
+    expect(await tool.execute({ name: 'a.csv' }, ctx)).toContain('no attachment named');
+    expect(await tool.execute({ name: 'id-0' }, ctx)).toContain('no attachment named');
+  });
+
+  test('a handoff turn reads the files of the chat the person attached them in', async () => {
+    const tool = await toolWith([{ body: 'id\n1\n' }]);
+    const handoff = { ...ctx, chatId: 'handoff-chat', attachmentChatId: 'chat-1' };
+    expect(await tool.execute({ name: 'a.csv' }, handoff)).toContain('id\n1');
+    expect(await tool.execute({ name: 'a.csv' }, { ...handoff, attachmentChatId: undefined })).toContain(
+      'no attachment named'
+    );
+  });
+
+  test('a file that fits whole is not labelled as the start', async () => {
+    const tool = await toolWith([{ body: 'id\n1\n', sizeBytes: 5 }]);
+    expect(await tool.execute({ name: 'a.csv' }, ctx)).not.toContain('start of file');
   });
 
   test('cuts a long file and says it is the start', async () => {
@@ -73,6 +94,7 @@ describe('read_attachment', () => {
       sizeBytes: 1,
       volumePath: '/Volumes/x',
     });
+    await store.attach('chat-1', 'alice', ['id-0'], 'message-0');
     const tool = createReadAttachmentTool({
       store,
       read: () => Promise.reject(new Error('Volume request failed (403)')),

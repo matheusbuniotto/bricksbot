@@ -4,7 +4,7 @@ import type { AttachmentConfig, AttachmentRef } from '../../../shared/chat/attac
 import { attachmentProblem, deleteAttachment, formatBytes, uploadAttachment } from '../lib/attachments-api';
 
 /** A file on its way to the next message: uploading, ready (it has a server id) or refused. */
-type Chip = { key: string; name: string; sizeBytes: number; ref?: AttachmentRef; error?: string };
+type Chip = { key: string; name: string; sizeBytes: number; ref?: AttachmentRef };
 
 export function ChatComposer({
   disabled,
@@ -30,30 +30,35 @@ export function ChatComposer({
   const [value, setValue] = useState('');
   const [sending, setSending] = useState(false);
   const [chips, setChips] = useState<Chip[]>([]);
+  // Mirrors `chips` so a burst of drops counts against the limit before React re-renders.
+  const chipsRef = useRef<Chip[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const label = placeholder ?? 'Message';
   const canAttach = Boolean(attachments?.enabled && chatId && !disabled);
-  const uploading = chips.some((chip) => !chip.ref && !chip.error);
+  const uploading = chips.some((chip) => !chip.ref);
+
+  function updateChips(change: (current: Chip[]) => Chip[]) {
+    chipsRef.current = change(chipsRef.current);
+    setChips(chipsRef.current);
+  }
 
   function addFiles(files: File[]) {
     if (!attachments || !chatId || files.length === 0) return;
-    let count = chips.filter((chip) => !chip.error).length;
     setProblem(null);
     for (const file of files) {
-      const refused = attachmentProblem(file, attachments, count);
+      const refused = attachmentProblem(file, attachments, chipsRef.current.length);
       if (refused) {
         setProblem(refused);
         continue;
       }
-      count += 1;
       const key = crypto.randomUUID();
-      setChips((current) => [...current, { key, name: file.name, sizeBytes: file.size }]);
+      updateChips((current) => [...current, { key, name: file.name, sizeBytes: file.size }]);
       uploadAttachment(chatId, file).then(
-        (ref) => setChips((current) => current.map((chip) => (chip.key === key ? { ...chip, ref } : chip))),
+        (ref) => updateChips((current) => current.map((chip) => (chip.key === key ? { ...chip, ref } : chip))),
         (err: unknown) => {
-          setChips((current) => current.filter((chip) => chip.key !== key));
+          updateChips((current) => current.filter((chip) => chip.key !== key));
           setProblem(`${file.name}: ${err instanceof Error ? err.message : 'upload failed'}`);
         }
       );
@@ -61,7 +66,7 @@ export function ChatComposer({
   }
 
   function removeChip(chip: Chip) {
-    setChips((current) => current.filter((other) => other.key !== chip.key));
+    updateChips((current) => current.filter((other) => other.key !== chip.key));
     // The file is already on the Volume; taking it off the message takes it off the Volume too.
     if (chip.ref && chatId) void deleteAttachment(chatId, chip.ref.id).catch(() => undefined);
   }
@@ -71,14 +76,14 @@ export function ChatComposer({
     if (!content || sending || uploading || disabled) return;
     const sent = chips.flatMap((chip) => (chip.ref ? [chip.ref] : []));
     setValue('');
-    setChips([]);
+    updateChips(() => []);
     setProblem(null);
     setSending(true);
     try {
       await onSend(content, sent);
     } catch {
       setValue((current) => current || content);
-      setChips((current) => [
+      updateChips((current) => [
         ...sent.map((ref) => ({ key: ref.id, name: ref.name, sizeBytes: ref.sizeBytes, ref })),
         ...current,
       ]);
