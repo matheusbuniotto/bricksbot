@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Prepare a workspace for `databricks bundle deploy`: pick Lakebase and a SQL warehouse,
-// create the LLM secret, and write dev.local.yml. Safe to re-run.
+// Prepare a workspace for `databricks bundle deploy`: pick Lakebase, a SQL warehouse and the LLM
+// provider (OpenRouter key, or a Model Serving endpoint so no key leaves Databricks), and write
+// dev.local.yml. Safe to re-run.
 //
 //   npm run bootstrap -- -p <profile>
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const SCOPE = 'bricksbot';
@@ -29,11 +30,23 @@ async function main() {
     cli('warehouses', 'list').map((wh) => ({ value: wh.id, label: `${wh.name} (${wh.state})` }))
   );
 
-  await ensureLlmSecret(cli, profile);
+  const provider = await choose('LLM provider', [
+    { value: 'serving', label: 'Databricks Model Serving (no API key, model calls stay in Databricks)' },
+    { value: 'openrouter', label: 'OpenRouter (needs an API key)' },
+  ]);
+  let servingEndpoint = '';
+  if (provider === 'serving') {
+    servingEndpoint = await chooseServingEndpoint(cli);
+  } else {
+    await ensureLlmSecret(cli, profile);
+  }
+  selectProvider(provider);
 
   if (await confirmWrite(LOCAL_CONFIG)) {
-    writeFileSync(LOCAL_CONFIG, localConfig({ branch, database, warehouse }));
+    writeFileSync(LOCAL_CONFIG, localConfig({ branch, database, warehouse, servingEndpoint }));
     console.log(`Wrote ${LOCAL_CONFIG}`);
+  } else if (servingEndpoint) {
+    console.log(`Kept ${LOCAL_CONFIG}. Set serving_endpoint_name: ${servingEndpoint} in it.`);
   }
 
   console.log('\nValidating bundle…');
@@ -66,6 +79,45 @@ async function chooseLakebaseBranch(cli) {
   );
 }
 
+async function chooseServingEndpoint(cli) {
+  const chatEndpoints = cli('serving-endpoints', 'list').filter((endpoint) => endpoint.task === 'llm/v1/chat');
+  return choose(
+    'Serving endpoint',
+    chatEndpoints.map((endpoint) => ({ value: endpoint.name, label: `${endpoint.name} (${endpoint.state?.ready})` }))
+  );
+}
+
+/**
+ * databricks.yml and app.yaml each carry an `llm:openrouter` and an `llm:serving` block between
+ * `# llm:<name> begin` / `end` markers. Enable one by uncommenting it and comment the other out.
+ */
+function selectProvider(provider) {
+  for (const file of ['databricks.yml', 'app.yaml']) {
+    let text = readFileSync(file, 'utf8');
+    for (const name of ['openrouter', 'serving']) text = toggleBlock(text, name, name === provider);
+    writeFileSync(file, text);
+  }
+}
+
+function toggleBlock(text, name, enabled) {
+  let inside = false;
+  let indent = '';
+  return text
+    .split('\n')
+    .map((line) => {
+      if (line.includes(`# llm:${name} begin`)) {
+        inside = true;
+        indent = line.match(/^\s*/)[0];
+      } else if (line.includes(`# llm:${name} end`)) inside = false;
+      else if (inside) {
+        const code = line.startsWith(`${indent}# `) ? line.slice(indent.length + 2) : line.slice(indent.length);
+        return enabled ? `${indent}${code}` : `${indent}# ${code}`;
+      }
+      return line;
+    })
+    .join('\n');
+}
+
 async function ensureLlmSecret(cli, profile) {
   const scopes = cli('secrets', 'list-scopes').map((scope) => scope.name);
   if (!scopes.includes(SCOPE)) {
@@ -80,7 +132,7 @@ async function ensureLlmSecret(cli, profile) {
   }
 
   if (!(await yes(`Store your OpenRouter API key in ${SCOPE}/${LLM_SECRET_KEY} now?`))) {
-    console.log(`Skipped. The App needs ${SCOPE}/${LLM_SECRET_KEY} before deploy (or switch to Serving in app.yaml).`);
+    console.log(`Skipped. The App needs ${SCOPE}/${LLM_SECRET_KEY} before deploy (or re-run bootstrap and pick Model Serving).`);
     return;
   }
   // Let the CLI prompt for the value so the key never appears in argv or shell history.
@@ -88,14 +140,15 @@ async function ensureLlmSecret(cli, profile) {
   databricksInteractive('secrets', 'put-secret', SCOPE, LLM_SECRET_KEY, '-p', profile);
 }
 
-function localConfig({ branch, database, warehouse }) {
+function localConfig({ branch, database, warehouse, servingEndpoint }) {
+  const serving = servingEndpoint ? `\n      serving_endpoint_name: ${servingEndpoint}` : '';
   return `# Written by scripts/bootstrap.mjs. Gitignored: never commit real ids or hosts.
 targets:
   dev:
     variables:
       lakebase_branch: ${branch}
       lakebase_database: ${database}
-      sql_warehouse_id: '${warehouse}'
+      sql_warehouse_id: '${warehouse}'${serving}
 `;
 }
 

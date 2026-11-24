@@ -39,7 +39,7 @@ export function buildSetupStatus(
     secretsScope: scope,
     secretKeys: [secretKey],
     servingHint:
-      'To use Databricks Model Serving later, bind a serving-endpoint resource and set LLM_PROVIDER=databricks (see app.yaml comments).',
+      'To use Databricks Model Serving instead of OpenRouter, re-run `npm run bootstrap` and pick Model Serving (or flip the llm:serving blocks in databricks.yml and app.yaml).',
     putSecretExamples: [
       `# Scope \`${scope}\`, secret \`${secretKey}\``,
       `databricks secrets put-secret ${scope} ${secretKey} --string-value 'YOUR_KEY' -p <profile>`,

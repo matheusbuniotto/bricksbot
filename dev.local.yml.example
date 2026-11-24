@@ -12,7 +12,11 @@ targets:
       lakebase_database: projects/<your-project>/branches/<your-branch>/databases/databricks-postgres
       sql_warehouse_id: "<your-warehouse-id>"
 
-      # Optional: LLM secret scope/key (defaults are bricksbot / openrouter-api-key)
+      # Model Serving instead of OpenRouter: the chat endpoint to call, and the llm:serving blocks
+      # enabled in databricks.yml and app.yaml (`npm run bootstrap` does both).
+      # serving_endpoint_name: databricks-gpt-oss-120b
+
+      # Optional: OpenRouter secret scope/key (defaults are bricksbot / openrouter-api-key)
       # provider_secret_scope: bricksbot
       # provider_secret_key: openrouter-api-key
       # app_secret_scope: bricksbot
