@@ -88,7 +88,10 @@ async function chooseServingEndpoint(cli) {
   }
   return choose(
     'Serving endpoint',
-    chatEndpoints.map((endpoint) => ({ value: endpoint.name, label: `${endpoint.name} (${endpoint.state?.ready ?? 'unknown'})` }))
+    chatEndpoints.map((endpoint) => ({
+      value: endpoint.name,
+      label: `${endpoint.name} (${endpoint.state?.ready ?? 'unknown'})`,
+    }))
   );
 }
 
@@ -97,9 +100,16 @@ function setServingEndpoint(path, name) {
   const text = readFileSync(path, 'utf8');
   const existing = /^(\s*)serving_endpoint_name:.*$/m;
   const variables = /^(\s*)variables:[ \t]*$/m;
-  if (existing.test(text)) return writeFileSync(path, text.replace(existing, (_, indent) => `${indent}serving_endpoint_name: ${name}`));
+  if (existing.test(text))
+    return writeFileSync(
+      path,
+      text.replace(existing, (_, indent) => `${indent}serving_endpoint_name: ${name}`)
+    );
   if (variables.test(text)) {
-    return writeFileSync(path, text.replace(variables, (line, indent) => `${line}\n${indent}  serving_endpoint_name: ${name}`));
+    return writeFileSync(
+      path,
+      text.replace(variables, (line, indent) => `${line}\n${indent}  serving_endpoint_name: ${name}`)
+    );
   }
   fail(`Add serving_endpoint_name: ${name} under targets.dev.variables in ${path}, then re-run.`);
 }
@@ -166,7 +176,9 @@ async function ensureLlmSecret(cli, profile) {
   }
 
   if (!(await yes(`Store your OpenRouter API key in ${SCOPE}/${LLM_SECRET_KEY} now?`))) {
-    console.log(`Skipped. The App needs ${SCOPE}/${LLM_SECRET_KEY} before deploy (or re-run bootstrap and pick Model Serving).`);
+    console.log(
+      `Skipped. The App needs ${SCOPE}/${LLM_SECRET_KEY} before deploy (or re-run bootstrap and pick Model Serving).`
+    );
     return;
   }
   // Let the CLI prompt for the value so the key never appears in argv or shell history.
