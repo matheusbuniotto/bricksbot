@@ -5,6 +5,7 @@ const TOOL_LABELS: Record<string, string> = {
   lakehouse_catalog: 'Catalog browse',
   volume_read: 'Volume read',
   volume_write: 'Volume write',
+  read_attachment: 'Read attachment',
   web_fetch: 'Web fetch',
   handoff_to_bot: 'Message another bot',
   create_bot: 'Create a bot',

@@ -1,3 +1,4 @@
+import { FileText } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { parseArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import { parseBotCreatedNotice } from '../../../shared/chat/bot-created-notice';
@@ -8,6 +9,7 @@ import {
 } from '../../../shared/chat/choice-notice';
 import { collapseHandoffNotices, parseHandoffNotice, type HandoffNotice } from '../../../shared/chat/handoff-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
+import { attachmentDownloadUrl, formatBytes } from '../lib/attachments-api';
 import { formatChatTimeSeparator, shouldShowChatTimeSeparator } from '../lib/chat-time';
 import { toolResultView } from '../lib/user-facing';
 import { ArtifactPinStatus } from './ArtifactPinStatus';
@@ -323,6 +325,22 @@ export function ChatTranscript({
               <div className={className}>
                 <div className={bodyClass} style={isUser ? { background: accent } : undefined}>
                   {isUser ? message.content : <ChatMarkdown content={message.content} />}
+                  {isUser && message.attachments?.length ? (
+                    <div className="message-files">
+                      {message.attachments.map((file) => (
+                        <a
+                          key={file.id}
+                          className="message-file"
+                          href={attachmentDownloadUrl(message.chatId, file.id)}
+                          download={file.name}
+                          title={`${file.name} (${formatBytes(file.sizeBytes)})`}
+                        >
+                          <FileText size={14} aria-hidden />
+                          <span className="message-file-name">{file.name}</span>
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </Fragment>

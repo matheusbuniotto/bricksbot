@@ -44,6 +44,13 @@ export function attachmentRef({ id, name, kind, sizeBytes }: Attachment): Attach
   return { id, name, kind, sizeBytes };
 }
 
+/** One row of the Uploads list: a ref plus when it was uploaded and whether a message carries it yet. */
+export type AttachmentSummary = AttachmentRef & { createdAt: string; sent: boolean };
+
+export function attachmentSummary(attachment: Attachment): AttachmentSummary {
+  return { ...attachmentRef(attachment), createdAt: attachment.createdAt, sent: Boolean(attachment.messageId) };
+}
+
 /** Every method is scoped by (chat, user): another person's id finds nothing. */
 export interface AttachmentStore {
   create(input: Omit<Attachment, 'createdAt' | 'messageId'>): Promise<Attachment>;

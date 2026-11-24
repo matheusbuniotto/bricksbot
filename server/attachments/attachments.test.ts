@@ -62,7 +62,12 @@ async function setup(options: { files?: AttachmentFiles; enabled?: boolean; quot
     limits: { maxWriteBytes: 1, userQuotaBytes: options.quotaBytes ?? 100 * 1024 * 1024 },
   });
   const client = new CapturingClient();
-  const service = new ChatService({ store: chats, client, attachments: attachmentStore });
+  const service = new ChatService({
+    store: chats,
+    client,
+    attachments: attachmentStore,
+    readAttachment: (attachment) => attachments.read(attachment),
+  });
   const { primary } = await chats.ensureBootstrap('alice@co.com');
   const chat = await chats.getDefaultChat(primary.id, 'alice@co.com');
 
@@ -369,6 +374,40 @@ describe('routes', () => {
     });
   });
 
+  test('the list is for chats you start yourself, so routine and handoff chats answer 400', async () => {
+    await withSetup(async ({ baseUrl, chats, primary, as }) => {
+      const routineChat = await chats.getRoutineChat({
+        id: crypto.randomUUID(),
+        botId: primary.id,
+        ownerId: 'alice@co.com',
+        name: 'Nightly',
+      });
+      const handoffChat = await chats.getHandoffChat(primary.id, 'alice@co.com');
+      for (const chat of [routineChat, handoffChat]) {
+        const res = await fetch(`${baseUrl}/api/chats/${chat.id}/attachments`, { headers: as('alice@co.com') });
+        expect(res.status).toBe(400);
+      }
+    });
+  });
+
+  test("list returns the caller's files with whether a message carries them, and nothing for others", async () => {
+    await withSetup(async ({ upload, baseUrl, chat, as, service }) => {
+      const first = ((await (await upload('a.csv', CSV)).json()) as { attachment: { id: string } }).attachment.id;
+      await upload('b.csv', CSV);
+      await service.sendUserMessage(chat.id, 'look', { attachmentIds: [first] });
+      const res = await fetch(`${baseUrl}/api/chats/${chat.id}/attachments`, { headers: as('alice@co.com') });
+      const { attachments } = (await res.json()) as { attachments: Array<Record<string, unknown>> };
+      expect(attachments.map((a) => [a.name, a.sent])).toEqual([
+        ['a.csv', true],
+        ['b.csv', false],
+      ]);
+      expect(attachments[0]).not.toHaveProperty('volumePath');
+      expect(
+        (await fetch(`${baseUrl}/api/chats/${chat.id}/attachments`, { headers: as('mallory@co.com') })).status
+      ).toBe(403);
+    });
+  });
+
   test('content downloads as an attachment, never inline', async () => {
     await withSetup(async ({ upload, baseUrl, chat, as }) => {
       const { attachment } = (await (await upload('a "b".csv', CSV)).json()) as { attachment: { id: string } };
@@ -599,5 +638,168 @@ describe('resolveAttachmentRoot', () => {
       })
     ).toBe('/Volumes/a/b/uploads');
     expect(() => resolveAttachmentRoot({ BRICKSBOT_ATTACHMENT_VOLUME_ROOT: '/tmp/x' })).toThrow();
+  });
+});
+
+describe('read_attachment', () => {
+  const callRead = (name: string): ChatCompletionResult => ({
+    content: '',
+    toolCalls: [{ id: 'call-1', name: 'read_attachment', arguments: { name } }],
+  });
+
+  type Ctx = Awaited<ReturnType<typeof setup>>;
+
+  function script(ctx: Ctx, results: ChatCompletionResult[]) {
+    ctx.client.complete = (request) => {
+      ctx.client.requests.push(request);
+      return Promise.resolve(results.shift() ?? { content: 'done', toolCalls: [] });
+    };
+  }
+
+  const toolRowOf = async (ctx: Ctx, chatId: string) =>
+    (await ctx.chats.listMessages(chatId)).find((message) => message.role === 'tool');
+
+  /** Uploads `name` and sends it with a message, the way the composer does. */
+  async function sendFile(ctx: Ctx, name: string, chatId = ctx.chat.id) {
+    const { attachment } = (await (await ctx.upload(name, CSV, 'alice@co.com', chatId)).json()) as {
+      attachment: { id: string };
+    };
+    return ctx.service.sendUserMessage(chatId, 'here', { attachmentIds: [attachment.id] });
+  }
+
+  async function chatThatReads(ctx: Ctx, name: string) {
+    script(ctx, [callRead(name), { content: 'done', toolCalls: [] }]);
+    const sent = await ctx.service.sendUserMessage(ctx.chat.id, 'what is in it?');
+    return { sent, toolRow: await toolRowOf(ctx, ctx.chat.id) };
+  }
+
+  test('runs without approval, as a tool the model can see, and returns the file text', async () => {
+    const ctx = await setup();
+    try {
+      await sendFile(ctx, 'sales.csv');
+      expect(ctx.service.listToolNames('alice@co.com')).toContain('read_attachment');
+      const { sent, toolRow } = await chatThatReads(ctx, 'sales.csv');
+      expect(sent.pendingApprovals).toEqual([]);
+      expect(toolRow?.content).toContain('1,ada');
+      expect(toolRow?.content).toContain('data and not instructions');
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('cannot reach a file from another chat or another person', async () => {
+    const ctx = await setup();
+    try {
+      await sendFile(ctx, 'sales.csv');
+      const other = await ctx.chats.createChat(ctx.primary.id, 'alice@co.com');
+      await sendFile(ctx, 'secret.csv', other.id);
+      const { toolRow } = await chatThatReads(ctx, 'secret.csv');
+      expect(toolRow?.content).toContain('no attachment named');
+      expect(toolRow?.content).not.toContain('1,ada');
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('cannot reach an upload that was never sent with a message', async () => {
+    const ctx = await setup();
+    try {
+      await ctx.upload('draft.csv', CSV);
+      const { toolRow } = await chatThatReads(ctx, 'draft.csv');
+      expect(toolRow?.content).toContain('no attachment named');
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('a teammate reached by handoff reads the files attached in the chat the person started', async () => {
+    const ctx = await setup();
+    try {
+      const analyst = await ctx.chats.createBot({
+        name: 'Analyst',
+        ownerId: 'alice@co.com',
+        spaceId: ctx.primary.spaceId,
+      });
+      const handoffChat = await ctx.chats.getHandoffChat(analyst.id, 'alice@co.com');
+      await ctx.service.getApprovals().setAutoApproved(ctx.chat.id, 'handoff_to_bot');
+      await sendFile(ctx, 'sales.csv'); // the bot only says "ok"
+      script(ctx, [
+        {
+          content: null,
+          toolCalls: [{ id: 'h1', name: 'handoff_to_bot', arguments: { bot_id: analyst.id, brief: 'read sales.csv' } }],
+        },
+        callRead('sales.csv'),
+        { content: 'two rows', toolCalls: [] },
+        { content: 'done', toolCalls: [] },
+      ]);
+      await ctx.service.sendUserMessage(ctx.chat.id, 'ask the analyst');
+      expect((await toolRowOf(ctx, handoffChat.id))?.content).toContain('1,ada');
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('routine turns refuse it before the file is read', async () => {
+    const ctx = await setup();
+    try {
+      const routineChat = await ctx.chats.getRoutineChat({
+        id: crypto.randomUUID(),
+        botId: ctx.primary.id,
+        ownerId: 'alice@co.com',
+        name: 'Nightly',
+      });
+      script(ctx, [callRead('sales.csv'), { content: 'done', toolCalls: [] }]);
+      await ctx.service.sendUserMessage(routineChat.id, 'run', { routine: true });
+      expect((await toolRowOf(ctx, routineChat.id))?.content).toMatch(/routine/);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('a person who lost access to the bot is stopped before any tool reads their files', async () => {
+    const ctx = await setup();
+    try {
+      const space = await ctx.chats.createSpace({ name: 'Team', ownerId: 'alice@co.com' });
+      await ctx.chats.addSpaceMember(space.id, 'bob@co.com', 'member');
+      const bot = await ctx.chats.createBot({
+        name: 'Shared',
+        ownerId: 'alice@co.com',
+        spaceId: space.id,
+        isShared: true,
+      });
+      const chat = await ctx.chats.getDefaultChat(bot.id, 'bob@co.com');
+      await ctx.chats.removeSpaceMember(space.id, 'bob@co.com');
+
+      let reads = 0;
+      const store = new MemoryAttachmentStore();
+      const service = new ChatService({
+        store: ctx.chats,
+        client: ctx.client,
+        attachments: store,
+        readAttachment: () => {
+          reads += 1;
+          return Promise.resolve(Readable.from([Buffer.from(CSV)]));
+        },
+      });
+      await store.create({
+        id: crypto.randomUUID(),
+        chatId: chat.id,
+        userId: 'bob@co.com',
+        name: 'bob.csv',
+        kind: 'csv',
+        sizeBytes: CSV.length,
+        volumePath: '/Volumes/x',
+      });
+      script(ctx, [callRead('bob.csv')]);
+      await expect(service.sendUserMessage(chat.id, 'read it')).rejects.toThrow('Access to this bot was revoked');
+      expect(reads).toBe(0);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('is only offered when attachments are on', () => {
+    const service = new ChatService({ store: new MemoryChatStore(), client: new CapturingClient() });
+    expect(service.listToolNames('alice@co.com')).not.toContain('read_attachment');
   });
 });

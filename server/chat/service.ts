@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream';
 import { parseArtifactPinNotice } from '../../shared/chat/artifact-pin-notice.js';
 import { parseBotCreatedNotice } from '../../shared/chat/bot-created-notice.js';
 import {
@@ -53,6 +54,7 @@ import {
   VOLUME_WRITE_TOOL_NAME,
   type VolumeWriteToolOptions,
 } from '../agents/tools/volume-write.js';
+import { createReadAttachmentTool, READ_ATTACHMENT_TOOL_NAME } from '../agents/tools/read-attachment.js';
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
 import { createPinChartTool } from '../agents/tools/pin-chart.js';
 import { ASK_CHOICE_TOOL_NAME, createAskChoiceTool, planAskChoice } from '../agents/tools/ask-choice.js';
@@ -158,6 +160,8 @@ export interface ChatServiceOptions {
   };
   /** Set when attachments are on; messages may then carry `attachmentIds`. */
   attachments?: AttachmentStore;
+  /** With `attachments`, registers `read_attachment`. Fetches bytes as the signed-in user. */
+  readAttachment?: (attachment: Attachment) => Promise<Readable>;
   /** Defaults to an in-memory store so meta tools stay on for every bot. */
   memory?: MemorySkillStore;
   /** Defaults to in-memory so schedule_routine works in tests/local without Lakebase. */
@@ -257,6 +261,8 @@ type ContinueTurnOptions = {
   autoApproveAll?: boolean;
   /** Signed-in caller when this chat row belongs to someone else. */
   callerUserId?: string;
+  /** The chat the caller attached files in, when this turn runs in another one (a teammate's handoff chat). */
+  attachmentChatId?: string;
 };
 
 /** HandoffTurnContext as built by the service: always inside a run. */
@@ -339,6 +345,9 @@ export class ChatService {
     tools.push(createPinChartTool(options.store));
     tools.push(createAskChoiceTool());
     tools.push(...createRoutineTools(this.routines, options.store));
+    if (options.attachments && options.readAttachment) {
+      tools.push(createReadAttachmentTool({ store: options.attachments, read: options.readAttachment }));
+    }
     if (options.genieSpace) {
       tools.push(createGenieSpaceTool(options.genieSpace));
     }
@@ -1040,7 +1049,7 @@ export class ChatService {
       const compaction = this.options.compaction ? await this.options.compaction.getLatest(chatId) : null;
       const { messages: windowed, summarySystem } = applyCompactionToHistory(history, compaction);
 
-      const turnCtx: TurnContext = { chatId, bot, userId: turnUserId, run };
+      const turnCtx: TurnContext = { chatId, attachmentChatId: opts.attachmentChatId, bot, userId: turnUserId, run };
       const pluginTurnContext = (messages: Message[]): PluginTurnContext => ({
         ...this.pluginHostContext(turnCtx),
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -1114,7 +1123,7 @@ export class ChatService {
           const isPluginTool = Boolean(this.pluginHost?.hasTool(toolCall.name));
           const isPluginAskFirst = isPluginTool && (this.pluginHost?.isAskFirst(toolCall.name) ?? true);
           // create_bot / sandbox_delete / ask_choice / genie_ask / ask_genie_space always Ask-first.
-          // Default meta + sandbox_stop never Ask-first.
+          // Default meta + sandbox_stop + read_attachment (the user just attached the file to this chat) never Ask-first.
           // Handoff autoApproveAll still requires Ask-first for sandbox, volume_write, MCP tools, and plugin tools.
           const handoffAuto =
             opts.autoApproveAll &&
@@ -1128,6 +1137,7 @@ export class ChatService {
             !ownerMustApprove &&
             !this.requiresAlwaysAsk(toolCall.name) &&
             (isDefaultMetaTool(toolCall.name) ||
+              toolCall.name === READ_ATTACHMENT_TOOL_NAME ||
               isAutoRoutineTool(toolCall.name) ||
               isAutoSandboxTool(toolCall.name) ||
               (isPluginTool && !isPluginAskFirst) ||
@@ -1448,6 +1458,7 @@ export class ChatService {
       const nested = await this.continueTurn(targetChat.id, undefined, 0, {
         autoApproveAll: true,
         callerUserId: callerId,
+        attachmentChatId: ctx.attachmentChatId ?? sourceChatId,
         run: { ...ctx.run, chatId: targetChat.id, emit: async () => {}, delta: () => {} },
       });
       reply = nested.assistant?.content?.trim() || '(no reply)';
