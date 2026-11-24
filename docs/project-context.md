@@ -4,7 +4,7 @@ Databricks App aiming for near 1:1 Grok Bot product shape (Bot roster, durable a
 
 ## Locked decisions (2026-10-28)
 
-- **Computer.** Defer full persistent desktop / Playwright-in-App. **Updated 2026-10-30:** Phase 5 **execution sandbox is implemented** behind `SANDBOX_BACKEND` (default `off`): **Databricks Sandbox first**, then `python_exec` / E2B; **no Daytona**. Spec: [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md).
+- **Computer.** Defer full persistent desktop / Playwright-in-App. **Updated 2026-10-30:** Phase 5 **execution sandbox is implemented** behind `SANDBOX_BACKEND` (**on as shipped**: `app.yaml` sets `databricks`, falling back to `python_exec` if the Sandboxes preview is off; unset or `off` disables it, so the code default is `off`): **Databricks Sandbox first**, then `python_exec` / E2B; **no Daytona**. Spec: [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md).
 - **Codebase.** Slim greenfield Databricks App with a strongly cloned Grok Bot UI, not Rakazo-based.
 - **Models.** OpenAI-compatible primary (OpenRouter-like); Databricks Model Serving as an option.
 - **Tenancy.** User-owned Bots; Spaces/folders; team sharing. Egress allowlists for LLM, connectors, and future sandbox.
@@ -23,7 +23,7 @@ Databricks App aiming for near 1:1 Grok Bot product shape (Bot roster, durable a
 
 ## Shipped product core (through 2026-10-30)
 
-Roster + presence (`waiting` / `blocked`), durable chat, dual ChatClient, lakehouse tools + meta/seeds, approvals, handoff/`create_bot`, `pin_artifact`, `ask_choice`, Bot details (Details / Library / Computer), routines + webhook + trust polish, Phase 5 sandbox exec (flagged off by default).
+Roster + presence (`waiting` / `blocked`), durable chat, dual ChatClient, lakehouse tools + meta/seeds, approvals, handoff/`create_bot`, `pin_artifact`, `ask_choice`, Bot details (Details / Library / Computer), routines + webhook + trust polish, Phase 5 sandbox exec (on in the shipped `app.yaml`; set `SANDBOX_BACKEND=off` to disable).
 
 ## Agent / platform tracks
 

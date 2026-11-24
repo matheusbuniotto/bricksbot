@@ -16,7 +16,7 @@ A multi-bot chat assistant that runs inside your Databricks workspace as a Datab
 - **Approvals.** Data tools stop for **Always allow / Approve once / Deny** before they run. Decisions are recorded in Lakebase.
 - **Durable state.** Chats, memories, skills and approvals live in Lakebase (schema `bricksbot`). Long chats are compacted for the model; the transcript is never deleted.
 - **Routines.** A Lakeflow Job can send a prompt to a bot on a schedule.
-- **Sandbox.** Optional Linux exec per chat, with artifacts saved to a Unity Catalog Volume.
+- **Sandbox.** Ask-first Linux exec per chat, with artifacts saved to a Unity Catalog Volume. The shipped `app.yaml` turns it on; set `SANDBOX_BACKEND` to `off` to disable it.
 - **Models.** Any OpenAI-compatible API (OpenRouter by default) or a Databricks Model Serving endpoint.
 
 Not included: a desktop or browser-control UI, and always-on Genie (Genie is opt-in because it costs more).
@@ -88,7 +88,7 @@ It writes `dev.local.yml`, enables the matching provider block in `databricks.ym
 | Chat attachments | On when `BRICKSBOT_VOLUME_ROOT` (or `BRICKSBOT_ATTACHMENT_VOLUME_ROOT`) is set and the App has a workspace host. Attach with the paperclip, drag and drop, or paste; files show as chips on the message, and Library > Uploads lists and deletes them. CSV, TSV, XLSX, XLS and PDF, up to 25 MiB each, 5 per message, 25 per chat, uploaded as the signed-in user (they need WRITE VOLUME) to `{root}/users/{user}/bots/{bot}/uploads/`, and counted against the Volume quotas. The bot reads CSV and TSV with the auto-run `read_attachment` tool and analyses any of them with `read_files()` through Ask-first `sql_query`. **Unity Catalog grants are per Volume, not per folder**, so anyone with READ VOLUME on that Volume can read everyone's uploads. Point `BRICKSBOT_ATTACHMENT_VOLUME_ROOT` at a Volume only the intended group can read. |
 | MLflow tracing | Set `MLFLOW_EXPERIMENT_ID` in `app.yaml` and give the App service principal `CAN_EDIT` on the experiment. One trace per chat turn, with spans for LLM calls, tool calls (with approval outcome) and handoffs. Ids and names only, never message content. |
 | Genie space | One curated Genie space as `ask_genie_space` (Ask-first, runs as the user, incurs Genie compute). Set `genie_space_id`, uncomment the `genie-space` resource, the `genie` scope in `databricks.yml` and `BRICKSBOT_GENIE_SPACE_ID` in `app.yaml`. Off and absent from the prompt until set. Users need `CAN_RUN` on the space. |
-| Sandbox | On by default (`SANDBOX_BACKEND=databricks`). Set it to `off` to disable. |
+| Sandbox | On as shipped: `app.yaml` sets `SANDBOX_BACKEND=databricks` (Databricks Sandboxes, Public Beta). If that preview is off in your workspace it falls back to `system.ai.python_exec`. Every sandbox tool is Ask-first. **To turn it off**, set the value to `off` in `app.yaml` and redeploy. Unset also means off, so the code default is off and only `app.yaml` turns it on. |
 | Second install | Set `app_name` in a separate target (see `dev.local.yml.example`). |
 
 ### Deploy
@@ -121,6 +121,9 @@ Not through `sql_query`. It accepts one read-only statement (`SELECT`, `WITH`, `
 
 **Who can see my bots?**
 You, plus anyone you share a Space with. Access is checked on every turn, so removing someone cuts them off right away.
+
+**Why not Genie One / Genie Agents?**
+Genie One and Genie Agents are Databricks' own products: GA, with Slack and scheduled runs, billed by usage. If that fits, use them. BricksBot is a different shape. It is open source (Apache-2.0) and runs as an App in your own workspace. It gives you a roster of bots in shared Spaces, with Primary-to-teammate handoff, routines, and three-way approvals on data tools. It works with any OpenAI-compatible model or a Model Serving endpoint, and Genie is there as one opt-in tool, `ask_genie_space`, when you want a curated space. It has no Slack presence today. Details: [Genie One and Genie Agents announcement](https://www.databricks.com/blog/introducing-genie-one-genie-ontology-and-genie-agents).
 
 More: [docs/security.md](docs/security.md) covers identities, scopes and the settings that widen access.
 

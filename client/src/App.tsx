@@ -850,6 +850,11 @@ export default function App() {
               botId={selectedBot?.id}
               bots={rosterBots}
               onOpenBot={(botId) => void handleSelectBot(botId)}
+              onStarterPrompt={
+                selectedBot?.isPrimary && chat && !waitingOnYou && !runningTool
+                  ? (prompt) => void handleSend(prompt, [])
+                  : undefined
+              }
             />
             <ApprovalCards approvals={pendingApprovals} busyId={approvalBusyId} onDecide={handleDecide} />
             {/* CHOICE_CARDS — pending ask_choice prompts (below approvals, above composer) */}
