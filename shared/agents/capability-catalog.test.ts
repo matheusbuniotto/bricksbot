@@ -102,6 +102,15 @@ describe('capability-catalog', () => {
     expect(prompt).toContain('volume files (volume_write)');
   });
 
+  test('capability prompt explains read_attachment only when registered', () => {
+    const withTool = formatCapabilityPrompt(buildCapabilityCatalog({ toolNames: ['read_attachment', 'sql_query'] }));
+    expect(withTool).toContain('read_attachment (auto-run, CSV and TSV only');
+    expect(withTool).toContain('read_files(path)');
+    expect(formatCapabilityPrompt(buildCapabilityCatalog({ toolNames: ['sql_query'] }))).not.toContain(
+      'read_attachment'
+    );
+  });
+
   test('capability prompt encodes cite-fresh-data and save_skill habits', () => {
     const catalog = buildCapabilityCatalog({
       toolNames: ['activate_skill', 'save_skill', 'sql_query'],

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { pipeline } from 'node:stream/promises';
-import { attachmentConfig, attachmentRef } from '../../shared/chat/attachments.js';
+import { attachmentConfig, attachmentRef, attachmentSummary } from '../../shared/chat/attachments.js';
 import type { ChatStore } from '../../shared/chat/types.js';
 import { runWithDatabricksRequestAuth } from '../chat/databricks-auth.js';
 import { requireChatUse } from '../chat/route-guards.js';
@@ -33,6 +33,17 @@ export function registerAttachmentRoutes(app: ChatHttpApp, store: ChatStore, att
 
   app.get('/api/attachments/config', (_req: Request, res: Response) => {
     res.json(attachmentConfig(Boolean(attachments)));
+  });
+
+  app.get('/api/chats/:chatId/attachments', async (req: Request, res: Response) => {
+    try {
+      const chat = await attachmentChat(req, res);
+      if (!chat || !attachments) return;
+      const files = await attachments.store.list(chat.id, chat.userId!);
+      res.json({ attachments: files.map(attachmentSummary) });
+    } catch (err) {
+      fail(res, err);
+    }
   });
 
   // Raw bytes in the body (no multipart), the file name in `?name=`. Content-Length is required: it is reserved

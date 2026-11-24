@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { FileSpreadsheet, FileText, Link2, Pencil, Table2, X } from 'lucide-react';
+import type { AttachmentConfig } from '../../../shared/chat/attachments';
 import type { ArtifactPinNotice } from '../../../shared/chat/artifact-pin-notice';
 import type { Bot, Message } from '../../../shared/chat/types';
 import type { Routine } from '../../../shared/routines/types';
@@ -11,6 +12,7 @@ import { BotPicker } from './BotPicker';
 import type { ModelCatalogView } from '../lib/chat-api';
 import { RoutinesPanel, type RoutineUpdatePatch } from './RoutinesPanel';
 import { Select } from './Select';
+import { UploadsList } from './UploadsList';
 import { UsageSummary } from './UsagePanel';
 
 export type BotDetailsTab = 'details' | 'library' | 'computer' | 'permissions';
@@ -113,6 +115,8 @@ function LibraryFileList({
 export function BotDetailsSheet({
   bot,
   messages,
+  chatId,
+  attachments,
   routines,
   models,
   routineBusyId,
@@ -139,6 +143,9 @@ export function BotDetailsSheet({
 }: {
   bot: Bot;
   messages: Message[];
+  /** The open chat; its uploads are listed under Library > Uploads when attachments are on. */
+  chatId?: string | null;
+  attachments?: AttachmentConfig | null;
   routines: Routine[];
   /** The operator's model catalog; absent hides both model pickers. */
   models?: ModelCatalogView | null;
@@ -178,6 +185,7 @@ export function BotDetailsSheet({
 }) {
   const [tab, setTab] = useState<BotDetailsTab>(initialTab);
   const [libraryExpanded, setLibraryExpanded] = useState(false);
+  const [libraryView, setLibraryView] = useState<'files' | 'uploads'>('files');
   const [resizing, setResizing] = useState(false);
   const [editLook, setEditLook] = useState<BotLook | null>(null);
   const [descriptionDraft, setDescriptionDraft] = useState(bot.description ?? '');
@@ -405,7 +413,25 @@ export function BotDetailsSheet({
 
         {tab === 'library' ? (
           <div role="tabpanel" aria-label="Library" className="bot-details-panel">
-            {files.length === 0 ? (
+            {attachments?.enabled && chatId ? (
+              <div className="bot-details-tabs bot-details-subtabs" role="tablist" aria-label="Library sections">
+                {(['files', 'uploads'] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    role="tab"
+                    aria-selected={libraryView === view}
+                    className={libraryView === view ? 'bot-details-tab is-active' : 'bot-details-tab'}
+                    onClick={() => setLibraryView(view)}
+                  >
+                    {view === 'files' ? 'Files' : 'Uploads'}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {attachments?.enabled && chatId && libraryView === 'uploads' ? (
+              <UploadsList chatId={chatId} refreshKey={messages.length} />
+            ) : files.length === 0 ? (
               <div className="bot-details-empty">
                 <p className="bot-details-empty-title">No files yet</p>
                 <p className="bot-details-empty-copy">Pages, files, and apps created by this bot will appear here.</p>

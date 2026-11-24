@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, History, Search, SquarePen } from 'lucide-re
 import type { PendingChoice } from '../../shared/chat/choice-notice';
 import type { Bot, Chat, MarketplaceBot, Message, SearchHit, Space } from '../../shared/chat/types';
 import type { ApprovalDecision, ApprovalRequest } from '../../shared/agents/types';
+import type { AttachmentConfig, AttachmentRef } from '../../shared/chat/attachments';
 import { ApprovalCards } from './components/ApprovalCards';
 import { ChoiceCards } from './components/ChoiceCards';
 import { BotDetailsSheet } from './components/BotDetailsSheet';
@@ -45,6 +46,7 @@ import {
   type RunUpdate,
 } from './lib/chat-api';
 import type { SandboxUiStatus } from '../../shared/sandbox/types';
+import { fetchAttachmentConfig } from './lib/attachments-api';
 import { createRoutine, deleteRoutine, fetchRoutines, runRoutine, updateRoutine } from './lib/routines-api';
 import { applyTheme, readStoredTheme, type Theme } from './lib/theme';
 import { chatRoute, parseChatRoute } from './lib/chat-route';
@@ -102,6 +104,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [modelCatalog, setModelCatalog] = useState<ModelCatalogView | null>(null);
+  const [attachmentConfig, setAttachmentConfig] = useState<AttachmentConfig | null>(null);
   const [routineBusyId, setRoutineBusyId] = useState<string | null>(null);
   const [lastWebhookSecret, setLastWebhookSecret] = useState<string | null>(null);
   const [sandboxStatus, setSandboxStatus] = useState<SandboxUiStatus | null>(null);
@@ -270,15 +273,17 @@ export default function App() {
     let cancelled = false;
     void (async () => {
       try {
-        const [nextSpaces, nextBots, nextArchived, nextRoutines, nextModels] = await Promise.all([
+        const [nextSpaces, nextBots, nextArchived, nextRoutines, nextModels, nextAttachments] = await Promise.all([
           fetchSpaces(),
           fetchBots(undefined, 'active'),
           fetchBots(undefined, 'archived'),
           fetchRoutines().catch(() => [] as Routine[]),
           fetchModels().catch(() => null),
+          fetchAttachmentConfig().catch(() => null),
         ]);
         if (cancelled) return;
         setModelCatalog(nextModels);
+        setAttachmentConfig(nextAttachments);
         setSpaces(nextSpaces);
         setBots(nextBots);
         setArchivedBots(nextArchived);
@@ -531,7 +536,7 @@ export default function App() {
     await refreshRoster();
   }
 
-  async function handleSend(content: string) {
+  async function handleSend(content: string, attachments: AttachmentRef[]) {
     if (!chat || !selectedBotId) return;
     setError(null);
     const optimisticId = `pending-${Date.now()}`;
@@ -540,12 +545,19 @@ export default function App() {
       chatId: chat.id,
       role: 'user',
       content,
+      attachments: attachments.length ? attachments : undefined,
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimisticMessage]);
     setBots((prev) => prev.map((bot) => (bot.id === selectedBotId ? { ...bot, presence: 'thinking' } : bot)));
     try {
-      const outcome = await sendChatMessage(chat.id, content, (update) => showRunUpdate(chat.id, update));
+      const outcome = await sendChatMessage(
+        chat.id,
+        content,
+        (update) => showRunUpdate(chat.id, update),
+        undefined,
+        attachments.map((file) => file.id)
+      );
       await settleRun(outcome);
     } catch (err) {
       setLive(null);
@@ -860,6 +872,8 @@ export default function App() {
                 }
                 accent={accent}
                 running={Boolean(runningTool)}
+                chatId={chat?.id}
+                attachments={attachmentConfig}
                 onSend={handleSend}
                 onStop={handleStop}
               />
@@ -880,6 +894,8 @@ export default function App() {
         <BotDetailsSheet
           bot={selectedBot}
           messages={visibleMessages}
+          chatId={chat?.id}
+          attachments={attachmentConfig}
           routines={botRoutines}
           models={modelCatalog}
           routineBusyId={routineBusyId}

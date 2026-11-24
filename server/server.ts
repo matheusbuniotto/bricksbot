@@ -276,6 +276,7 @@ createApp({
       models,
       budgets,
       attachments: attachmentService ? attachments : undefined,
+      readAttachment: attachmentService ? (attachment) => attachmentService.read(attachment) : undefined,
       memory,
       routines,
       compaction,

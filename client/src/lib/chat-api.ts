@@ -380,9 +380,10 @@ export function sendChatMessage(
   chatId: string,
   content: string,
   onUpdate?: (update: RunUpdate) => void,
-  requestId: string = newRequestId()
+  requestId: string = newRequestId(),
+  attachmentIds: string[] = []
 ): Promise<RunOutcome> {
-  return startAndFollow(chatId, `/api/chats/${chatId}/messages`, { content, requestId }, onUpdate);
+  return startAndFollow(chatId, `/api/chats/${chatId}/messages`, { content, requestId, attachmentIds }, onUpdate);
 }
 
 /** Stop whatever the chat is running. A no-op when it already finished. */
