@@ -17,6 +17,7 @@ async function withPluginApp(
   registerPluginRoutes(app, {
     pluginHost: host,
     registryStore: store,
+    admins: ['workspace-user'],
   });
 
   const server = await new Promise<import('node:http').Server>((resolve) => {
@@ -120,6 +121,19 @@ describe('Plugin HTTP Routes', () => {
         expect(data.ok).toBe(true);
         expect(data.loaded).toEqual([]);
         expect(data.errors).toEqual([]);
+      }
+    );
+  });
+
+  test('POST /api/plugins/reload refuses callers outside BRICKSBOT_PLUGIN_ADMINS', async () => {
+    await withPluginApp(
+      async () => {},
+      async (baseUrl) => {
+        const res = await fetch(`${baseUrl}/api/plugins/reload`, {
+          method: 'POST',
+          headers: { 'x-forwarded-email': 'someone@example.com' },
+        });
+        expect(res.status).toBe(403);
       }
     );
   });

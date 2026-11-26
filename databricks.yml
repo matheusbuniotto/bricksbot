@@ -20,8 +20,8 @@ variables:
   sql_warehouse_id:
     description: SQL warehouse id for sql_query / lakehouse_catalog (user OBO + SP CAN_USE)
   serving_endpoint_name:
-    description: Model Serving chat endpoint (e.g. databricks-gpt-oss-120b). Used only when the serving-endpoint resource below is enabled (npm run bootstrap flips it)
-    default: ''
+    description: Model Serving chat endpoint that supports tool calling. Defaults to a Foundation Model API pay-per-token endpoint; `npm run bootstrap` lets you pick another
+    default: databricks-gpt-oss-120b
   provider_secret_scope:
     description: Secret scope holding the OpenRouter (or compatible) API key
     default: bricksbot
@@ -86,17 +86,17 @@ resources:
         # (and the matching block in app.yaml, so it edits both tracked files); by hand, comment one
         # and uncomment the other. Keep comments out of the blocks: bootstrap comments every line between the markers.
         # llm:openrouter begin
-        - name: openrouter-api-key
-          secret:
-            scope: ${var.provider_secret_scope}
-            key: ${var.provider_secret_key}
-            permission: READ
+        # - name: openrouter-api-key
+        #   secret:
+        #     scope: ${var.provider_secret_scope}
+        #     key: ${var.provider_secret_key}
+        #     permission: READ
         # llm:openrouter end
         # llm:serving begin
-        # - name: serving-endpoint
-        #   serving_endpoint:
-        #     name: ${var.serving_endpoint_name}
-        #     permission: CAN_QUERY
+        - name: serving-endpoint
+          serving_endpoint:
+            name: ${var.serving_endpoint_name}
+            permission: CAN_QUERY
         # llm:serving end
         # Optional web_fetch allowlist. Create the secret, then uncomment this and
         # WEB_FETCH_ALLOWLIST in app.yaml. web_fetch stays off while unset.

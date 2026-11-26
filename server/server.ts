@@ -335,6 +335,7 @@ createApp({
         pluginHost,
         volumeLoader: volumePluginLoader,
         registryStore: pluginRegistry,
+        admins: (process.env.BRICKSBOT_PLUGIN_ADMINS ?? '').split(','),
       });
     });
   },
