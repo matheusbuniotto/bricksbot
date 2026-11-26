@@ -40,7 +40,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:8000. To use a real model or Lakebase locally, copy `.env.example` to `.env` and fill it in.
+Open http://localhost:8000. With no `DATABRICKS_HOST`, CLI profile or `~/.databrickscfg`, it runs offline: lakehouse tools are off and the model is a stub. Set `BRICKSBOT_OFFLINE=1` to stay offline even when a profile exists. To use a real model or Lakebase locally, copy `.env.example` to `.env` and fill it in.
 
 ## Deploy to a workspace
 
