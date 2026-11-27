@@ -43,11 +43,12 @@ All default to off. Turn one on only if you accept what it does.
 | `BRICKSBOT_INTERACTIVE_SP_FALLBACK=allow` | Interactive turns without a user token query data as the App service principal. |
 | `BRICKSBOT_ROUTINE_APP_IDENTITY=allow` | Routines with `run_as='app'` query data as the App service principal, unattended. |
 | `BRICKSBOT_PLUGIN_VOLUME` | Loads and **executes** plugin code from that Volume path. Anyone who can write there can run code as the App. |
+| `BRICKSBOT_PLUGIN_ADMINS` | Comma-separated emails allowed to call `POST /api/plugins/reload`, which re-runs plugin code. Unset means nobody can; plugins still load at startup. |
 | `SANDBOX_BACKEND` | On by default (`databricks`). Ask-first Linux exec per chat. Set `off` to disable. |
 
 ## Network egress
 
-- The LLM provider (`openrouter.ai` by default). Use Databricks Model Serving (`LLM_PROVIDER=databricks`) to keep model traffic in your workspace.
+- None for the model by default: Databricks Model Serving (`LLM_PROVIDER=databricks`) keeps model traffic in your workspace. If you switch to OpenRouter, `openrouter.ai`.
 - `web_fetch` hosts on your allowlist.
 - The MLflow tracking server, only if you set `MLFLOW_EXPERIMENT_ID`. Traces are sent as the App service principal and hold chat, bot and tool ids, model, tool names, approval outcomes and counts. They never hold prompts, replies, tool arguments or results, because experiment permissions are not Space roles.
 - Your Genie space, only if you set `BRICKSBOT_GENIE_SPACE_ID`: questions go to the workspace's Genie API.

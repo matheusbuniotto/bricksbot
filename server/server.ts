@@ -30,6 +30,7 @@ import { LakebaseIdempotencyStore, MemoryIdempotencyStore } from './durable/idem
 import { createChatClientFromEnv } from './agents/clients/create-chat-client.js';
 import { modelCatalogFromEnv } from './agents/models.js';
 import { presentEnv } from './lib/env.js';
+import { isOfflineMode, offlineWorkspaceClient } from './lib/offline.js';
 import { parseVolumeQuotaLimits, resolveVolumeRoot } from './agents/tools/volume-namespace.js';
 import { sqlQueryConfigFromEnv } from './agents/tools/sql-query.js';
 import { genieSpaceConfigFromEnv } from './agents/tools/genie-space.js';
@@ -131,9 +132,16 @@ async function createStores(query?: LakebaseQuery): Promise<{
 }
 
 const plugins = lakebaseConfigured() ? [server(), lakebase()] : [server()];
+const offline = isOfflineMode();
+if (offline) {
+  console.warn(
+    '[bricksbot] No Databricks workspace configured: running offline (local stores, no lakehouse tools). Set DATABRICKS_HOST or a CLI profile to connect.'
+  );
+}
 
 createApp({
   plugins,
+  ...(offline ? { client: offlineWorkspaceClient() } : {}),
   async onPluginsReady(appkit) {
     const query =
       'lakebase' in appkit && appkit.lakebase
@@ -327,6 +335,7 @@ createApp({
         pluginHost,
         volumeLoader: volumePluginLoader,
         registryStore: pluginRegistry,
+        admins: (process.env.BRICKSBOT_PLUGIN_ADMINS ?? '').split(','),
       });
     });
   },

@@ -66,6 +66,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Smoke test offline start (README "Try it locally")
+        run: |
+          npm start > server.log 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:8000/api/bots > bots.json 2>/dev/null && break
+            sleep 1
+          done
+          grep -q '"isPrimary":true' bots.json || { cat server.log; exit 1; }
+          curl -fsS -o /dev/null http://localhost:8000/
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist

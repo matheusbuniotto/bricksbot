@@ -116,6 +116,7 @@ export default {
       pluginHost,
       volumeLoader,
       registryStore,
+      admins: ['workspace-user'],
     });
     registerChatRoutes(app, store, chatService);
 
