@@ -199,6 +199,14 @@ describe('KnowledgeService', () => {
     expect(sql.statements[sql.statements.length - 1]).toMatchObject({ parameters: [{ name: 'doc', value: doc.id }] });
   });
 
+  test('a file deleted mid-indexing leaves no chunks behind', async () => {
+    const { knowledge, store, sql } = service();
+    const { doc, ingested } = await knowledge.upload(bot, 'alice', { name: 'a.txt', ...body('hello') });
+    await store.delete(bot.id, doc.id);
+    expect(await ingested).toBeNull();
+    expect(sql.statements[sql.statements.length - 1].statement).toMatch(/^DELETE/);
+  });
+
   test('search filters by bot id', async () => {
     const { knowledge, search } = service();
     const hits = await knowledge.search(bot.id, 'refunds', 3);

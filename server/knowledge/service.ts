@@ -181,6 +181,11 @@ export class KnowledgeService {
         params
       );
     }
+    // Deleted while it was being indexed: take the rows back out instead of leaving them unowned.
+    if (!(await store.get(doc.botId, doc.id))) {
+      await sql.run(`DELETE FROM ${table} WHERE doc_id = :doc`, [{ name: 'doc', value: doc.id }]);
+      return null;
+    }
     const warning = await this.syncIndex();
     return store.update(doc.botId, doc.id, { status: 'ready', chunkCount: chunks.length, error: warning ?? undefined });
   }
