@@ -1,0 +1,22 @@
+version: 1
+name: 'BricksBot'
+description: 'A multi-bot chat assistant for the lakehouse: bots query data as the signed-in user, ask before they act, and keep chats, memories and approvals in Lakebase. Built with AppKit.'
+
+resource_specs:
+  - name: 'postgres'
+    description: 'The Lakebase database that holds chats, memories, skills, routines and approval records (schema bricksbot).'
+    postgres_spec:
+      permission: 'CAN_CONNECT_AND_CREATE'
+  - name: 'sql-warehouse'
+    description: 'The SQL warehouse that sql_query and lakehouse_catalog run on, as the signed-in user.'
+    sql_warehouse_spec:
+      permission: 'CAN_USE'
+  - name: 'serving-endpoint'
+    description: 'The Model Serving chat endpoint (with tool calling) that powers the bots, for example databricks-gpt-oss-120b.'
+    serving_endpoint_spec:
+      permission: 'CAN_QUERY'
+
+user_api_scopes:
+  - 'sql:restricted-query'
+  - 'files.files'
+  - 'ai-gateway'
