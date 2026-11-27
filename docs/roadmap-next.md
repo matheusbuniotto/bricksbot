@@ -34,7 +34,7 @@ Remaining before announce: run the smoke path once on a **fresh** workspace (or 
 | `system.ai.*` broad MCP | After first opt-in Genie experiment |
 | Desktop / Playwright "computer" UI | Still deferred; **sandbox exec shipped** behind `SANDBOX_BACKEND`, [specs/2026-10-30-phase5-sandbox-execution.md](specs/2026-10-30-phase5-sandbox-execution.md) |
 | PartnerOps / Marketplace Apps listing | Optional parallel; OSS GitHub is the primary share path |
-| Vector Search | Nice; after `volume_write` / audit if needed |
+| Vector Search | Knowledge base (RAG) shipped behind config: `docs/specs/2026-11-27-knowledge-base-rag.md`. Next: Space-wide bases, sync status |
 
 ## Closed specs (do not reopen as "next")
 

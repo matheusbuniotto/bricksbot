@@ -6,6 +6,7 @@ const TOOL_LABELS: Record<string, string> = {
   volume_read: 'Volume read',
   volume_write: 'Volume write',
   read_attachment: 'Read attachment',
+  search_knowledge: 'Search knowledge',
   web_fetch: 'Web fetch',
   handoff_to_bot: 'Message another bot',
   create_bot: 'Create a bot',

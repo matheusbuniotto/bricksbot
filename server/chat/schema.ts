@@ -337,4 +337,20 @@ export const CHAT_SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_bricksbot_chat_attachments_chat
   ON bricksbot.chat_attachments(chat_id, user_id, created_at)`,
   `ALTER TABLE bricksbot.messages ADD COLUMN IF NOT EXISTS attachments JSONB`,
+  // Optional knowledge base (RAG): file metadata here; chunks live in a Delta table behind a Vector Search index.
+  `CREATE TABLE IF NOT EXISTS bricksbot.knowledge_docs (
+  id UUID PRIMARY KEY,
+  bot_id UUID NOT NULL REFERENCES bricksbot.bots(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('text', 'document')),
+  size_bytes BIGINT NOT NULL,
+  volume_path TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'processing' CHECK (status IN ('processing', 'ready', 'failed')),
+  chunk_count INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+  `CREATE INDEX IF NOT EXISTS idx_bricksbot_knowledge_docs_bot
+  ON bricksbot.knowledge_docs(bot_id, created_at)`,
 ] as const;
