@@ -91,3 +91,14 @@ env:
   # Per-bot cap is off when unset.
   # - name: BRICKSBOT_VOLUME_BOT_QUOTA_BYTES
   #   value: "67108864"
+
+  # Optional knowledge base (RAG): bot owners add files, the bot searches them with search_knowledge.
+  # Needs a chunk table (Change Data Feed on) and a TRIGGERED Delta Sync Vector Search index on it, plus the
+  # vector-search user API scope in databricks.yml. Setup: docs/specs/2026-11-27-knowledge-base-rag.md
+  # - name: BRICKSBOT_KB_TABLE
+  #   value: main.bricksbot.kb_chunks
+  # - name: BRICKSBOT_KB_INDEX
+  #   value: main.bricksbot.kb_chunks_index
+  # Files land at {root}/knowledge/bots/{bot}/. Falls back to BRICKSBOT_VOLUME_ROOT.
+  # - name: BRICKSBOT_KB_VOLUME_ROOT
+  #   value: /Volumes/<catalog>/<schema>/<knowledge_volume>/bricksbot

@@ -17,6 +17,13 @@ import { registerPluginRoutes } from './plugins/routes.js';
 import { LakebaseAttachmentStore } from './attachments/lakebase-store.js';
 import { MemoryAttachmentStore } from './attachments/memory-store.js';
 import { registerAttachmentRoutes } from './attachments/routes.js';
+import type { KnowledgeStore } from '../shared/knowledge/types.js';
+import { knowledgeConfigFromEnv } from './knowledge/config.js';
+import { statementRunner, vectorSearchClient } from './knowledge/databricks.js';
+import { LakebaseKnowledgeStore } from './knowledge/lakebase-store.js';
+import { MemoryKnowledgeStore } from './knowledge/memory-store.js';
+import { registerKnowledgeRoutes } from './knowledge/routes.js';
+import { KnowledgeService } from './knowledge/service.js';
 import { AttachmentService, filesApiClient, resolveAttachmentRoot } from './attachments/upload.js';
 import { ApprovalStore } from './chat/approvals.js';
 import { LakebaseChatStore, type LakebaseQuery } from './chat/lakebase-store.js';
@@ -82,6 +89,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
   sandbox: SandboxStore;
   volumeUsage: VolumeUsageStore;
   attachments: AttachmentStore;
+  knowledge: KnowledgeStore;
   plugins: PluginRegistryStore;
   mcpConnectors: McpConnectorStore;
   usage: UsageStore;
@@ -103,6 +111,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
       sandbox: new LakebaseSandboxStore(query),
       volumeUsage: new LakebaseVolumeUsageStore(query),
       attachments: new LakebaseAttachmentStore(query),
+      knowledge: new LakebaseKnowledgeStore(query),
       plugins: new LakebasePluginRegistryStore(query),
       mcpConnectors: new LakebaseMcpConnectorStore(query),
       usage: new LakebaseUsageStore(query),
@@ -124,6 +133,7 @@ async function createStores(query?: LakebaseQuery): Promise<{
     sandbox: new MemorySandboxStore(),
     volumeUsage: new MemoryVolumeUsageStore(),
     attachments: new MemoryAttachmentStore(),
+    knowledge: new MemoryKnowledgeStore(),
     plugins: new MemoryPluginRegistryStore(),
     mcpConnectors: new MemoryMcpConnectorStore(),
     usage: new MemoryUsageStore(),
@@ -158,6 +168,7 @@ createApp({
       sandbox,
       volumeUsage,
       attachments,
+      knowledge: knowledgeStore,
       plugins: pluginRegistry,
       mcpConnectors,
       usage,
@@ -218,6 +229,30 @@ createApp({
     if (attachmentRoot && !attachmentService) {
       console.warn('[bricksbot] Attachments are off: a Volume root is set but DATABRICKS_HOST is not');
     }
+    // Optional knowledge base (RAG): files on a Volume, chunks in a Delta table, Vector Search for retrieval.
+    // Uploads, parsing and inserts run as the bot owner; searches as the signed-in caller (OBO).
+    const knowledgeEnv = knowledgeConfigFromEnv(process.env, sqlQuery);
+    if (knowledgeEnv.problem) console.warn(`[bricksbot] Knowledge base is off: ${knowledgeEnv.problem}`);
+    const knowledgeService = knowledgeEnv.config
+      ? (() => {
+          const { root, table, indexName, host, warehouseId } = knowledgeEnv.config;
+          const userToken = createDatabricksTokenProvider({ purpose: 'viewer' });
+          return new KnowledgeService({
+            root,
+            table,
+            store: knowledgeStore,
+            files: filesApiClient({ host, getToken: userToken }),
+            sql: statementRunner({ host, warehouseId, getToken: userToken }),
+            search: vectorSearchClient({ host, indexName, getToken: sqlQuery.getToken! }),
+            syncers: [
+              vectorSearchClient({ host, indexName, getToken: userToken }),
+              vectorSearchClient({ host, indexName, getToken: createDatabricksTokenProvider({ purpose: 'app' }) }),
+            ],
+            log: (message) => console.warn(message),
+          });
+        })()
+      : undefined;
+    if (knowledgeService) console.info('[bricksbot] Knowledge base on (search_knowledge, Vector Search)');
     const budgets = new BudgetService(usage, budgetStore, budgetCapsFromEnv(process.env));
     const { user: userCaps, bot: botCaps } = budgets.caps;
     if (![...Object.values(userCaps), ...Object.values(botCaps)].some((cap) => cap !== undefined)) {
@@ -295,6 +330,12 @@ createApp({
       webFetchAllowlist: parseAllowlist(process.env.WEB_FETCH_ALLOWLIST),
       sqlQuery,
       genieSpace,
+      knowledge: knowledgeService
+        ? {
+            hasKnowledge: async (botId) => (await knowledgeStore.list(botId)).some((doc) => doc.status === 'ready'),
+            search: (botId, query, numResults) => knowledgeService.search(botId, query, numResults),
+          }
+        : undefined,
       sandbox: sandboxService,
       resolveMcpTools: (userId) =>
         buildConnectedMcpTools(mcpDiscovery, userId, {
@@ -320,6 +361,7 @@ createApp({
     appkit.server.extend((app) => {
       registerChatRoutes(app, chats, chatService, { mcpDiscovery, models });
       registerAttachmentRoutes(app, chats, attachmentService);
+      registerKnowledgeRoutes(app, chats, knowledgeService);
       registerMemoryRoutes(app, chats, memory);
       if (diagRoutesEnabled()) {
         console.warn('[bricksbot] BRICKSBOT_DIAG=1: /api/_diag/* gateway probes are enabled');

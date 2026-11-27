@@ -71,6 +71,8 @@ resources:
         - ai-gateway
         # Optional Genie space (ask_genie_space): uncomment with the genie-space resource below.
         # - genie
+        # Optional knowledge base (search_knowledge): uncomment with BRICKSBOT_KB_* in app.yaml.
+        # - vector-search
 
       resources:
         - name: postgres

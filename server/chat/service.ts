@@ -55,6 +55,11 @@ import {
   type VolumeWriteToolOptions,
 } from '../agents/tools/volume-write.js';
 import { createReadAttachmentTool, READ_ATTACHMENT_TOOL_NAME } from '../agents/tools/read-attachment.js';
+import {
+  createSearchKnowledgeTool,
+  SEARCH_KNOWLEDGE_TOOL_NAME,
+  type SearchKnowledgeToolOptions,
+} from '../agents/tools/search-knowledge.js';
 import { createPinArtifactTool } from '../agents/tools/pin-artifact.js';
 import { createPinChartTool } from '../agents/tools/pin-chart.js';
 import { ASK_CHOICE_TOOL_NAME, createAskChoiceTool, planAskChoice } from '../agents/tools/ask-choice.js';
@@ -121,6 +126,7 @@ const CREDENTIALED_TOOL_NAMES = new Set([
   GENIE_GET_QUERY_RESULT_TOOL_NAME,
   GENIE_CANCEL_TOOL_NAME,
   GENIE_SPACE_TOOL_NAME,
+  SEARCH_KNOWLEDGE_TOOL_NAME,
 ]);
 
 /** Tools that reach lakehouse data with a Databricks token; routine turns gate them on the owner. */
@@ -180,6 +186,8 @@ export interface ChatServiceOptions {
   sandboxArtifactSync?: ArtifactSyncService;
   /** Optional Databricks One (Genie) and system.ai MCP tools offered to every user. */
   systemAiMcp?: SystemAiMcpOptions | RegisteredTool[];
+  /** Registers search_knowledge (bot knowledge base on Vector Search); absent means no tool and no prompt text. */
+  knowledge?: SearchKnowledgeToolOptions;
   /** Registers ask_genie_space for one Genie space; absent means no Genie tool and no prompt text. */
   genieSpace?: GenieSpaceToolOptions;
   /** Loads a user's connected MCP tools (connectors are user-level). Cached per user. */
@@ -347,6 +355,9 @@ export class ChatService {
     tools.push(...createRoutineTools(this.routines, options.store));
     if (options.attachments && options.readAttachment) {
       tools.push(createReadAttachmentTool({ store: options.attachments, read: options.readAttachment }));
+    }
+    if (options.knowledge) {
+      tools.push(createSearchKnowledgeTool(options.knowledge));
     }
     if (options.genieSpace) {
       tools.push(createGenieSpaceTool(options.genieSpace));
@@ -1123,7 +1134,8 @@ export class ChatService {
           const isPluginTool = Boolean(this.pluginHost?.hasTool(toolCall.name));
           const isPluginAskFirst = isPluginTool && (this.pluginHost?.isAskFirst(toolCall.name) ?? true);
           // create_bot / sandbox_delete / ask_choice / genie_ask / ask_genie_space always Ask-first.
-          // Default meta + sandbox_stop + read_attachment (the user just attached the file to this chat) never Ask-first.
+          // Default meta + sandbox_stop + read_attachment (the user just attached the file to this chat) + search_knowledge
+          // (read-only, the bot's own files) never Ask-first.
           // Handoff autoApproveAll still requires Ask-first for sandbox, volume_write, MCP tools, and plugin tools.
           const handoffAuto =
             opts.autoApproveAll &&
@@ -1138,6 +1150,7 @@ export class ChatService {
             !this.requiresAlwaysAsk(toolCall.name) &&
             (isDefaultMetaTool(toolCall.name) ||
               toolCall.name === READ_ATTACHMENT_TOOL_NAME ||
+              toolCall.name === SEARCH_KNOWLEDGE_TOOL_NAME ||
               isAutoRoutineTool(toolCall.name) ||
               isAutoSandboxTool(toolCall.name) ||
               (isPluginTool && !isPluginAskFirst) ||

@@ -12,6 +12,7 @@ import { BotPicker } from './BotPicker';
 import type { ModelCatalogView } from '../lib/chat-api';
 import { RoutinesPanel, type RoutineUpdatePatch } from './RoutinesPanel';
 import { Select } from './Select';
+import { KnowledgePanel } from './KnowledgePanel';
 import { UploadsList } from './UploadsList';
 import { UsageSummary } from './UsagePanel';
 
@@ -396,6 +397,8 @@ export function BotDetailsSheet({
                 </div>
               </section>
             ) : null}
+
+            <KnowledgePanel botId={bot.id} isOwner={Boolean(bot.isOwner)} />
 
             <RoutinesPanel
               bots={[bot]}
